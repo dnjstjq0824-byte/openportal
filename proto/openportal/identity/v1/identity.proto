@@ -1,0 +1,6 @@
+syntax = "proto3";
+package openportal.identity.v1;
+option go_package = "example.com/openportal-search/gen/openportal/identity/v1;identityv1";
+service IdentityService { rpc VerifySession(VerifySessionRequest) returns (VerifySessionResponse); }
+message VerifySessionRequest { string session_token = 1; }
+message VerifySessionResponse { string account_id = 1; repeated string roles = 2; bool active = 3; }

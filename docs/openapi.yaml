@@ -1,0 +1,73 @@
+openapi: 3.1.0
+info:
+  title: OpenPortal Search development API
+  version: 0.1.0
+  description: Initial read-only search API. Other domain services are scheduled in Phase 1-9 and not deployed.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      operationId: health
+      responses:
+        '200':
+          description: Process is alive, not a deep backend readiness check.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+  /api/v1/search:
+    get:
+      operationId: search
+      summary: Search the fixture-backed OpenSearch index
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 1 } }
+        - { name: lang, in: query, required: false, schema: { type: string, enum: [ko, en] } }
+      responses:
+        '200':
+          description: Search response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400': { description: Invalid query }
+        '503': { description: Backend unavailable }
+  /api/v1/suggest:
+    get:
+      operationId: suggest
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+      responses:
+        '200':
+          description: Suggestions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [suggestions]
+                properties:
+                  suggestions:
+                    type: array
+                    items: { type: string }
+components:
+  schemas:
+    SearchHit:
+      type: object
+      required: [title, url, description, language, score]
+      properties:
+        title: { type: string }
+        url: { type: string, format: uri }
+        description: { type: string }
+        language: { type: string }
+        score: { type: number }
+    SearchResponse:
+      type: object
+      required: [query, total, hits, elapsed_ms]
+      properties:
+        query: { type: string }
+        total: { type: integer, format: int64 }
+        hits: { type: array, items: { $ref: '#/components/schemas/SearchHit' } }
+        elapsed_ms: { type: integer, format: int64 }

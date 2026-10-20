@@ -1,0 +1,12 @@
+syntax = "proto3";
+package openportal.search.v1;
+option go_package = "example.com/openportal-search/gen/openportal/search/v1;searchv1";
+service SearchService {
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc Suggest(SuggestRequest) returns (SuggestResponse);
+}
+message SearchRequest { string query = 1; string locale = 2; string vertical = 3; int32 page_size = 4; string page_token = 5; string safe_search = 6; }
+message SearchHit { string document_id = 1; string title = 2; string url = 3; string snippet = 4; string language = 5; double score = 6; bool sponsored = 7; }
+message SearchResponse { repeated SearchHit organic_hits = 1; int64 total_estimated = 2; string next_page_token = 3; int64 elapsed_ms = 4; string request_id = 5; }
+message SuggestRequest { string prefix = 1; string locale = 2; int32 limit = 3; }
+message SuggestResponse { repeated string suggestions = 1; }

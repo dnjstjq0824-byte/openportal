@@ -1,0 +1,162 @@
+[
+  {
+    "path": ".env.example",
+    "sha256": "10363094a29c56b8adcd929c74d3e468d99efe24aefad6eb199dff38aff0a367"
+  },
+  {
+    "path": ".gitignore",
+    "sha256": "b107789d38582749d4e9d5db7b4241651040b3596befd46f41d7a3119b8e39c8"
+  },
+  {
+    "path": "AGENTS.md",
+    "sha256": "e1baa5e969d242c00f751fcb08c7c74e299e6d776b826f98978c54fcebc2a371"
+  },
+  {
+    "path": "CODEX_MASTER_PROMPT.md",
+    "sha256": "35d23403fb4a8b72abec0d52c0650a6b2f4def05f57536fb7d669789790f8a67"
+  },
+  {
+    "path": "README.md",
+    "sha256": "5d6097b0c5cd2777fc7b64b5fa8f203695d86f3d47a564bbc64fa6eb32687f8b"
+  },
+  {
+    "path": "apps/admin/README.md",
+    "sha256": "925b309e1d55cc915e72c984087ed440834a207669385a4ba7aa782abe6d21ab"
+  },
+  {
+    "path": "apps/mobile/lib/main.dart",
+    "sha256": "56afbfc6f69b432f5c1f9944833d3341e1dd88c4da249f7ff492693ad2859979"
+  },
+  {
+    "path": "apps/mobile/pubspec.yaml",
+    "sha256": "6745ca870b4c91347baccf09abb8cfa07f61e3577dd0b03a8108028a65ac1aae"
+  },
+  {
+    "path": "apps/partner/README.md",
+    "sha256": "0486b7a871bb5f641ad65aee227b305be5e9218eecc0b2de7d1e4c7923cada92"
+  },
+  {
+    "path": "apps/web/index.html",
+    "sha256": "f3260e37df4b25ccd86d88856b2946d9d66c107c264df66857dc5150f907e883"
+  },
+  {
+    "path": "apps/web/package.json",
+    "sha256": "7a9a94bcdc05544c55c60ed9d595522afe7aba9511c58a6036c306601fdc018e"
+  },
+  {
+    "path": "apps/web/src/App.vue",
+    "sha256": "1878004fd909fbe63ce59ee7bdfb782d8ce6e37fee9abb4062136e852b8dde11"
+  },
+  {
+    "path": "apps/web/src/main.ts",
+    "sha256": "4f28b634f509f112d7c3fa22fd11a5611bd9b47ebc0553b770a468d09952bfd6"
+  },
+  {
+    "path": "apps/web/src/style.css",
+    "sha256": "5982823d793d53e3efbd4510b769f89e655463af53a847e060426295493ed693"
+  },
+  {
+    "path": "apps/web/tsconfig.json",
+    "sha256": "a65aeb15171c1243a4124c650f03802bc860b982b3e8f4a0671f5a72524e7b2e"
+  },
+  {
+    "path": "apps/web/vite.config.ts",
+    "sha256": "45daa4850eef485cfebcd3cbc59d47ad5ff2d6790d74fb65e998d87d5b1cd5d7"
+  },
+  {
+    "path": "backend/cmd/api/main.go",
+    "sha256": "98f62c6b3d03f3d9a00ceb08a4abc8b7e11003ac48151fbd91a1c0acde5c0e07"
+  },
+  {
+    "path": "backend/cmd/api/main_test.go",
+    "sha256": "140f4a715cff22f770f6126988d653437808d715b8525f94ca095f040737cff2"
+  },
+  {
+    "path": "backend/go.mod",
+    "sha256": "5ccee836549351834c290e74f712d3d422c5f8843d8cefd1b413e642dee8f6e1"
+  },
+  {
+    "path": "backend/internal/config/config.go",
+    "sha256": "45eb54b1422cfa69d38f112d48cca2c383c9b16ae8587e83eed3da7afe6fe615"
+  },
+  {
+    "path": "backend/internal/search/search.go",
+    "sha256": "ddb678cf44034c3e4609a0c82247cb26fa4faf74c0d0083535582cee2f0d4395"
+  },
+  {
+    "path": "backend/internal/search/search_test.go",
+    "sha256": "dbc7f942b023f6aae4195f87d23ef27d61be3e00c673540c2ebc848d0c0e693d"
+  },
+  {
+    "path": "database/migrations/001_initial.sql",
+    "sha256": "f39698d57c54533fb28bac11d151896bd267b6e94d7009dc6b4e6aafd51ab8aa"
+  },
+  {
+    "path": "docs/ARCHITECTURE.md",
+    "sha256": "7b7c1cbec27a6b9ab92bbc679295064ade99c3ab972806acebce32ac73659518"
+  },
+  {
+    "path": "docs/ERD_OVERVIEW.md",
+    "sha256": "8daf25db609abd75cbb33b66da7800e090479721f2d35d8d827b22d8b0eb1605"
+  },
+  {
+    "path": "docs/PHASES_0_TO_9.md",
+    "sha256": "dde272c4a67323e47b1d22630c1daf1bf143dc784070d493eaeeea03eba2ede8"
+  },
+  {
+    "path": "docs/SCHEMA_CATALOG.md",
+    "sha256": "b6b323da44c5c541a22f0994469a74f0f2aae4d2dd20bc1b24a111675fa16445"
+  },
+  {
+    "path": "docs/SECURITY_AND_COMPLIANCE.md",
+    "sha256": "a99353b1efd5f3fb8c9674f95b6468467199ec24a8b866043b3e4f273d8498e1"
+  },
+  {
+    "path": "docs/TEST_REPORT.md",
+    "sha256": "372f34df917e305c2fcf0685a40651896cbe832d492def3686489368865d63aa"
+  },
+  {
+    "path": "docs/openapi.yaml",
+    "sha256": "26da2ae866dca8bf102d81b824ba6198703645b4396bd01faa921d96ecb798da"
+  },
+  {
+    "path": "infra/compose.yaml",
+    "sha256": "8bbe9f69de5e30a028d0044bb2d0830c294b4f33a42b3ccd03e1934fa64768f5"
+  },
+  {
+    "path": "infra/opensearch/documents_v1.json",
+    "sha256": "7900bddae0e8de01be54d3bd628fee15867967826ceedb8c0fb468eac21fa5b6"
+  },
+  {
+    "path": "proto/buf.yaml",
+    "sha256": "4119b95afa784dde598a2893fbedccb51ff672f531f2da7f863f28d0b245b063"
+  },
+  {
+    "path": "proto/openportal/ads/v1/ads.proto",
+    "sha256": "5630dd27ee2334e5936a3926c33c2b429b5d84b24aee740b7b1d8355cc8b3a27"
+  },
+  {
+    "path": "proto/openportal/crawl/v1/crawl.proto",
+    "sha256": "7dabc231927b6ffe30dca7136e48e227fc3029dcb3a35c7e206dc0c3ed10dde1"
+  },
+  {
+    "path": "proto/openportal/identity/v1/identity.proto",
+    "sha256": "2cfe9f2d943f3416eca5126eadeface6263b8b1352d80d98efb5ab38182bf4c4"
+  },
+  {
+    "path": "proto/openportal/portal/v1/portal.proto",
+    "sha256": "303b70402541099d6cd98370112f2122fc4d0111009dd10777d8f9a8e6032916"
+  },
+  {
+    "path": "proto/openportal/search/v1/search.proto",
+    "sha256": "90b15b794f0978fb08f6848f353a9611e92b43bd6589e6cd112a54a9d07dec8f"
+  },
+  {
+    "path": "scripts/seed.py",
+    "sha256": "763821f673f3cb06be803407edf577c61360b433cfb467b174b62b80a7f4e66f"
+  },
+  {
+    "path": "scripts/smoke.sh",
+    "sha256": "1ab863096b9481c28f5cc11cf32a3053ce4ee5e26685280f98d18cb034c98717"
+  }
+]

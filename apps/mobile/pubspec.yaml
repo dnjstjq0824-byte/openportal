@@ -1,0 +1,11 @@
+name: openportal_mobile
+version: 0.1.0+1
+description: OpenPortal Search starter Android/iOS client (Flutter SDK required)
+publish_to: none
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  uses-material-design: true

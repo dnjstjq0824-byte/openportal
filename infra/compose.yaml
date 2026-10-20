@@ -1,0 +1,30 @@
+# DEVELOPMENT ONLY: defaults are intentionally insecure and must never be used on public networks.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: openportal
+      POSTGRES_PASSWORD: local_dev_password_change_me
+      POSTGRES_DB: openportal
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../database/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+  redis:
+    image: redis:7.4
+    ports: ["127.0.0.1:6379:6379"]
+  opensearch:
+    image: opensearchproject/opensearch:2.19.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports: ["127.0.0.1:9200:9200"]
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+      nofile: {soft: 65536, hard: 65536}
+    volumes:
+      - osdata:/usr/share/opensearch/data
+volumes:
+  pgdata: {}
+  osdata: {}

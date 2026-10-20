@@ -1,0 +1,9 @@
+syntax = "proto3";
+package openportal.crawl.v1;
+option go_package = "example.com/openportal-search/gen/openportal/crawl/v1;crawlv1";
+service CrawlService { rpc SubmitURL(SubmitURLRequest) returns (SubmitURLResponse); rpc InspectURL(InspectURLRequest) returns (InspectURLResponse); }
+message SubmitURLRequest { string url = 1; string submitting_site_id = 2; }
+message SubmitURLResponse { string job_id = 1; string status = 2; }
+message InspectURLRequest { string url = 1; }
+message InspectURLResponse { bool crawl_allowed = 1; bool index_allowed = 2; string reason = 3; string canonical_url = 4; }
+message FetchEvent { string url = 1; int32 http_status = 2; string object_key = 3; string mime_type = 4; int64 fetch_unix_ms = 5; string checksum_sha256 = 6; }
