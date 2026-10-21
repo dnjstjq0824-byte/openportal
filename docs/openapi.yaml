@@ -6,6 +6,13 @@ info:
 servers:
   - url: http://localhost:8080
 paths:
+  /readyz:
+    get:
+      operationId: ready
+      responses:
+        '200': { description: Configured index can be queried. }
+        '503': { description: Search backend or index unavailable. }
+        '405': { description: Method not allowed. }
   /healthz:
     get:
       operationId: health
@@ -34,6 +41,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/SearchResponse'
         '400': { description: Invalid query }
+        '405': { description: Method not allowed }
         '503': { description: Backend unavailable }
   /api/v1/suggest:
     get:
@@ -41,6 +49,9 @@ paths:
       parameters:
         - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
       responses:
+        '400': { description: Invalid query }
+        '405': { description: Method not allowed }
+        '503': { description: Backend unavailable }
         '200':
           description: Suggestions
           content:

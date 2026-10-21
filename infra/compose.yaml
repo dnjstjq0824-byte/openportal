@@ -1,30 +1,68 @@
-# DEVELOPMENT ONLY: defaults are intentionally insecure and must never be used on public networks.
+# LOCAL DEVELOPMENT ONLY; all published ports bind loopback.
 services:
   postgres:
-    image: postgres:17
+    image: postgres:17.10
     environment:
       POSTGRES_USER: openportal
       POSTGRES_PASSWORD: local_dev_password_change_me
       POSTGRES_DB: openportal
     ports: ["127.0.0.1:5432:5432"]
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ../database/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
-  redis:
-    image: redis:7.4
-    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openportal -d openportal"]
+      interval: 3s
+      retries: 30
   opensearch:
     image: opensearchproject/opensearch:2.19.0
     environment:
-      - discovery.type=single-node
-      - plugins.security.disabled=true
-      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      discovery.type: single-node
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
     ports: ["127.0.0.1:9200:9200"]
+    volumes: ["osdata:/usr/share/opensearch/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
+      interval: 5s
+      retries: 60
     ulimits:
-      memlock: {soft: -1, hard: -1}
       nofile: {soft: 65536, hard: 65536}
-    volumes:
-      - osdata:/usr/share/opensearch/data
+  migrate:
+    image: node:24.19.0-bookworm-slim
+    working_dir: /workspace
+    volumes: ["..:/workspace", "migration_modules:/workspace/node_modules"]
+    environment:
+      DATABASE_URL: postgres://openportal:local_dev_password_change_me@postgres:5432/openportal
+    command: ["sh","-c","npm ci --omit=dev --ignore-scripts && node scripts/migrate.mjs"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  seed:
+    image: python:3.12.14-slim
+    working_dir: /workspace
+    volumes: ["..:/workspace:ro"]
+    environment: {OPENSEARCH_URL: "http://opensearch:9200"}
+    command: ["python","scripts/seed.py"]
+    depends_on:
+      opensearch: {condition: service_healthy}
+  api:
+    profiles: ["app"]
+    build: ../backend
+    environment: {OPENSEARCH_URL: "http://opensearch:9200", LISTEN_HOST: "0.0.0.0"}
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      seed: {condition: service_completed_successfully}
+      migrate: {condition: service_completed_successfully}
+  web:
+    profiles: ["app"]
+    image: node:24.19.0-bookworm-slim
+    working_dir: /workspace
+    volumes: ["../apps/web:/workspace", "web_modules:/workspace/node_modules"]
+    environment: {API_PROXY_TARGET: "http://api:8080"}
+    command: ["sh","-c","npm ci && npm run dev -- --host 0.0.0.0"]
+    ports: ["127.0.0.1:5173:5173"]
+    depends_on: [api]
 volumes:
   pgdata: {}
   osdata: {}
+  migration_modules: {}
+  web_modules: {}

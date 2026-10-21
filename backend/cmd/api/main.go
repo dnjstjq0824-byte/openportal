@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -76,7 +77,7 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := a.c.Search(r.Context(), q, lang, page, 10)
 	if err != nil {
-		log.Printf("search failed: %v", err)
+		log.Print("search backend failed")
 		writeJSON(w, 503, map[string]string{"error": "search temporarily unavailable"})
 		return
 	}
@@ -94,20 +95,34 @@ func (a *app) suggest(w http.ResponseWriter, r *http.Request) {
 	}
 	items, err := a.c.Suggest(r.Context(), q)
 	if err != nil {
-		log.Printf("suggest failed: %v", err)
+		log.Print("suggest backend failed")
 		writeJSON(w, 503, map[string]string{"error": "suggest temporarily unavailable"})
 		return
 	}
 	writeJSON(w, 200, map[string]interface{}{"suggestions": items})
 }
+func (a *app) routes() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+			return
+		}
+		if _, err := a.c.Search(r.Context(), "__readiness__", "", 1, 1); err != nil {
+			writeJSON(w, 503, map[string]string{"status": "unavailable"})
+			return
+		}
+		writeJSON(w, 200, map[string]string{"status": "ready"})
+	})
+	mux.HandleFunc("/api/v1/search", a.cors(a.search))
+	mux.HandleFunc("/api/v1/suggest", a.cors(a.suggest))
+	return mux
+}
 func main() {
 	cfg := config.Load()
 	a := &app{c: search.New(cfg.OpenSearchURL, cfg.OpenSearchIndex, cfg.OpenSearchUsername, cfg.OpenSearchPassword), corsOrigin: cfg.CORSOrigin}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
-	mux.HandleFunc("/api/v1/search", a.cors(a.search))
-	mux.HandleFunc("/api/v1/suggest", a.cors(a.suggest))
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
+	srv := &http.Server{Addr: net.JoinHostPort(cfg.ListenHost, cfg.Port), Handler: a.routes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	log.Printf("openportal search api listening port=%s", cfg.Port)
 	log.Fatal(srv.ListenAndServe())
 }

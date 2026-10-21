@@ -1,0 +1,5 @@
+[extend]
+useDefault = true
+[[allowlists]]
+description = "Dependency installations and disposable local clusters are not repository source"
+paths = ['''(^|[\\/])node_modules[\\/]''', '''(^|[\\/])work[\\/]''']

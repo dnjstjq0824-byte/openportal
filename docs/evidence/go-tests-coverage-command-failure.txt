@@ -1,0 +1,12 @@
+FAIL	../docs/evidence/go-coverage.out [setup failed]
+# ../docs/evidence/go-coverage.out
+stat C:\Users\dnjst\Documents\Codex\2026-10-20\openportal-search-agents-md-codex-master\outputs\openportal_search_codex\docs\evidence\go-coverage.out: directory not found
+ok  	example.com/openportal-search/backend/cmd/api	4.704s	coverage: 83.8% of statements
+	example.com/openportal-search/backend/gen/openportal/ads/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/gen/openportal/crawl/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/gen/openportal/identity/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/gen/openportal/portal/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/gen/openportal/search/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/internal/config		coverage: 0.0% of statements
+ok  	example.com/openportal-search/backend/internal/search	4.647s	coverage: 69.0% of statements
+FAIL

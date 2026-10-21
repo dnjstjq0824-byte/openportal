@@ -1,0 +1,6 @@
+Seeded 3 synthetic fixtures into documents_v1. Not real crawled web pages.
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.108s
+
+OK

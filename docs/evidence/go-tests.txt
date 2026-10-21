@@ -1,0 +1,8 @@
+ok  	example.com/openportal-search/backend/cmd/api	9.566s	coverage: 83.8% of statements
+	example.com/openportal-search/backend/gen/openportal/ads/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/gen/openportal/crawl/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/gen/openportal/identity/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/gen/openportal/portal/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/gen/openportal/search/v1		coverage: 0.0% of statements
+	example.com/openportal-search/backend/internal/config		coverage: 0.0% of statements
+ok  	example.com/openportal-search/backend/internal/search	9.793s	coverage: 69.0% of statements

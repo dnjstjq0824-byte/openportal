@@ -1,0 +1,14 @@
+[WebServer] 2026/10/21 12:23:39 openportal search api listening port=8080
+[WebServer] (node:34240) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:31544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 tests\search.spec.mjs:14:1 › real OpenSearch -> Go -> Vue Korean and English searches (608ms)
+  ok 2 tests\search.spec.mjs:30:1 › empty and invalid requests, suggestions, denied consoles (265ms)
+  ok 3 tests\search.spec.mjs:41:1 › backend outage produces visible error without old results (239ms)
+  ok 4 tests\search.spec.mjs:50:1 › real indexable=false document excluded from search and suggest (170ms)
+
+  4 passed (8.3s)

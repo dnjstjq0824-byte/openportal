@@ -12,3 +12,7 @@ build/
 coverage/
 *.log
 .DS_Store
+work/
+test-results/
+playwright-report/
+*.exe

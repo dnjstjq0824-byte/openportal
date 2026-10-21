@@ -31,7 +31,11 @@ type Response struct {
 	ElapsedMS int64  `json:"elapsed_ms"`
 }
 type osResponse struct {
-	Hits struct {
+	TimedOut bool `json:"timed_out"`
+	Shards   struct {
+		Failed int `json:"failed"`
+	} `json:"_shards"`
+	Hits *struct {
 		Total struct {
 			Value int64 `json:"value"`
 		} `json:"total"`
@@ -72,7 +76,22 @@ func (c *Client) do(ctx context.Context, target string, body interface{}, out in
 		io.Copy(io.Discard, io.LimitReader(res.Body, 1024))
 		return fmt.Errorf("search backend status %d", res.StatusCode)
 	}
-	return json.NewDecoder(io.LimitReader(res.Body, 2<<20)).Decode(out)
+	data, err := io.ReadAll(io.LimitReader(res.Body, (2<<20)+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > 2<<20 {
+		return errors.New("search response exceeds limit")
+	}
+	if err := json.Unmarshal(data, out); err != nil {
+		return err
+	}
+	if result, ok := out.(*osResponse); ok {
+		if result.TimedOut || result.Shards.Failed > 0 || result.Hits == nil {
+			return errors.New("incomplete search response")
+		}
+	}
+	return nil
 }
 func (c *Client) Search(ctx context.Context, phrase, lang string, page, limit int) (Response, error) {
 	if page < 1 || page > 100 || limit < 1 || limit > 20 {

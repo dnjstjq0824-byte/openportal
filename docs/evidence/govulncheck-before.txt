@@ -1,0 +1,236 @@
+=== Symbol Results ===
+
+Vulnerability #1: GO-2026-6617
+    HTTP/2 server crash due to HPACK encoder race in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6617
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #2: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #3: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #4: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #5: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #6: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #7: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #8: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #9: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #10: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #11: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #12: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #13: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #14: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #15: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.chunkWriter.Write
+      #16: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.chunkWriter.Write
+      #17: internal/search/search.go:74:2: search.Client.do calls http2.gzipReader.Close
+      #18: internal/search/search.go:74:2: search.Client.do calls http2.gzipReader.Close
+      #19: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.gzipReader.Read
+      #20: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.gzipReader.Read
+      #21: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.requestBody.Close
+      #22: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.requestBody.Close
+      #23: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.Write
+      #24: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.Write
+      #25: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteHeader
+      #26: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteHeader
+      #27: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteString
+      #28: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteString
+      #29: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.stickyErrWriter.Write
+      #30: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.stickyErrWriter.Write
+      #31: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close
+      #32: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close
+      #33: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.transportResponseBody.Read
+      #34: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.transportResponseBody.Read
+
+Vulnerability #2: GO-2026-6613
+    HTTP/1 server connection desynchronization after 2xx CONNECT response in
+    net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6613
+  Standard library
+    Found in: net/http@go1.27
+    Fixed in: net/http@go1.27.2
+    Example traces found:
+      #1: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close, which eventually calls http.CanonicalHeaderKey
+      #2: internal/search/search.go:70:23: search.Client.do calls http.Client.Do
+      #3: internal/search/search.go:66:16: search.Client.do calls http.Header.Set
+      #4: internal/search/search.go:62:40: search.Client.do calls http.NewRequestWithContext
+      #5: internal/search/search.go:68:19: search.Client.do calls http.Request.SetBasicAuth
+      #6: cmd/api/main.go:106:16: api.app.routes calls http.ServeMux.HandleFunc
+      #7: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe
+      #8: internal/search/search.go:74:2: search.Client.do calls http.body.Close
+      #9: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.body.Read
+      #10: internal/search/search.go:74:2: search.Client.do calls http.bodyEOFSignal.Close
+      #11: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.bodyEOFSignal.Read
+      #12: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.bodyLocked.Read
+      #13: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.bufioFlushWriter.Write
+      #14: internal/search/search.go:74:2: search.Client.do calls http.cancelTimerBody.Close
+      #15: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.cancelTimerBody.Read
+      #16: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close, which eventually calls http.checkConnErrorWriter.Write
+      #17: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close, which eventually calls http.chunkWriter.Write
+      #18: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.connReader.Read
+      #19: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close, which eventually calls http.expectContinueReader.Close
+      #20: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.expectContinueReader.Read
+      #21: internal/search/search.go:74:2: search.Client.do calls http.gzipReader.Close
+      #22: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.gzipReader.Read
+      #23: internal/search/search.go:79:25: search.Client.do calls io.ReadAll, which eventually calls http.loggingConn.Read
+      #24: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.loggingConn.Write
+      #25: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.maxBytesReader.Read
+      #26: gen/openportal/search/v1/search.pb.go:427:55: search.file_openportal_search_v1_search_proto_rawDescGZIP calls sync.Once.Do, which eventually calls http.onceCloseListener.Close
+      #27: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.persistConn.Read
+      #28: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.persistConnWriter.ReadFrom
+      #29: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close, which eventually calls http.persistConnWriter.Write
+      #30: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close, which eventually calls http.readTrackingBody.Close
+      #31: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.readTrackingBody.Read
+      #32: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.readWriteCloserBody.Read
+      #33: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http.response.Write
+      #34: internal/search/search.go:58:24: search.Client.do calls json.Marshal, which eventually calls http.transportReadFromServerError.Error
+
+Vulnerability #3: GO-2026-6612
+    Double flow control refund on HTTP/2 server streams in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6612
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #2: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #3: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.requestBody.Close
+      #4: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.requestBody.Close
+      #5: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.requestBody.Read
+      #6: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.requestBody.Read
+
+Vulnerability #4: GO-2026-6611
+    Excessive CPU consumption from repeated initial window changes in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6611
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #2: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #3: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #4: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #5: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #6: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #7: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #8: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #9: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #10: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #11: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #12: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #13: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #14: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #15: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.chunkWriter.Write
+      #16: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.chunkWriter.Write
+      #17: internal/search/search.go:74:2: search.Client.do calls http2.gzipReader.Close
+      #18: internal/search/search.go:74:2: search.Client.do calls http2.gzipReader.Close
+      #19: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.gzipReader.Read
+      #20: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.gzipReader.Read
+      #21: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.requestBody.Close
+      #22: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.requestBody.Close
+      #23: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.Write
+      #24: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.Write
+      #25: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteHeader
+      #26: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteHeader
+      #27: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteString
+      #28: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteString
+      #29: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.stickyErrWriter.Write
+      #30: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.stickyErrWriter.Write
+      #31: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close
+      #32: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close
+      #33: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.transportResponseBody.Read
+      #34: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.transportResponseBody.Read
+
+Vulnerability #5: GO-2026-6610
+    HTTP/2 transport accepts malformed framing-related headers in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6610
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #2: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #3: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #4: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #5: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #6: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+
+Vulnerability #6: GO-2026-6608
+    Memory limit bypass when parsing MIME headers in net/textproto,
+    mime/multipart
+  More info: https://pkg.go.dev/vuln/GO-2026-6608
+  Standard library
+    Found in: mime/multipart@go1.27
+    Fixed in: mime/multipart@go1.27.2
+    Example traces found:
+      #1: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls textproto.Reader.ReadMIMEHeader
+
+Vulnerability #7: GO-2026-6607
+    Reject malformed ECH outer extension references in crypto/tls
+  More info: https://pkg.go.dev/vuln/GO-2026-6607
+  Standard library
+    Found in: crypto/tls@go1.27
+    Fixed in: crypto/tls@go1.27.2
+    Example traces found:
+      #1: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls tls.Conn.HandshakeContext
+      #2: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls tls.Conn.Read
+      #3: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls tls.Conn.Write
+      #4: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls tls.Dialer.DialContext
+
+Vulnerability #8: GO-2026-6605
+    HTTP/1 client connection desynchronization after CONNECT rejection in
+    net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6605
+  Standard library
+    Found in: net/http@go1.27
+    Fixed in: net/http@go1.27.2
+    Example traces found:
+      #1: internal/search/search.go:70:23: search.Client.do calls http.Client.Do
+
+Vulnerability #9: GO-2026-6603
+    HTTP/2 server memory exhaustion due to Trailer headers in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6603
+  Standard library
+    Found in: net/http/internal/http2@go1.27
+    Fixed in: net/http/internal/http2@go1.27.2
+    Example traces found:
+      #1: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #2: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.Close
+      #3: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #4: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.NetHTTPClientConn.RoundTrip
+      #5: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #6: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.Server.ServeConn
+      #7: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #8: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.AddConn
+      #9: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #10: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.NewClientConn
+      #11: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #12: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.Transport.RoundTrip
+      #13: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #14: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.bufferedWriterTimeoutWriter.Write
+      #15: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.chunkWriter.Write
+      #16: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.chunkWriter.Write
+      #17: internal/search/search.go:74:2: search.Client.do calls http2.gzipReader.Close
+      #18: internal/search/search.go:74:2: search.Client.do calls http2.gzipReader.Close
+      #19: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.gzipReader.Read
+      #20: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.gzipReader.Read
+      #21: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.requestBody.Close
+      #22: internal/search/search.go:70:23: search.Client.do calls http.Client.Do, which eventually calls http2.requestBody.Close
+      #23: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.Write
+      #24: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.Write
+      #25: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteHeader
+      #26: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteHeader
+      #27: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteString
+      #28: cmd/api/main.go:127:30: api.main calls http.Server.ListenAndServe, which eventually calls http2.responseWriter.WriteString
+      #29: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.stickyErrWriter.Write
+      #30: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.stickyErrWriter.Write
+      #31: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close
+      #32: internal/search/search.go:74:2: search.Client.do calls http2.transportResponseBody.Close
+      #33: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.transportResponseBody.Read
+      #34: internal/search/search.go:76:10: search.Client.do calls io.Copy, which eventually calls http2.transportResponseBody.Read
+
+Your code is affected by 9 vulnerabilities from the Go standard library.
+This scan also found 2 vulnerabilities in packages you import and 2
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.

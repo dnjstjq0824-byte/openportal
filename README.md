@@ -1,5 +1,35 @@
 # OpenPortal Search — Codex leadership pack / 개발 스타터
 
+## Current Phase 0 work (2026-10-21)
+
+See `docs/PHASE0_REPORT.md`, `docs/IMPLEMENTATION_STATUS.md` (all 100 tasks), and
+`docs/GAP_REGISTER.md`. The packaging-time claims below are historical.
+Real PostgreSQL 17.10 migration and native OpenSearch → Go → Chrome/Vue tests have
+been executed; Compose and independent approval remain outstanding. No crawler exists.
+
+Reproduce from this directory with Node 24.19.0, Go 1.27.3, Python 3.12.14 and Buf 1.74.0:
+```bash
+npm ci
+npm ci --prefix apps/web
+npm run test:db
+node scripts/test-proto.mjs
+npm run test:contracts
+npm run typecheck --prefix apps/web
+npm run build --prefix apps/web
+# Start OpenSearch 2.19.0 locally on 127.0.0.1:9200, then:
+python scripts/seed.py
+npx playwright install chromium
+npm run test:e2e
+```
+`test:e2e` starts Go and Vue and requires real OpenSearch. On Windows an installed
+Chrome can be selected via `CHROME_PATH`. `test:db` creates a fresh local cluster
+on 127.0.0.1:55432 and stops it after tests; retained data lives under ignored `work/`.
+For a Docker host, `docker compose -f infra/compose.yaml --profile app up --build`
+defines the complete local stack, but this path has **not** been executed on this host.
+Do not enable public bindings. `001` must be applied by `scripts/migrate.mjs` on a
+new DB; existing unmanaged starter DBs need explicit baseline adoption, not blind replay.
+
+
 > This is a **development starter**, not a complete Google clone or production-ready search engine.
 > Deliverables: Codex master directive, 100 work items in 10 phases, 86 PostgreSQL control-plane tables, protobuf service contracts, Go search API, Vue browser demo, Flutter source stub, OpenSearch mapping & fixture seeder, local Docker Compose.
 

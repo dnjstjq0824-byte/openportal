@@ -1,0 +1,13 @@
+
+> openportal-web-starter@0.1.0 build
+> vite build
+
+vite v6.4.4 building for production...
+transforming...
+✓ 11 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  0.43 kB │ gzip:  0.33 kB
+dist/assets/index-BNkdzYtk.css   1.96 kB │ gzip:  0.90 kB
+dist/assets/index-DSPXAdbN.js   70.27 kB │ gzip: 28.22 kB
+✓ built in 498ms

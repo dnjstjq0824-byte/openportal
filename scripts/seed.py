@@ -12,7 +12,7 @@ def request(method, path, payload, content_type='application/json'):
         with urllib.request.urlopen(req,timeout=8) as resp:return resp.read().decode()
     except urllib.error.HTTPError as e:raise RuntimeError(f'{method} {path} -> {e.code}: {e.read()[:400]!r}') from e
 
-mapping=json.loads((root/'infra/opensearch/documents_v1.json').read_text())
+mapping=json.loads((root/'infra/opensearch/documents_v1.json').read_text(encoding='utf-8'))
 try:request('PUT','/'+index,mapping)
 except RuntimeError as e:
     if 'resource_already_exists_exception' not in str(e):raise
@@ -25,5 +25,7 @@ lines=[]
 for i,doc in enumerate(fixtures,1):
     lines.append(json.dumps({'index':{'_index':index,'_id':f'fixture-{i:03d}'}},ensure_ascii=False))
     lines.append(json.dumps(doc,ensure_ascii=False))
-request('POST','/_bulk?refresh=true', ('\n'.join(lines)+'\n').encode(),'application/x-ndjson')
+result=json.loads(request('POST','/_bulk?refresh=true', ('\n'.join(lines)+'\n').encode(),'application/x-ndjson'))
+if result.get('errors') or len(result.get('items',[])) != len(fixtures):
+    raise RuntimeError('Bulk fixture indexing failed: '+json.dumps(result)[:1000])
 print(f'Seeded {len(fixtures)} synthetic fixtures into {index}. Not real crawled web pages.')

@@ -1,7 +1,19 @@
 syntax = "proto3";
 package openportal.portal.v1;
-option go_package = "example.com/openportal-search/gen/openportal/portal/v1;portalv1";
-service PortalService { rpc GetModules(PortalRequest) returns (PortalResponse); }
-message PortalRequest { string locale = 1; string surface = 2; }
-message Module { string key = 1; string title = 2; string json_payload = 3; }
-message PortalResponse { repeated Module modules = 1; }
+
+option go_package = "example.com/openportal-search/backend/gen/openportal/portal/v1;portalv1";
+service PortalService {
+  rpc GetModules(GetModulesRequest) returns (GetModulesResponse);
+}
+message GetModulesRequest {
+  string locale = 1;
+  string surface = 2;
+}
+message Module {
+  string key = 1;
+  string title = 2;
+  string json_payload = 3;
+}
+message GetModulesResponse {
+  repeated Module modules = 1;
+}

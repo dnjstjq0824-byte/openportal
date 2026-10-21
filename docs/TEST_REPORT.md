@@ -1,5 +1,7 @@
 # Packaging-time verification (2026-10-20)
 
+Historical packaging report. Current execution evidence is in PHASE0_REPORT.md and evidence/.
+
 | Check | Result | Evidence / Limitations |
 |---|---|---|
 | Go compile/unit tests | PASS | `cd backend && go test ./...` |

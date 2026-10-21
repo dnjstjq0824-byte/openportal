@@ -1,0 +1,1 @@
+PASS event valid/invalid fixtures and breaking detector negative control

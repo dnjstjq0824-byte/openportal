@@ -1,0 +1,79 @@
+name: Phase 0 verification
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.27.3', cache-dependency-path: backend/go.sum}
+      - uses: actions/setup-node@v4
+        with: {node-version: '24.19.0', cache: npm}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12.14'}
+      - uses: bufbuild/buf-setup-action@v1
+        with: {version: '1.74.0'}
+      - run: npm ci && npm ci --prefix apps/web
+      - name: Contracts and generated source
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
+          buf format proto --diff --exit-code
+          buf lint proto
+          buf generate proto --template proto/buf.gen.yaml
+          git diff --exit-code -- backend/gen
+          buf breaking proto --against docs/proto-baseline.binpb
+          npm run test:contracts
+          node scripts/test-proto.mjs
+      - name: Compare PR base contracts
+        if: github.event_name == 'pull_request'
+        env:
+          CONTRACT_BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: |
+          buf breaking proto --against ".git#ref=$CONTRACT_BASE_REF,subdir=proto"
+          npm run test:contracts
+      - name: Go tests, race and static analysis
+        working-directory: backend
+        run: |
+          go test -race -coverprofile=../docs/evidence/go-coverage.out ./...
+          go vet ./...
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          govulncheck ./...
+      - run: python -m unittest discover -s scripts -p test_seed.py
+      - run: npm run test:db
+      - name: Web and supply chain
+        run: |
+          npm run typecheck --prefix apps/web
+          npm run build --prefix apps/web
+          npm audit --audit-level=moderate
+          npm audit --prefix apps/web --audit-level=moderate
+          node scripts/check-licenses.mjs
+          npm sbom --sbom-format cyclonedx > docs/evidence/tooling-sbom.json
+          npm sbom --prefix apps/web --sbom-format cyclonedx > docs/evidence/web-sbom.json
+          go install github.com/zricethezav/gitleaks/v8@v8.24.2
+          gitleaks dir . --redact --report-format json --report-path docs/evidence/gitleaks.json
+      - name: Actual Compose integration and browser
+        run: |
+          sudo sysctl -w vm.max_map_count=262144
+          docker compose -f infra/compose.yaml up -d
+          docker compose -f infra/compose.yaml wait seed migrate
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: phase0-evidence, path: docs/evidence}
+      - if: always()
+        run: docker compose -f infra/compose.yaml down
+  sast:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with: {languages: 'go,javascript-typescript', build-mode: none}
+      - uses: github/codeql-action/analyze@v3

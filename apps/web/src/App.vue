@@ -6,7 +6,7 @@ const q=ref('');const submitted=ref('');const page=ref(1);
 const result=ref<Response|null>(null);const busy=ref(false);const error=ref('');
 const hasSearch=computed(()=>submitted.value.length>0);
 async function runSearch(nextPage=1){
-  const text=q.value.trim();if(!text)return;
+  const text=q.value.trim();if(!text || busy.value)return;
   busy.value=true;error.value='';page.value=nextPage;submitted.value=text;
   try{
     const res=await fetch(`/api/v1/search?q=${encodeURIComponent(text)}&page=${page.value}`);

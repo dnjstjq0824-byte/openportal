@@ -1,9 +1,35 @@
 syntax = "proto3";
 package openportal.ads.v1;
-option go_package = "example.com/openportal-search/gen/openportal/ads/v1;adsv1";
-service AdsService { rpc SelectSponsored(AdRequest) returns (AdResponse); rpc ReportImpression(ImpressionEvent) returns (Receipt); }
-message AdRequest { string request_id = 1; string query = 2; string country = 3; string locale = 4; int32 max_slots = 5; }
-message SponsoredHit { string creative_id = 1; string headline = 2; string description = 3; string url = 4; string display_url = 5; string label = 6; }
-message AdResponse { repeated SponsoredHit sponsored_hits = 1; }
-message ImpressionEvent { string request_id = 1; string creative_id = 2; string idempotency_key = 3; }
-message Receipt { bool accepted = 1; string event_id = 2; }
+
+option go_package = "example.com/openportal-search/backend/gen/openportal/ads/v1;adsv1";
+service AdsService {
+  rpc SelectSponsored(SelectSponsoredRequest) returns (SelectSponsoredResponse);
+  rpc ReportImpression(ReportImpressionRequest) returns (ReportImpressionResponse);
+}
+message SelectSponsoredRequest {
+  string request_id = 1;
+  string query = 2;
+  string country = 3;
+  string locale = 4;
+  int32 max_slots = 5;
+}
+message SponsoredHit {
+  string creative_id = 1;
+  string headline = 2;
+  string description = 3;
+  string url = 4;
+  string display_url = 5;
+  string label = 6;
+}
+message SelectSponsoredResponse {
+  repeated SponsoredHit sponsored_hits = 1;
+}
+message ReportImpressionRequest {
+  string request_id = 1;
+  string creative_id = 2;
+  string idempotency_key = 3;
+}
+message ReportImpressionResponse {
+  bool accepted = 1;
+  string event_id = 2;
+}

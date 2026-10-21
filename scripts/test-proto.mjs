@@ -1,0 +1,16 @@
+import { execFileSync, spawnSync } from 'node:child_process';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+mkdirSync('work',{recursive:true});
+execFileSync('buf',['lint','proto'],{stdio:'inherit'});
+execFileSync('buf',['build','proto','-o','work/proto-current.binpb'],{stdio:'inherit'});
+execFileSync('buf',['breaking','proto','--against','docs/proto-baseline.binpb'],{stdio:'inherit'});
+const dir=`work/proto-negative-${Date.now()}`;
+mkdirSync(dir,{recursive:true});
+cpSync('proto',dir,{recursive:true});
+const path=`${dir}/openportal/search/v1/search.proto`;
+writeFileSync(path,readFileSync(path,'utf8').replace('string query = 1;','int32 query = 1;'));
+const result=spawnSync('buf',['breaking',dir,'--against','docs/proto-baseline.binpb'],{encoding:'utf8'});
+assert.equal(result.status,100, result.stderr || result.stdout);
+assert.match(result.stdout+result.stderr,/type|TYPE/);
+console.log('PASS Buf FILE breaking negative control: string query -> int32 rejected');
