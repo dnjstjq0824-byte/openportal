@@ -1,0 +1,91 @@
+commit ba2c1a5badf11b5fe3a7fbe390227a3d4067db01
+Author:     dnjstjqppk-dev <dnjstjqppk@gmail.com>
+AuthorDate: Wed Oct 21 12:26:37 2026 +0900
+Commit:     dnjstjqppk-dev <dnjstjqppk@gmail.com>
+CommitDate: Wed Oct 21 12:26:37 2026 +0900
+
+    feat: validate Phase 0 database and search slice with regression gates
+
+ .gitattributes                                     |    4 +
+ .github/CODEOWNERS                                 |    1 +
+ .github/workflows/phase0.yml                       |   79 +
+ .gitignore                                         |    4 +
+ .gitleaks.toml                                     |    5 +
+ .node-version                                      |    1 +
+ .python-version                                    |    1 +
+ OWNERS.md                                          |   17 +
+ README.md                                          |   30 +
+ apps/web/package-lock.json                         | 1506 ++++++++++++++
+ apps/web/package.json                              |   19 +-
+ apps/web/src/App.vue                               |    2 +-
+ apps/web/vite.config.ts                            |    2 +-
+ backend/Dockerfile                                 |   13 +
+ backend/cmd/api/http_test.go                       |   62 +
+ backend/cmd/api/main.go                            |   27 +-
+ backend/gen/openportal/ads/v1/ads.pb.go            |  432 ++++
+ backend/gen/openportal/crawl/v1/crawl.pb.go        |  411 ++++
+ backend/gen/openportal/identity/v1/identity.pb.go  |  192 ++
+ backend/gen/openportal/portal/v1/portal.pb.go      |  249 +++
+ backend/gen/openportal/search/v1/search.pb.go      |  476 +++++
+ backend/go.mod                                     |    4 +-
+ backend/go.sum                                     |    4 +
+ backend/internal/config/config.go                  |    4 +-
+ backend/internal/search/regression_test.go         |   29 +
+ backend/internal/search/search.go                  |   23 +-
+ database/migrations/002_phase0_access_boundary.sql |    9 +
+ docs/API_CONTRACT.md                               |   18 +
+ docs/DECISIONS/0001-phase0-scope.md                |   10 +
+ docs/DECISIONS/0002-migrations-contracts.md        |   15 +
+ docs/PRD.md                                        |   31 +
+ docs/PRODUCT_BOUNDARIES.md                         |   18 +
+ docs/TEST_REPORT.md                                |    2 +
+ docs/THREAT_MODEL.md                               |   21 +
+ docs/VERSIONS.md                                   |   20 +
+ docs/events/index-event.v1.schema.json             |   15 +
+ docs/evidence/browser-tests.txt                    |   14 +
+ docs/evidence/contracts.txt                        |    1 +
+ docs/evidence/database.txt                         |   85 +
+ docs/evidence/gitleaks.json                        |    1 +
+ docs/evidence/gitleaks.txt                         |    9 +
+ docs/evidence/go-coverage.out                      |  494 +++++
+ docs/evidence/go-race.txt                          |    1 +
+ .../evidence/go-tests-coverage-command-failure.txt |   12 +
+ docs/evidence/go-tests.txt                         |    8 +
+ docs/evidence/go-version.txt                       |    1 +
+ docs/evidence/go-vet.txt                           |    0
+ docs/evidence/govulncheck-1.27.2.txt               |   15 +
+ docs/evidence/govulncheck-before.txt               |  236 +++
+ docs/evidence/govulncheck.txt                      |    1 +
+ docs/evidence/npm-audit-initial.json               |   90 +
+ docs/evidence/npm-audit.json                       |   22 +
+ docs/evidence/npm-licenses.json                    |  776 +++++++
+ docs/evidence/proto.txt                            |    1 +
+ docs/evidence/search-browser.png                   |  Bin 0 -> 30212 bytes
+ docs/evidence/seed-unit.txt                        |    6 +
+ docs/evidence/seed.txt                             |    1 +
+ docs/evidence/tooling-sbom.json                    | 1181 +++++++++++
+ docs/evidence/web-audit.json                       |   22 +
+ docs/evidence/web-build.txt                        |   13 +
+ docs/evidence/web-sbom.json                        | 2163 ++++++++++++++++++++
+ docs/evidence/web-typecheck.txt                    |    4 +
+ docs/openapi.yaml                                  |   11 +
+ docs/proto-baseline.binpb                          |  Bin 0 -> 8860 bytes
+ infra/compose.yaml                                 |   66 +-
+ package-lock.json                                  |  465 +++++
+ package.json                                       |   23 +
+ playwright.config.mjs                              |   10 +
+ proto/buf.gen.yaml                                 |    5 +
+ proto/openportal/ads/v1/ads.proto                  |   40 +-
+ proto/openportal/crawl/v1/crawl.proto              |   38 +-
+ proto/openportal/identity/v1/identity.proto        |   17 +-
+ proto/openportal/portal/v1/portal.proto            |   22 +-
+ proto/openportal/search/v1/search.proto            |   40 +-
+ scripts/check-contracts.mjs                        |   32 +
+ scripts/check-licenses.mjs                         |   14 +
+ scripts/migrate.mjs                                |   50 +
+ scripts/seed.py                                    |    6 +-
+ scripts/test-database.mjs                          |   81 +
+ scripts/test-proto.mjs                             |   16 +
+ scripts/test_seed.py                               |   31 +
+ tests/search.spec.mjs                              |   65 +
+ 82 files changed, 9885 insertions(+), 60 deletions(-)
