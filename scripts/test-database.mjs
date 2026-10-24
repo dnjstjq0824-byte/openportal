@@ -58,19 +58,43 @@ try {
   await client.connect();
   await migrate(client);
   await migrate(client);
-  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n, 2);
-  console.log('PASS forward migrations and repeat run');
+  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n, 3);
+  console.log('PASS forward migrations (001..003) and repeat run');
+  const flags = await client.query("select name, enabled from control.feature_flags order by name");
+  assert.equal(flags.rows.find(r => r.name === 'vertical.web')?.enabled, true);
+  assert.equal(flags.rows.find(r => r.name === 'vertical.image')?.enabled, false);
+  assert.equal(flags.rows.find(r => r.name === 'vertical.news')?.enabled, false);
+  console.log('PASS Phase 1 feature flags seeded with non-web verticals disabled');
   await client.query('create role phase0_untrusted');
   await client.query('set role phase0_untrusted');
   await assert.rejects(client.query('select * from identity.accounts'), e => e.code === '42501');
   await client.query('reset role');
   console.log('PASS unprivileged account access denied');
+
+  // Verify Phase 1 RLS tenant/account isolation (BOLA defense at DB layer)
+  await client.query('create role phase1_app_user');
+  await client.query('grant usage on schema identity to phase1_app_user');
+  await client.query('grant select, insert, update, delete on identity.preferences, identity.recent_searches to phase1_app_user');
+  const accA = (await client.query("insert into identity.accounts(email) values ('alice@example.test') returning id")).rows[0].id;
+  const accB = (await client.query("insert into identity.accounts(email) values ('bob@example.test') returning id")).rows[0].id;
+  await client.query("insert into identity.preferences(account_id, safe_search, theme, language, recent_searches_opt_in) values ($1, 'strict', 'dark', 'ko', true), ($2, 'moderate', 'light', 'en', false)", [accA, accB]);
+  await client.query("set role phase1_app_user");
+  await client.query(`select set_config('app.current_account_id', '${accA}', false)`);
+  const visiblePrefs = (await client.query("select account_id, safe_search from identity.preferences")).rows;
+  assert.equal(visiblePrefs.length, 1);
+  assert.equal(visiblePrefs[0].account_id, accA);
+  // Attempting to update Bob's preferences while authenticated as Alice affects 0 rows
+  const bolaUpdate = await client.query("update identity.preferences set theme='dark' where account_id=$1", [accB]);
+  assert.equal(bolaUpdate.rowCount, 0);
+  await client.query('reset role');
+  console.log('PASS Phase 1 RLS prevents cross-account preference read/write (BOLA)');
+
   const copy = resolve(dir, 'migration-fixtures');
   await cp('database/migrations', copy, {recursive:true});
-  await writeFile(resolve(copy, '003_failure.sql'), 'CREATE TABLE public.must_rollback(id int); SELECT 1/0;');
+  await writeFile(resolve(copy, '004_failure.sql'), 'CREATE TABLE public.must_rollback(id int); SELECT 1/0;');
   await assert.rejects(migrate(client, copy), e => e.code === '22012');
   assert.equal((await client.query("select to_regclass('public.must_rollback') as relation")).rows[0].relation,null);
-  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n,2);
+  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n,3);
   console.log('PASS failed migration rolls back DDL and ledger');
   await writeFile(resolve(copy, '001_initial.sql'), '-- changed');
   await assert.rejects(migrate(client, copy), /checksum mismatch/);

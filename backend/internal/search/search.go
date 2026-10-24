@@ -18,6 +18,7 @@ type Client struct {
 	HTTP                               *http.Client
 }
 type Hit struct {
+	DocumentID  string  `json:"document_id,omitempty"`
 	Title       string  `json:"title"`
 	URL         string  `json:"url"`
 	Description string  `json:"description"`
@@ -25,10 +26,15 @@ type Hit struct {
 	Score       float64 `json:"score"`
 }
 type Response struct {
-	Query     string `json:"query"`
-	Total     int64  `json:"total"`
-	Hits      []Hit  `json:"hits"`
-	ElapsedMS int64  `json:"elapsed_ms"`
+	Query          string `json:"query"`
+	Total          int64  `json:"total"`
+	Hits           []Hit  `json:"hits"`
+	ElapsedMS      int64  `json:"elapsed_ms"`
+	RequestID      string `json:"request_id,omitempty"`
+	CorrectedQuery string `json:"corrected_query,omitempty"`
+	SafeSearch     string `json:"safe_search,omitempty"`
+	Vertical       string `json:"vertical,omitempty"`
+	NextPageToken  string `json:"next_page_token,omitempty"`
 }
 type osResponse struct {
 	TimedOut bool `json:"timed_out"`
@@ -40,8 +46,10 @@ type osResponse struct {
 			Value int64 `json:"value"`
 		} `json:"total"`
 		Hits []struct {
+			ID     string  `json:"_id"`
 			Score  float64 `json:"_score"`
 			Source struct {
+				DocumentID  string `json:"document_id"`
 				Title       string `json:"title"`
 				URL         string `json:"url"`
 				Description string `json:"description"`
@@ -99,7 +107,7 @@ func (c *Client) Search(ctx context.Context, phrase, lang string, page, limit in
 	}
 	start := time.Now()
 	// Only indexable sample documents are included; production ingestion must enforce removal/tombstones.
-	query := map[string]interface{}{"from": (page - 1) * limit, "size": limit, "track_total_hits": true, "_source": []string{"title", "url", "description", "language"},
+	query := map[string]interface{}{"from": (page - 1) * limit, "size": limit, "track_total_hits": true, "_source": []string{"document_id", "title", "url", "description", "language"},
 		"query": map[string]interface{}{"bool": map[string]interface{}{"must": []interface{}{map[string]interface{}{"multi_match": map[string]interface{}{"query": phrase, "fields": []string{"title^4", "description^2", "body"}, "type": "best_fields"}}},
 			"filter": []interface{}{map[string]interface{}{"term": map[string]interface{}{"indexable": true}}}}}}
 	if lang != "" {
@@ -117,7 +125,18 @@ func (c *Client) Search(ctx context.Context, phrase, lang string, page, limit in
 		if !strings.HasPrefix(h.Source.URL, "https://") && !strings.HasPrefix(h.Source.URL, "http://") {
 			continue
 		}
-		r.Hits = append(r.Hits, Hit{Title: h.Source.Title, URL: h.Source.URL, Description: h.Source.Description, Language: h.Source.Language, Score: h.Score})
+		docID := h.Source.DocumentID
+		if docID == "" {
+			docID = h.ID
+		}
+		r.Hits = append(r.Hits, Hit{
+			DocumentID:  docID,
+			Title:       h.Source.Title,
+			URL:         h.Source.URL,
+			Description: h.Source.Description,
+			Language:    h.Source.Language,
+			Score:       h.Score,
+		})
 	}
 	return r, nil
 }

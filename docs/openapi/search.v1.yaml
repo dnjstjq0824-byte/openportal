@@ -1,0 +1,101 @@
+openapi: 3.1.0
+info:
+  title: OpenPortal Search Domain API
+  version: 0.2.0
+  description: Domain-specific OpenAPI contract for search and query suggestion with trace correlation and input normalization (Task 014).
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /api/v1/search:
+    get:
+      operationId: searchDocuments
+      summary: Execute normalized full-text search against OpenSearch index
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 1 }
+        - name: lang
+          in: query
+          required: false
+          schema: { type: string, enum: [ko, en] }
+        - name: safe_search
+          in: query
+          required: false
+          schema: { type: string, enum: [strict, moderate, off], default: moderate }
+        - name: vertical
+          in: query
+          required: false
+          schema: { type: string, enum: [web, image, news, video, map, shopping], default: web }
+      responses:
+        '200':
+          description: Organic search results with trace correlation and optional query correction
+          headers:
+            X-Request-Id: { schema: { type: string } }
+            X-Correlation-Id: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400': { description: Invalid query parameter }
+        '403': { description: Requested vertical disabled by feature flag or console origin denied }
+        '405': { description: Method not allowed }
+        '503': { description: Search backend unavailable or incomplete shard response }
+  /api/v1/suggest:
+    get:
+      operationId: suggestQueries
+      summary: Prefix autocomplete suggestions and typo corrections
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: Autocomplete suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestResponse'
+        '400': { description: Invalid query }
+        '405': { description: Method not allowed }
+        '503': { description: Backend unavailable }
+components:
+  schemas:
+    SearchHit:
+      type: object
+      required: [title, url, description, language, score]
+      properties:
+        document_id: { type: string }
+        title: { type: string }
+        url: { type: string, format: uri }
+        description: { type: string }
+        language: { type: string }
+        score: { type: number }
+    SearchResponse:
+      type: object
+      required: [query, total, hits, elapsed_ms]
+      properties:
+        query: { type: string }
+        total: { type: integer, format: int64 }
+        hits: { type: array, items: { $ref: '#/components/schemas/SearchHit' } }
+        elapsed_ms: { type: integer, format: int64 }
+        request_id: { type: string }
+        corrected_query: { type: string }
+        safe_search: { type: string }
+        vertical: { type: string }
+        next_page_token: { type: string }
+    SuggestResponse:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items: { type: string }
+        corrected_query:
+          type: string
+

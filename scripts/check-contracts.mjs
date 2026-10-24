@@ -5,7 +5,17 @@ import YAML from 'yaml';
 import Ajv from 'ajv/dist/2020.js';
 
 const apiPath='docs/openapi.yaml', eventPath='docs/events/index-event.v1.schema.json';
+const domainSpecs=[
+  'docs/openapi/search.v1.yaml',
+  'docs/openapi/identity.v1.yaml',
+  'docs/openapi/portal.v1.yaml',
+];
 const api=YAML.parse(readFileSync(apiPath,'utf8'));
+for(const specPath of domainSpecs){
+  const spec=YAML.parse(readFileSync(specPath,'utf8'));
+  assert.equal(spec.openapi,'3.1.0',`invalid openapi version in ${specPath}`);
+  assert(Object.keys(spec.paths||{}).length>0,`empty paths in ${specPath}`);
+}
 const event=JSON.parse(readFileSync(eventPath,'utf8'));
 const validate=new Ajv().compile(event);
 const valid={event_id:'event-1',document_id:'doc-1',operation:'upsert',version:1,occurred_at:'2026-10-20T00:00:00Z'};
@@ -29,4 +39,4 @@ if(process.env.CONTRACT_BASE_REF) {
   assert.deepEqual(JSON.parse(old(eventPath)),event,'event v1 changed; introduce v2');
   console.log('PASS compatibility against',process.env.CONTRACT_BASE_REF);
 }
-console.log('PASS event valid/invalid fixtures and breaking detector negative control');
+console.log('PASS domain OpenAPI specs, event valid/invalid fixtures, and breaking detector negative control');

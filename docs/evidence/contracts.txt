@@ -1,2 +1,1 @@
-PASS compatibility against ba2c1a5badf11b5fe3a7fbe390227a3d4067db01
-PASS event valid/invalid fixtures and breaking detector negative control
+﻿PASS domain OpenAPI specs, event valid/invalid fixtures, and breaking detector negative control

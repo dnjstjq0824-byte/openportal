@@ -1,0 +1,45 @@
+openapi: 3.1.0
+info:
+  title: OpenPortal Portal & Feature Flags Domain API
+  version: 0.2.0
+  description: Domain-specific OpenAPI contract for vertical tab feature flags and console isolation boundaries (Tasks 013, 018).
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /api/v1/portal/config:
+    get:
+      operationId: getPortalConfig
+      summary: Return vertical tab feature flags and console boundary states
+      responses:
+        '200':
+          description: Portal configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortalConfig'
+components:
+  schemas:
+    VerticalTab:
+      type: object
+      required: [id, label_ko, label_en, enabled, phase]
+      properties:
+        id: { type: string }
+        label_ko: { type: string }
+        label_en: { type: string }
+        enabled: { type: boolean }
+        phase: { type: integer }
+        gate_note: { type: string }
+    PortalConfig:
+      type: object
+      required: [tabs, features, consoles]
+      properties:
+        tabs:
+          type: array
+          items: { $ref: '#/components/schemas/VerticalTab' }
+        features:
+          type: object
+          additionalProperties: { type: boolean }
+        consoles:
+          type: object
+          additionalProperties: { type: string }
+

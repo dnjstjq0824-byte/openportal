@@ -1,0 +1,158 @@
+openapi: 3.1.0
+info:
+  title: OpenPortal Identity & Authorization Domain API
+  version: 0.2.0
+  description: Domain-specific OpenAPI contract for OIDC/Passkey challenge auth, TOTP MFA, account recovery, user preferences, opt-in recent searches, and BOLA-protected tenant resources (Tasks 015-017).
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /api/v1/auth/challenge:
+    post:
+      operationId: createAuthChallenge
+      summary: Issue a passkey or OIDC authentication challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge_type, email]
+              properties:
+                challenge_type: { type: string, enum: [passkey_register, passkey_login, oidc_nonce] }
+                email: { type: string, format: email }
+                rp_id: { type: string }
+      responses:
+        '200':
+          description: Issued challenge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthChallenge'
+        '400': { description: Invalid input }
+  /api/v1/auth/verify:
+    post:
+      operationId: verifyAuthChallenge
+      summary: Verify passkey/OIDC challenge and issue session + one-time recovery codes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge_id, challenge_response]
+              properties:
+                challenge_id: { type: string }
+                challenge_response: { type: string }
+                display_name: { type: string }
+      responses:
+        '200':
+          description: Authenticated session
+        '401': { description: Invalid or expired challenge }
+  /api/v1/auth/session:
+    get:
+      operationId: getSession
+      summary: Inspect current authenticated session and preferences
+      responses:
+        '200': { description: Active session and account profile }
+        '401': { description: Unauthenticated or revoked session }
+  /api/v1/auth/revoke:
+    post:
+      operationId: revokeSession
+      summary: Immediately revoke current session token
+      responses:
+        '200': { description: Session revoked }
+        '401': { description: Unauthenticated }
+  /api/v1/auth/mfa/enroll:
+    post:
+      operationId: enrollMFA
+      summary: Enroll TOTP MFA factor
+      responses:
+        '200': { description: Base32 TOTP secret and otpauth URI }
+        '401': { description: Unauthenticated }
+  /api/v1/auth/mfa/verify:
+    post:
+      operationId: verifyMFA
+      summary: Verify 6-digit TOTP code and mark session MFA-verified
+      responses:
+        '200': { description: MFA verified }
+        '400': { description: Invalid MFA code }
+        '401': { description: Unauthenticated }
+  /api/v1/auth/recover:
+    post:
+      operationId: recoverAccount
+      summary: Recover account with single-use recovery code and revoke old sessions
+      responses:
+        '200': { description: New session issued }
+        '401': { description: Invalid recovery code }
+  /api/v1/accounts/{accountId}/preferences:
+    get:
+      operationId: getAccountPreferences
+      summary: Read user preferences (BOLA enforced)
+      parameters:
+        - { name: accountId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Account preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preferences'
+        '401': { description: Unauthenticated }
+        '403': { description: Cross-account access denied (BOLA) }
+    put:
+      operationId: updateAccountPreferences
+      summary: Update user preferences (BOLA enforced; opting out of recent searches purges history)
+      parameters:
+        - { name: accountId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preferences'
+        '400': { description: Invalid preference value }
+        '401': { description: Unauthenticated }
+        '403': { description: Cross-account update denied (BOLA) }
+  /api/v1/accounts/{accountId}/recent-searches:
+    get:
+      operationId: getRecentSearches
+      summary: List opt-in recent searches (BOLA enforced)
+      parameters:
+        - { name: accountId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Recent searches list }
+        '401': { description: Unauthenticated }
+        '403': { description: Cross-account access denied (BOLA) }
+    delete:
+      operationId: clearRecentSearches
+      summary: Purge recent searches (BOLA enforced)
+      parameters:
+        - { name: accountId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Cleared }
+        '401': { description: Unauthenticated }
+        '403': { description: Cross-account deletion denied (BOLA) }
+components:
+  schemas:
+    AuthChallenge:
+      type: object
+      required: [challenge_id, challenge_type, challenge, rp_id, expires_at]
+      properties:
+        challenge_id: { type: string }
+        challenge_type: { type: string }
+        challenge: { type: string }
+        rp_id: { type: string }
+        expires_at: { type: string, format: date-time }
+    Preferences:
+      type: object
+      required: [account_id, safe_search, theme, language, personalized_search, recent_searches_opt_in, search_correction_opt_in]
+      properties:
+        account_id: { type: string }
+        safe_search: { type: string, enum: [strict, moderate, off] }
+        theme: { type: string, enum: [light, dark, system] }
+        language: { type: string, enum: [ko, en] }
+        personalized_search: { type: boolean }
+        recent_searches_opt_in: { type: boolean }
+        search_correction_opt_in: { type: boolean }
+

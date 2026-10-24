@@ -1,8 +1,47 @@
-ok  	example.com/openportal-search/backend/cmd/api	9.566s	coverage: 83.8% of statements
-	example.com/openportal-search/backend/gen/openportal/ads/v1		coverage: 0.0% of statements
-	example.com/openportal-search/backend/gen/openportal/crawl/v1		coverage: 0.0% of statements
-	example.com/openportal-search/backend/gen/openportal/identity/v1		coverage: 0.0% of statements
-	example.com/openportal-search/backend/gen/openportal/portal/v1		coverage: 0.0% of statements
-	example.com/openportal-search/backend/gen/openportal/search/v1		coverage: 0.0% of statements
-	example.com/openportal-search/backend/internal/config		coverage: 0.0% of statements
-ok  	example.com/openportal-search/backend/internal/search	9.793s	coverage: 69.0% of statements
+﻿=== RUN   TestHTTPBoundary
+2026/10/24 20:49:46 search backend failed
+2026/10/24 20:49:46 suggest backend failed
+--- PASS: TestHTTPBoundary (0.11s)
+=== RUN   TestGatewayAuthMFARecoveryAndBOLAEndpoints
+--- PASS: TestGatewayAuthMFARecoveryAndBOLAEndpoints (0.00s)
+=== RUN   TestValidateQ
+--- PASS: TestValidateQ (0.00s)
+=== RUN   TestPageParam
+--- PASS: TestPageParam (0.00s)
+PASS
+ok  	example.com/openportal-search/backend/cmd/api	2.649s
+?   	example.com/openportal-search/backend/gen/openportal/ads/v1	[no test files]
+?   	example.com/openportal-search/backend/gen/openportal/crawl/v1	[no test files]
+?   	example.com/openportal-search/backend/gen/openportal/identity/v1	[no test files]
+?   	example.com/openportal-search/backend/gen/openportal/portal/v1	[no test files]
+?   	example.com/openportal-search/backend/gen/openportal/search/v1	[no test files]
+=== RUN   TestLoadConfigDefaultsAndOverrides
+--- PASS: TestLoadConfigDefaultsAndOverrides (0.00s)
+PASS
+ok  	example.com/openportal-search/backend/internal/config	1.045s
+=== RUN   TestPasskeyMFARecoveryAndBOLADefense
+--- PASS: TestPasskeyMFARecoveryAndBOLADefense (0.00s)
+PASS
+ok  	example.com/openportal-search/backend/internal/identity	1.046s
+=== RUN   TestNormalizeQuery
+--- PASS: TestNormalizeQuery (0.00s)
+=== RUN   TestSuggestCorrection
+--- PASS: TestSuggestCorrection (0.00s)
+=== RUN   TestDefaultVerticalTabs
+--- PASS: TestDefaultVerticalTabs (0.00s)
+=== RUN   TestProtoBridgeRoundTripAndOrganicIsolation
+--- PASS: TestProtoBridgeRoundTripAndOrganicIsolation (0.00s)
+=== RUN   TestIncompleteSearchFailsClosed
+=== RUN   TestIncompleteSearchFailsClosed/{"timed_out":true,"hits":{"total":{"value":0},"hits":[]}}
+=== RUN   TestIncompleteSearchFailsClosed/{"_shards":{"failed":1},"hits":{"total":{"value":0},"hits":[]}}
+=== RUN   TestIncompleteSearchFailsClosed/{}
+=== RUN   TestIncompleteSearchFailsClosed/{"hits":{"total":{"value":0},"hits":[]}}_trailing
+--- PASS: TestIncompleteSearchFailsClosed (0.01s)
+    --- PASS: TestIncompleteSearchFailsClosed/{"timed_out":true,"hits":{"total":{"value":0},"hits":[]}} (0.01s)
+    --- PASS: TestIncompleteSearchFailsClosed/{"_shards":{"failed":1},"hits":{"total":{"value":0},"hits":[]}} (0.00s)
+    --- PASS: TestIncompleteSearchFailsClosed/{} (0.00s)
+    --- PASS: TestIncompleteSearchFailsClosed/{"hits":{"total":{"value":0},"hits":[]}}_trailing (0.00s)
+=== RUN   TestSearchRequestAndMapping
+--- PASS: TestSearchRequestAndMapping (0.00s)
+PASS
+ok  	example.com/openportal-search/backend/internal/search	2.490s
