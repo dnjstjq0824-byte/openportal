@@ -16,13 +16,20 @@ import (
 
 	"example.com/openportal-search/backend/internal/config"
 	"example.com/openportal-search/backend/internal/identity"
+	"example.com/openportal-search/backend/internal/ranking"
 	"example.com/openportal-search/backend/internal/search"
 )
 
 type app struct {
-	c          *search.Client
-	idStore    *identity.Store
-	corsOrigin string
+	c                *search.Client
+	idStore          *identity.Store
+	corsOrigin       string
+	intentClassifier *ranking.IntentClassifier
+	abuseDetector    *ranking.AbuseDetector
+	reranker         *ranking.Reranker
+	safeSearch       *ranking.SafeSearchClassifier
+	moderationMgr    *ranking.ModerationWorkflowManager
+	expPlatform      *ranking.ExperimentPlatform
 }
 
 var validTraceID = regexp.MustCompile(`^[A-Za-z0-9._-]{8,64}$`)
@@ -56,6 +63,60 @@ func (a *app) ensureStore() *identity.Store {
 		a.idStore = identity.NewStore()
 	}
 	return a.idStore
+}
+
+func (a *app) ensureIntent() *ranking.IntentClassifier {
+	if a.intentClassifier == nil {
+		a.intentClassifier = ranking.NewIntentClassifier()
+	}
+	return a.intentClassifier
+}
+
+func (a *app) ensureAbuseDetector() *ranking.AbuseDetector {
+	if a.abuseDetector == nil {
+		a.abuseDetector = ranking.NewAbuseDetector(10*time.Second, 30, 10)
+	}
+	return a.abuseDetector
+}
+
+func (a *app) ensureReranker() *ranking.Reranker {
+	if a.reranker == nil {
+		a.reranker = ranking.NewReranker(ranking.DefaultRerankerConfig())
+	}
+	return a.reranker
+}
+
+func (a *app) ensureSafeSearch() *ranking.SafeSearchClassifier {
+	if a.safeSearch == nil {
+		a.safeSearch = ranking.NewSafeSearchClassifier()
+	}
+	return a.safeSearch
+}
+
+func (a *app) ensureModeration() *ranking.ModerationWorkflowManager {
+	if a.moderationMgr == nil {
+		a.moderationMgr = ranking.NewModerationWorkflowManager()
+	}
+	return a.moderationMgr
+}
+
+func (a *app) ensureExpPlatform() *ranking.ExperimentPlatform {
+	if a.expPlatform == nil {
+		a.expPlatform = ranking.NewExperimentPlatform()
+	}
+	return a.expPlatform
+}
+
+func resolveClientIP(r *http.Request) string {
+	if f := r.Header.Get("X-Forwarded-For"); f != "" {
+		parts := strings.Split(f, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 func (a *app) withGatewayHeaders(next http.Handler) http.Handler {
@@ -151,6 +212,19 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// 1. Abuse & Privacy inspection (Task 042)
+	ip := resolveClientIP(r)
+	abuseRep := a.ensureAbuseDetector().InspectQuery(ip, normalizedQ)
+	if abuseRep.IsAbusive {
+		writeJSON(w, 400, map[string]interface{}{
+			"error":      "query rejected by abuse and privacy policy: " + abuseRep.Reason,
+			"code":       string(abuseRep.Type),
+			"request_id": resolveTraceID(r),
+		})
+		return
+	}
+
 	result, err := a.c.Search(r.Context(), normalizedQ, lang, page, 10)
 	if err != nil {
 		log.Print("search backend failed")
@@ -166,6 +240,75 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 	if vertical != "" {
 		result.Vertical = vertical
 	}
+
+	// 2. SafeSearch Content Filtering (Task 044)
+	if len(result.Hits) > 0 {
+		safeLevel := ranking.SafeSearchModerate
+		if safeSearch == "strict" {
+			safeLevel = ranking.SafeSearchStrict
+		} else if safeSearch == "off" {
+			safeLevel = ranking.SafeSearchOff
+		}
+
+		safeDocs := make([]ranking.SafeSearchDocument, 0, len(result.Hits))
+		for _, h := range result.Hits {
+			safeDocs = append(safeDocs, ranking.SafeSearchDocument{
+				DocumentID:  h.DocumentID,
+				URL:         h.URL,
+				Title:       h.Title,
+				Description: h.Description,
+				Safety:      a.ensureSafeSearch().ClassifyContent(h.Title, h.Description, h.URL),
+			})
+		}
+		filteredSafe := a.ensureSafeSearch().FilterResults(safeDocs, safeLevel)
+		safeIDSet := make(map[string]bool, len(filteredSafe))
+		for _, s := range filteredSafe {
+			safeIDSet[s.DocumentID] = true
+		}
+		filteredHits := make([]search.Hit, 0, len(result.Hits))
+		for _, h := range result.Hits {
+			if safeIDSet[h.DocumentID] {
+				filteredHits = append(filteredHits, h)
+			}
+		}
+		result.Hits = filteredHits
+
+		// 3. Second-Pass Quality, Freshness & Spam Reranking (Task 043)
+		if len(result.Hits) > 0 {
+			candidates := make([]ranking.DocumentSignals, 0, len(result.Hits))
+			for _, h := range result.Hits {
+				candidates = append(candidates, ranking.DocumentSignals{
+					DocumentID:           h.DocumentID,
+					URL:                  h.URL,
+					Title:                h.Title,
+					Description:          h.Description,
+					BaseScore:            h.Score,
+					PublishedAt:          time.Now(),
+					DomainAuthority:      0.5,
+					TermFrequencyDensity: 0.05,
+				})
+			}
+			reranked := a.ensureReranker().Rerank(candidates, time.Now())
+			original := make(map[string]search.Hit, len(result.Hits))
+			for _, h := range result.Hits {
+				original[h.DocumentID] = h
+			}
+			rerankedHits := make([]search.Hit, 0, len(reranked))
+			for _, rh := range reranked {
+				orig := original[rh.DocumentID]
+				rerankedHits = append(rerankedHits, search.Hit{
+					DocumentID:  rh.DocumentID,
+					URL:         rh.URL,
+					Title:       rh.Title,
+					Description: rh.Description,
+					Language:    orig.Language,
+					Score:       rh.FinalScore,
+				})
+			}
+			result.Hits = rerankedHits
+		}
+	}
+
 	if tok := extractBearerToken(r); tok != "" {
 		if _, acc, authErr := a.ensureStore().VerifySession(tok); authErr == nil {
 			a.ensureStore().RecordRecentSearch(acc.ID, normalizedQ)
@@ -184,12 +327,28 @@ func (a *app) suggest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
+
+	// Abuse inspection on suggest queries
+	ip := resolveClientIP(r)
+	abuseRep := a.ensureAbuseDetector().InspectQuery(ip, normalizedQ)
+	if abuseRep.IsAbusive {
+		writeJSON(w, 400, map[string]interface{}{
+			"error":      "suggest rejected by abuse and privacy policy: " + abuseRep.Reason,
+			"code":       string(abuseRep.Type),
+			"request_id": resolveTraceID(r),
+		})
+		return
+	}
+
 	items, err := a.c.Suggest(r.Context(), normalizedQ)
 	if err != nil {
 		log.Print("suggest backend failed")
 		writeJSON(w, 503, map[string]string{"error": "suggest temporarily unavailable"})
 		return
 	}
+	// Filter suggestions against blacklisted and purged items
+	items = a.ensureAbuseDetector().FilterSuggestions(items)
+
 	resp := map[string]interface{}{"suggestions": items}
 	if corr := search.SuggestCorrection(normalizedQ); corr != "" {
 		resp["corrected_query"] = corr
@@ -519,6 +678,67 @@ func (a *app) handleOrgSubroutes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, site)
 }
 
+func (a *app) handleModerationReport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		DocumentID string `json:"document_id"`
+		Reporter   string `json:"reporter"`
+		Category   string `json:"category"`
+		Details    string `json:"details"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	if body.DocumentID == "" || body.Category == "" {
+		writeJSON(w, 400, map[string]string{"error": "document_id and category are required"})
+		return
+	}
+	reporter := body.Reporter
+	if reporter == "" {
+		reporter = resolveClientIP(r)
+	}
+	caseRec, err := a.ensureModeration().SubmitReport(body.DocumentID, reporter, ranking.ReportCategory(body.Category), body.Details)
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, caseRec)
+}
+
+func (a *app) handleModerationAppeal(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		CaseID    string `json:"case_id"`
+		Appellant string `json:"appellant"`
+		Reason    string `json:"reason"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	if body.CaseID == "" || body.Reason == "" {
+		writeJSON(w, 400, map[string]string{"error": "case_id and reason are required"})
+		return
+	}
+	appellant := body.Appellant
+	if appellant == "" {
+		appellant = resolveClientIP(r)
+	}
+	appealRec, err := a.ensureModeration().SubmitAppeal(body.CaseID, appellant, body.Reason)
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, appealRec)
+}
+
 func (a *app) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
@@ -536,6 +756,8 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/v1/search", a.cors(a.search))
 	mux.HandleFunc("/api/v1/suggest", a.cors(a.suggest))
 	mux.HandleFunc("/api/v1/portal/config", a.cors(a.portalConfig))
+	mux.HandleFunc("/api/v1/control/moderation/report", a.cors(a.handleModerationReport))
+	mux.HandleFunc("/api/v1/control/moderation/appeal", a.cors(a.handleModerationAppeal))
 	mux.HandleFunc("/api/v1/auth/challenge", a.cors(a.handleAuthChallenge))
 	mux.HandleFunc("/api/v1/auth/verify", a.cors(a.handleAuthVerify))
 	mux.HandleFunc("/api/v1/auth/session", a.cors(a.handleAuthSession))

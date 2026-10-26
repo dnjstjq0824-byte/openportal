@@ -5,11 +5,12 @@ This user must also own the server process.
 The database cluster will be initialized with locale "C".
 The default text search configuration will be set to "english".
 
+
 Data page checksums are disabled.
 
 
 
-fixing permissions on existing directory C:/Users/dnjst/Desktop/project/searchengine/work/pg-1792997006207 ... 
+fixing permissions on existing directory C:/Users/dnjst/Desktop/project/searchengine/work/pg-1792998139092 ... 
 ok
 
 creating subdirectories ... 
@@ -22,7 +23,6 @@ selecting default "shared_buffers" ...
 128MB
 selecting default time zone ... 
 Asia/Seoul
-
 creating configuration files ... 
 ok
 running bootstrap script ... 
@@ -30,22 +30,25 @@ ok
 
 performing post-bootstrap initialization ... 
 ok
+
 syncing data to disk ... 
 ok
 
 
+
 Success. You can now start the database server using:
 
-    ^"C^:^\Users^\dnjst^\Desktop^\project^\searchengine^\node^_modules^\^@embedded^-postgres^\windows^-x64^\native^\bin^\pg^_ctl^" -D ^"C^:^\Users^\dnjst^\Desktop^\project^\searchengine^\work^\pg^-1792997006207^" -l logfile start
+    ^"C^:^\Users^\dnjst^\Desktop^\project^\searchengine^\node^_modules^\^@embedded^-postgres^\windows^-x64^\native^\bin^\pg^_ctl^" -D ^"C^:^\Users^\dnjst^\Desktop^\project^\searchengine^\work^\pg^-1792998139092^" -l logfile start
 
 
-2026-10-26 15:43:40.009 KST [11720] LOG:  starting PostgreSQL 17.10 on x86_64-windows, compiled by msvc-19.44.35226, 64-bit
 
-2026-10-26 15:43:40.011 KST [11720] LOG:  listening on IPv4 address "127.0.0.1", port 55432
+2026-10-26 16:02:31.933 KST [25560] LOG:  starting PostgreSQL 17.10 on x86_64-windows, compiled by msvc-19.44.35226, 64-bit
 
-2026-10-26 15:43:40.076 KST [34436] LOG:  database system was shut down at 2026-10-26 15:43:32 KST
+2026-10-26 16:02:31.934 KST [25560] LOG:  listening on IPv4 address "127.0.0.1", port 55432
 
-2026-10-26 15:43:40.110 KST [11720] LOG:  database system is ready to accept connections
+2026-10-26 16:02:32.004 KST [34788] LOG:  database system was shut down at 2026-10-26 16:02:24 KST
+
+2026-10-26 16:02:32.062 KST [25560] LOG:  database system is ready to accept connections
 
 [
   {
@@ -53,19 +56,19 @@ Success. You can now start the database server using:
   }
 ]
 PASS baseline: 86 tables / 8 schemas; validated foreign keys: 75
-2026-10-26 15:43:41.003 KST [39088] ERROR:  insert or update on table "sessions" violates foreign key constraint "sessions_account_id_fkey"
-2026-10-26 15:43:41.003 KST [39088] DETAIL:  Key (account_id)=(a8f4940d-0ded-432c-b814-f816ad676e40) is not present in table "accounts".
-2026-10-26 15:43:41.003 KST [39088] STATEMENT:  insert into identity.sessions(account_id,token_hash,expires_at) values(gen_random_uuid(),'abc',now())
+2026-10-26 16:02:32.786 KST [36360] ERROR:  insert or update on table "sessions" violates foreign key constraint "sessions_account_id_fkey"
+2026-10-26 16:02:32.786 KST [36360] DETAIL:  Key (account_id)=(34eb436a-0ba8-4907-bb59-00ac983a5b50) is not present in table "accounts".
+2026-10-26 16:02:32.786 KST [36360] STATEMENT:  insert into identity.sessions(account_id,token_hash,expires_at) values(gen_random_uuid(),'abc',now())
 
 PASS rejected FK violation
-2026-10-26 15:43:41.005 KST [39088] ERROR:  new row for relation "hosts" violates check constraint "hosts_scheme_check"
-2026-10-26 15:43:41.005 KST [39088] DETAIL:  Failing row contains (156e78ef-7754-416b-b4c1-2be2b83533b6, file, example.test, 443, t, 1000, null, 2026-10-26 06:43:41.005184+00).
-2026-10-26 15:43:41.005 KST [39088] STATEMENT:  insert into crawl.hosts(scheme,hostname) values('file','example.test')
+2026-10-26 16:02:32.788 KST [36360] ERROR:  new row for relation "hosts" violates check constraint "hosts_scheme_check"
+2026-10-26 16:02:32.788 KST [36360] DETAIL:  Failing row contains (d7502ae8-7a00-437e-8bd2-507254acaf3c, file, example.test, 443, t, 1000, null, 2026-10-26 07:02:32.787991+00).
+2026-10-26 16:02:32.788 KST [36360] STATEMENT:  insert into crawl.hosts(scheme,hostname) values('file','example.test')
 
 PASS rejected CHECK violation
-2026-10-26 15:43:41.007 KST [39088] ERROR:  duplicate key value violates unique constraint "roles_pkey"
-2026-10-26 15:43:41.007 KST [39088] DETAIL:  Key (id)=(user) already exists.
-2026-10-26 15:43:41.007 KST [39088] STATEMENT:  insert into identity.roles values('user','duplicate')
+2026-10-26 16:02:32.790 KST [36360] ERROR:  duplicate key value violates unique constraint "roles_pkey"
+2026-10-26 16:02:32.790 KST [36360] DETAIL:  Key (id)=(user) already exists.
+2026-10-26 16:02:32.790 KST [36360] STATEMENT:  insert into identity.roles values('user','duplicate')
 
 PASS rejected UNIQUE violation
 PASS rollback leaves no account
@@ -74,15 +77,22 @@ APPLIED 002_phase0_access_boundary.sql 5ff7ef51440fe75fe56af2ad674d83aa31a6c5c8a
 APPLIED 003_phase1_identity_and_portal_flags.sql 21db3e2e71c5e0516b84b7d873789f5ce5e8aff11523d11d50d56272f67d68a6
 APPLIED 004_phase2_crawler_policy_and_corpus.sql 68f8657ef9f9cd85633236bcabfbe428fb17a65b549b9fc70c691a93360b3c6d
 APPLIED 005_phase3_indexing_and_tombstones.sql 15b79cbae4657a8836658bb92a4ecbaec0a1ff80eee96ca3be8f0064e1584a6f
-PASS forward migrations (001..005) and repeat run
-PASS Phase 1, 2 & 3 feature flags, bounded corpus hosts and catalog schema seeded
-2026-10-26 15:43:43.416 KST [39444] ERROR:  permission denied for schema identity at character 15
-2026-10-26 15:43:43.416 KST [39444] STATEMENT:  select * from identity.accounts
+APPLIED 006_phase4_ranking_quality_and_safety.sql 581ca5f09a81a653f64b086bf56f4653626909b66af1c1242ecd88a95bce2a2a
+PASS forward migrations (001..006) and repeat run
+PASS Phase 1, 2, 3 & 4 feature flags, ranking profiles, bounded corpus hosts and catalog schema seeded
+2026-10-26 16:02:34.850 KST [23960] ERROR:  permission denied for schema identity at character 15
+2026-10-26 16:02:34.850 KST [23960] STATEMENT:  select * from identity.accounts
 
 PASS unprivileged account access denied
 PASS Phase 1 RLS prevents cross-account preference read/write (BOLA)
-2026-10-26 15:43:43.498 KST [39444] ERROR:  division by zero
-2026-10-26 15:43:43.498 KST [39444] STATEMENT:  CREATE TABLE public.must_rollback(id int); SELECT 1/0;
+2026-10-26 16:02:34.949 KST [23960] ERROR:  division by zero
+2026-10-26 16:02:34.949 KST [23960] STATEMENT:  CREATE TABLE public.must_rollback(id int); SELECT 1/0;
 
 PASS failed migration rolls back DDL and ledger
 PASS checksum drift rejected
+2026-10-26 16:02:35.383 KST [25560] LOG:  checkpointer process (PID 6228) exited with exit code 1
+
+2026-10-26 16:02:35.383 KST [25560] LOG:  terminating any other active server processes
+
+2026-10-26 16:02:35.428 KST [25560] LOG:  all server processes terminated; reinitializing
+

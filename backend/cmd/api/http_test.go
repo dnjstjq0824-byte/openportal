@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -270,6 +271,100 @@ func TestGatewayAuthMFARecoveryAndBOLAEndpoints(t *testing.T) {
 		h.ServeHTTP(w, revReq)
 		if w.Code != 200 {
 			t.Fatalf("revoke failed: %d", w.Code)
+		}
+	}
+}
+
+func TestRankingAbuseAndModerationEndpoints(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"hits":{"total":{"value":2},"hits":[
+			{"_id":"doc-clean","_score":2.5,"_source":{"document_id":"doc-clean","title":"정상 기술 문서","url":"https://example.org/tech","description":"클린 내용","language":"ko"}},
+			{"_id":"doc-adult","_score":2.8,"_source":{"document_id":"doc-adult","title":"성인인증 음란물 야동","url":"https://adult.test/xxx","description":"유해","language":"ko"}}
+		]}}`))
+	}))
+	defer upstream.Close()
+
+	a := &app{
+		c:          search.New(upstream.URL, "documents_v1", "", ""),
+		idStore:    identity.NewStore(),
+		corsOrigin: "http://127.0.0.1:5173",
+	}
+	h := a.routes()
+
+	// 1. Abuse / PII rejection (Task 042)
+	{
+		req := httptest.NewRequest("GET", "/api/v1/search?q="+url.QueryEscape("주민등록번호 950101-1234567 조회"), nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != 400 {
+			t.Fatalf("expected 400 for PII leak query, got %d", w.Code)
+		}
+		var errResp struct {
+			Code  string `json:"code"`
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &errResp)
+		if errResp.Code != "pii_leakage" {
+			t.Fatalf("expected code 'pii_leakage', got %s", errResp.Code)
+		}
+	}
+
+	// 2. SafeSearch Strict Mode Content Filtering (Task 044)
+	{
+		req := httptest.NewRequest("GET", "/api/v1/search?q=테스트&safe_search=strict", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+		var sResp search.Response
+		_ = json.Unmarshal(w.Body.Bytes(), &sResp)
+		if len(sResp.Hits) != 1 || sResp.Hits[0].DocumentID != "doc-clean" {
+			t.Fatalf("expected only clean hit in strict safesearch, got %d hits", len(sResp.Hits))
+		}
+		// Regression: reranking must preserve hit language metadata.
+		if sResp.Hits[0].Language != "ko" {
+			t.Fatalf("reranker dropped language field, got %q", sResp.Hits[0].Language)
+		}
+	}
+
+	// 3. Moderation Case Report (Task 044)
+	var caseID string
+	{
+		body := `{"document_id":"doc-malware-01","reporter":"victim@example.org","category":"malware","details":"다운로드 시 랜섬웨어 감염"}`
+		req := httptest.NewRequest("POST", "/api/v1/control/moderation/report", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("moderation report failed: %d %s", w.Code, w.Body.String())
+		}
+		var cOut struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &cOut)
+		if cOut.ID == "" || cOut.Status != "pending" {
+			t.Fatalf("invalid report response: %+v", cOut)
+		}
+		caseID = cOut.ID
+	}
+
+	// 4. Moderation Case Appeal (Task 044)
+	{
+		body := `{"case_id":"` + caseID + `","appellant":"owner@example.org","reason":"보안 분석용 샘플 코드로 확인되었습니다"}`
+		req := httptest.NewRequest("POST", "/api/v1/control/moderation/appeal", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("moderation appeal failed: %d %s", w.Code, w.Body.String())
+		}
+		var aOut struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &aOut)
+		if aOut.ID == "" || aOut.Status != "pending" {
+			t.Fatalf("invalid appeal response: %+v", aOut)
 		}
 	}
 }

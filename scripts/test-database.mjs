@@ -58,8 +58,8 @@ try {
   await client.connect();
   await migrate(client);
   await migrate(client);
-  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n, 5);
-  console.log('PASS forward migrations (001..005) and repeat run');
+  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n, 6);
+  console.log('PASS forward migrations (001..006) and repeat run');
   const flags = await client.query("select name, enabled from control.feature_flags order by name");
   assert.equal(flags.rows.find(r => r.name === 'vertical.web')?.enabled, true);
   assert.equal(flags.rows.find(r => r.name === 'vertical.image')?.enabled, false);
@@ -69,6 +69,11 @@ try {
   assert.equal(flags.rows.find(r => r.name === 'indexer.nori_enabled')?.enabled, true);
   assert.equal(flags.rows.find(r => r.name === 'indexer.blue_green_enabled')?.enabled, true);
   assert.equal(flags.rows.find(r => r.name === 'indexer.tombstone_purge_enabled')?.enabled, true);
+  assert.equal(flags.rows.find(r => r.name === 'ranking.intent_classification_enabled')?.enabled, true);
+  assert.equal(flags.rows.find(r => r.name === 'ranking.safesearch_filter_enabled')?.enabled, true);
+  assert.equal(flags.rows.find(r => r.name === 'ranking.rrf_hybrid_enabled')?.enabled, true);
+  const profiles = await client.query("select count(*)::int n from query.ranking_profiles where active = true");
+  assert.ok(profiles.rows[0].n >= 1);
   const hosts = await client.query("select count(*)::int n from crawl.hosts where fetch_enabled = true");
   assert.ok(hosts.rows[0].n >= 10);
   // Verify Phase 3 catalog schema extensions
@@ -76,7 +81,7 @@ try {
   assert.ok(docCols.includes('simhash'));
   assert.ok(docCols.includes('tombstone_reason'));
   assert.ok(docCols.includes('is_representative'));
-  console.log('PASS Phase 1, 2 & 3 feature flags, bounded corpus hosts and catalog schema seeded');
+  console.log('PASS Phase 1, 2, 3 & 4 feature flags, ranking profiles, bounded corpus hosts and catalog schema seeded');
   await client.query('create role phase0_untrusted');
   await client.query('set role phase0_untrusted');
   await assert.rejects(client.query('select * from identity.accounts'), e => e.code === '42501');
@@ -103,10 +108,10 @@ try {
 
   const copy = resolve(dir, 'migration-fixtures');
   await cp('database/migrations', copy, {recursive:true});
-  await writeFile(resolve(copy, '006_failure.sql'), 'CREATE TABLE public.must_rollback(id int); SELECT 1/0;');
+  await writeFile(resolve(copy, '007_failure.sql'), 'CREATE TABLE public.must_rollback(id int); SELECT 1/0;');
   await assert.rejects(migrate(client, copy), e => e.code === '22012');
   assert.equal((await client.query("select to_regclass('public.must_rollback') as relation")).rows[0].relation,null);
-  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n,5);
+  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n,6);
   console.log('PASS failed migration rolls back DDL and ledger');
   await writeFile(resolve(copy, '001_initial.sql'), '-- changed');
   await assert.rejects(migrate(client, copy), /checksum mismatch/);

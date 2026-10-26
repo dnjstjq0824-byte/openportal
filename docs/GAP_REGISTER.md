@@ -23,6 +23,12 @@
 | G015 | P3 | 수정·검증 | 경쟁 기능 비교 틀만 작성 | `docs/PRODUCT_BOUNDARIES.md`에 Google/Naver/Bing 공식 기술자료 기반 비교표 및 IP/저작권/크롤링 권리 경계 분석 완료 | 공식 기술 자료 인용 완료; 독립 법무 서명은 외부 게이트 |
 | G016 | P1 | 차단 / 완화 | Nuxt 3/4 도입 시 `@nuxt/devtools` -> `simple-git`, `node-forge` CVE로 인해 `npm audit` 규칙 위반 | 엄격한 제로 취약점 정책 유지를 위해 Vue 3 + Vite 기반 유지하며 Phase 1 포털 및 화면 구현 | 상위 Nuxt 패키지 취약점 패치 릴리스 시 업그레이드 |
 | G017 | P1 | 차단 | Flutter SDK 부재로 `flutter test` 실행 불가 | `apps/mobile/lib/main.dart` 및 `test/widget_test.dart` 코드 작성 완료 | Flutter SDK 설치 후 위젯 및 플랫폼 통합 테스트 실행 |
+| G018 | P1 | 수정·검증 | 2026-10-26 Phase 4 게이트웨이에 재랭킹을 연결한 뒤 `npm run test:e2e`: `lang=ko` 검색 결과의 `language`가 빈 값 → 1/5 실패(`search.spec.mjs:21`) | `cmd/api/main.go` 재랭킹이 `search.Hit`를 재구성하며 `Language` 누락 → 원본 hit 맵에서 복사. 회귀 단언을 `TestRankingAbuseAndModerationEndpoints`에 추가 | `go test -count=1 ./...` PASS, E2E 5/5 PASS (evidence/browser-tests.txt) |
+| G019 | P2 | 열림 | 재랭킹 핸들러가 `PublishedAt=now`, `DomainAuthority=0.5`, `TermFrequencyDensity=0.05` 상수 사용 | 색인 문서에 신선도/도메인 권위/스팸 신호 필드가 없음; 현재는 http/https 가중치만 실질 영향 | 색인 파이프라인에서 실제 신호를 산출·저장하고 골든셋 NDCG로 효과 검증 |
+| G020 | P1 | 열림 | 의도분류·실험 플랫폼·품질 게이트가 API/DB에 미연결, 남용탐지·신고/이의 상태는 프로세스 메모리 | 단위 테스트 수준 구현; `control.moderation_cases`/`query.experiments` 영속화 없음 | 영속 저장소 연결 + 재시작/다중 인스턴스 테스트 |
+| G021 | P0 | 승인 차단 | 신고/이의 `POST /api/v1/control/moderation/*`는 익명 접근 가능, 검토·해결 API는 미노출 | 어뷰즈 방지(rate limit·인증) 및 관리자 인가 구축 전까지 운영 노출 금지 | 016/081 인증·인가 완료 후 재검증 |
+| G022 | P1 | 차단 | 045/050 실제 인적 판정 데이터·독립 relevance 검토자 없음; 047 시맨틱 후보 생성기 없음 | 판정 도구·게이트 로직만 구현, 출시 승인 주장 불가 | 한국어/영어 판정 세트 수집, 독립 검토 서명 |
+| G023 | P3 | 관찰 | 2026-10-26 재시작 전 첫 E2E 실행에서 8080 요청이 401(5/5 실패) — 원인 미규명; 재시작 후 재현되지 않음 | 해당 시점 8080에 다른 프로세스가 있었을 가능성(미확인) | 재발 시 포트 점유 프로세스 기록 |
 
 ## 실행 환경 장애
 
