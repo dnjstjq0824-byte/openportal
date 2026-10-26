@@ -48,3 +48,4 @@ checkHealth().then(() => {
   console.error('\n' + err.message);
   process.exit(1);
 });
+

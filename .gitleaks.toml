@@ -1,5 +1,12 @@
 [extend]
 useDefault = true
-[[allowlists]]
-description = "Dependency installations and disposable local clusters are not repository source"
-paths = ['''(^|[\\/])node_modules[\\/]''', '''(^|[\\/])work[\\/]''']
+
+[allowlist]
+description = "Dependency installations, disposable local clusters, and hash manifests are not repository source secrets"
+paths = [
+  '''(?i)(^|[\\/])node_modules([\\/]|$)''',
+  '''(?i)(^|[\\/])work([\\/]|$)''',
+  '''(?i)(^|[\\/])test-results([\\/]|$)''',
+  '''(?i)HANDOFF_MANIFEST_SHA256\.json''',
+  '''(?i).*\.sha256$'''
+]

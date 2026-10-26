@@ -1,11 +1,10 @@
-[WebServer] 2026/10/24 20:51:08 openportal search api listening port=8080
-
+﻿
 Running 5 tests using 1 worker
 
-  ok 1 tests\search.spec.mjs:14:1 › real OpenSearch -> Go -> Vue Korean and English searches (840ms)
-  ok 2 tests\search.spec.mjs:31:1 › empty and invalid requests, suggestions, denied consoles (369ms)
-  ok 3 tests\search.spec.mjs:43:1 › backend outage produces visible error without old results (373ms)
-  ok 4 tests\search.spec.mjs:52:1 › real indexable=false document excluded from search and suggest (239ms)
-  ok 5 tests\search.spec.mjs:68:1 › Phase 1 features: query correction, opt-in recent searches, feature-flagged vertical tabs, settings & i18n, passkey/MFA auth, and console/404 boundaries (1.0s)
+  ok 1 tests\search.spec.mjs:14:1 ??real OpenSearch -> Go -> Vue Korean and English searches (4.0s)
+  ok 2 tests\search.spec.mjs:31:1 ??empty and invalid requests, suggestions, denied consoles (327ms)
+  ok 3 tests\search.spec.mjs:43:1 ??backend outage produces visible error without old results (267ms)
+  ok 4 tests\search.spec.mjs:52:1 ??real indexable=false document excluded from search and suggest (371ms)
+  ok 5 tests\search.spec.mjs:68:1 ??Phase 1 features: query correction, opt-in recent searches, feature-flagged vertical tabs, settings & i18n, passkey/MFA auth, and console/404 boundaries (926ms)
 
-  5 passed (46.5s)
+  5 passed (32.3s)

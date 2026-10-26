@@ -11,8 +11,8 @@
 | G003 | P1 | 수정·검증 | bulk HTTP200에 errors=true면 실패해야 하나 초기 seed는 성공 표시 | scripts/seed.py 오류/개수 검사 | 실제 정상 seed PASS; seed-unit.txt: item-error/누락 item 거부 포함 3건 PASS |
 | G004 | P1 | 수정·검증 | 초기 DB 이력/체크섬 없음 | advisory lock·DDL+이력 원자 트랜잭션, PUBLIC revoke | database.txt: 재실행/변조/실패 rollback/권한거부 PASS |
 | G005 | P1 | 차단 | `docker compose -f infra/compose.yaml --profile app up --build`; 실행돼야 하나 Docker 없음 | native PG17.10/OpenSearch2.19.0으로 별도 실행 증거 확보 | Docker 호스트에서 Compose full stack 재검증 |
-| G006 | P0 | 출시 차단 (Phase 1 부분 해소) | 소스 검사: auth/MFA/테넌트 RLS/SSRF crawler/삭제·정산 통제 없음 | Phase 1에서 Passkey/TOTP MFA 인증, 단회성 계정 복구코드, RLS BOLA 격리(`identity.preferences`, `sessions`, `recent_searches`), 콘솔 오리진 경계(`admin.*`, `partner.*`) 403 차단 및 UI 전용 기본 거부 화면 구현 완료 | 024~029(크롤러 SSRF), 038(삭제전파), 078~090(정산/감사) 독립 테스트 |
-| G007 | P1 | 미구현 | fixture만 있고 자체 fetch→parse→index가 없음 | 크롤링을 완료로 주장하지 않음 | 021~040 실제 허가 corpus E2E |
+| G006 | P0 | 출시 차단 (Phase 1/2 부분 해소) | 소스 검사: auth/MFA/테넌트 RLS/SSRF crawler/삭제·정산 통제 없음 | Phase 1에서 Passkey/TOTP MFA 인증, 단회성 계정 복구코드, RLS BOLA 격리, 콘솔 경계 차단 구현. Phase 2에서 크롤러 RFC 9309 robots.txt, 엄격한 사설망/메타데이터 SSRF 차단, DNS Rebinding 방지 IP Pinning Dialer, 2MiB 크기제한 및 압축폭탄 방어, 허가 도메인 한정 Bounded Corpus 게이트 구현 완료 | 024~029(크롤러 SSRF/robots/politeness PASS), 038(삭제전파), 078~090(정산/감사) 독립 테스트 |
+| G007 | P1 | 수정·검증 | fixture만 있고 자체 fetch→parse→index가 없음 | Phase 2에서 자체 Bounded Crawler 파이프라인 (canonicalize -> robots RFC9309 -> SSRF/IP Pinning -> politeness -> safe fetch 2MB -> WARC ISO 28500 -> HTML/X-Robots-Tag/canonical/sitemap parse -> frontier leasing -> engine 허가 도메인 한정 수집) 구현 완료. 18/18 crawler 유닛/통합테스트 PASS | evidence/go-tests.txt PASS; Phase 3 색인 파이프라인 연계 |
 | G008 | P2 | 미구현 | mapping content_analyzer=standard | Nori·한국어 품질/세이프서치·정량 relevance 없음 | 033, 041~050 실제 평가 |
 | G009 | P1 | 부분·차단 | Vue/Vite만 실행; Flutter SDK/플랫폼 호스트 없음 | 버전 후보와 Nuxt 이행 계획을 명시; Flutter UI 및 위젯 테스트 코드 작성 완료 | 011~020 cross-platform E2E; Flutter SDK 환경 구성 |
 | G010 | P0 | 승인 차단 | 독립 감사·소스 권리·상표·실결제 승인 증적 없음 | 합성 데이터·로컬 전용, 공개/결제 금지 | 사업 소유자 및 독립 법무/보안/정산 검토 서명 |

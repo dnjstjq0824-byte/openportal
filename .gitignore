@@ -16,3 +16,5 @@ work/
 test-results/
 playwright-report/
 *.exe
+*.zip
+*.zip.sha256

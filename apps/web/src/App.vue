@@ -138,6 +138,9 @@ async function fetchSuggestions(prefix: string) {
   try {
     const res = await fetch(`/api/v1/suggest?q=${encodeURIComponent(clean)}`);
     if (!res.ok) return;
+    if (clean !== q.value.trim() || busy.value) {
+      return;
+    }
     const data = (await res.json()) as { suggestions?: string[] };
     suggestions.value = data.suggestions || [];
     activeSuggestIdx.value = -1;
@@ -153,6 +156,12 @@ function onInputQuery() {
   suggestTimer = setTimeout(() => {
     fetchSuggestions(q.value);
   }, 120);
+}
+
+function onBlurQuery() {
+  setTimeout(() => {
+    showSuggest.value = false;
+  }, 200);
 }
 
 function onKeydownQuery(e: KeyboardEvent) {
@@ -187,6 +196,7 @@ function selectSuggestion(item: string) {
 }
 
 function selectTab(tab: VerticalTab) {
+  showSuggest.value = false;
   if (!tab.enabled) {
     verticalGateNotice.value = tab.gate_note || '후속 Phase 라이선스 검증 전 비활성 상태입니다.';
     return;
@@ -203,12 +213,17 @@ function toggleRecentOptIn(enabled: boolean) {
 }
 
 async function runSearch(nextPage = 1, overrideQuery?: string) {
+  if (suggestTimer) {
+    clearTimeout(suggestTimer);
+    suggestTimer = null;
+  }
   if (overrideQuery !== undefined) {
     q.value = overrideQuery;
   }
   const text = q.value.trim();
   if (!text || busy.value) return;
   showSuggest.value = false;
+  suggestions.value = [];
   activeSuggestIdx.value = -1;
   busy.value = true;
   error.value = '';
@@ -457,6 +472,7 @@ onMounted(async () => {
               aria-controls="suggest-listbox"
               @input="onInputQuery"
               @keydown="onKeydownQuery"
+              @blur="onBlurQuery"
             />
             <button type="submit" :disabled="busy">{{ busy ? i18n.searchingBtn : i18n.searchBtn }}</button>
           </form>

@@ -13,7 +13,7 @@ work_dir = root_dir / "work"
 stage_dir = work_dir / "handoff_stage"
 repo_stage_dir = stage_dir / "repo"
 history_stage_dir = stage_dir / "history"
-zip_out_path = root_dir / "OpenPortal_Search_Gemini_Handoff_Phase1.zip"
+zip_out_path = root_dir / "OpenPortal_Search_Gemini_Handoff_Phase2.zip"
 
 print("1. Cleaning previous staging...")
 if stage_dir.exists():
@@ -32,16 +32,26 @@ subprocess.run(["tar", "-xf", str(tar_path), "-C", str(repo_stage_dir)], cwd=roo
 tar_path.unlink()
 
 print("4. Writing updated START_HERE_KO.md...")
-start_here_ko = """# OpenPortal Search Phase 1 인계 및 빠른 시작 가이드 (2026-10-24)
+start_here_ko = """# OpenPortal Search Phase 2 인계 및 빠른 시작 가이드 (2026-10-26)
 
 ## 1. 개요 및 인계 기준
-본 아카이브는 Phase 0 NO-GO(Compose, CGO race, 원격 CI, 독립 감사 서명 부재) 상태 하에서,
-선행 게이트 예외 정책에 따라 독립적으로 진행 가능한 Phase 1(Tasks 011~018)의 핵심 포털 화면,
-Go Gateway, Passkey/MFA 인증, BOLA RLS 격리, 도메인별 계약 명세를 구현하고 검증한 산출물입니다.
+본 아카이브는 Phase 0/1 NO-GO(Docker Compose, CGO race, Flutter SDK 호스트 설치, 원격 CI, 독립 감사자 승인 부재) 상태 하에서,
+선행 게이트 예외 정책에 따라 독립적으로 진행 가능한 Phase 2(Tasks 021~030)의 크롤러 핵심 엔진 및 정책 제어를 구현하고 검증한 산출물입니다.
 
 - 기준 HEAD: `67e216a8fe7dd40cb74cd02ba94281584ceb70ed`
-- 선행 커밋: `ba2c1a5badf11b5fe3a7fbe390227a3d4067db01`
-- Phase 1 구현 커밋: `22c27eb7b93a03310cb21bcfb0f191b2bf847bda` (HEAD)
+- 선행 커밋: `44e6ea26f3066600c3b28b6d02773cbb0343a42d` (Phase 1)
+- Phase 2 구현 커밋: `a7df15e2a54236b63593c0de4091769f35eb6049` (HEAD)
+- 구현 내용 (Tasks 021~030):
+  - RFC 3986 URL Canonicalization, Punycode IDN 변환, 추적 파라미터 스트립, SHA-256 해시 (022)
+  - RFC 9309 robots.txt 파서, 와일드카드/끝점 정규식 컴파일, Longest-match tie-break, Crawl-delay, TTL 캐시 (024)
+  - SSRF 사설망/루프백/링크로컬/클라우드 메타데이터 차단, DNS Rebinding 방어 IP Pinning Dialer, 리다이렉트 HTTPS 다운그레이드 방어 (025)
+  - 호스트별 crawl-delay 및 동시성 1개 제한, 429/503 지수 백오프, 조건부 GET If-None-Match/If-Modified-Since (026)
+  - Content-Type 화이트리스트, 2MiB 응답 크기 제한, 압축폭탄(Decompression bomb) 가드 (027)
+  - ISO 28500 WARC/1.0 아카이빙 레코드 직렬화 및 페이로드 SHA-256 다이제스트 (028)
+  - HTML noindex/nofollow/nosnippet/noarchive 파싱, rel="canonical" 추출, 하이퍼링크 추출, XML sitemap/sitemapindex 파싱 (029)
+  - 호스트 파티셔닝 우선순위 Frontier 큐 원자적 임대/확인/재시도 (021, 023)
+  - 10~100개 검증 도메인 한정 허용 Bounded Crawler Engine, 임의 크롤링 차단(ErrArbitraryCrawlDenied), 트래픽/컴플라이언스 리포트 계측 (030)
+  - 데이터베이스 마이그레이션 004_phase2_crawler_policy_and_corpus.sql 적용 및 RLS url_submissions 격리 (021, 030)
 
 ## 2. 저장소 복원 방법
 `history/OpenPortal_Search.git.bundle`에 전체 Git 이력이 포함되어 있습니다.
@@ -66,7 +76,7 @@ npm ci --prefix apps/web
 
 ## 4. 검증 명령어 실행 순서
 ```bash
-# 1. 일회용 PostgreSQL 17.10 DB 마이그레이션(001~003) 및 RLS/BOLA 격리 검증
+# 1. 일회용 PostgreSQL 17.10 DB 마이그레이션(001~004) 및 RLS/BOLA/코퍼스 시딩 검증
 node scripts/test-database.mjs
 
 # 2. Protobuf 및 계약 호환성 검사
@@ -80,28 +90,31 @@ python -m unittest discover -s scripts -p test_seed.py
 npm run typecheck --prefix apps/web
 npm run build --prefix apps/web
 
-# 5. Go 백엔드 유닛/통합 테스트 및 커버리지
+# 5. Go 백엔드 전체 패키지 유닛/통합 테스트 (crawler 18개 테스트 포함 전체 PASS)
 cd backend
-go test -v -count=1 ./...
-go test -count=1 -coverprofile=../docs/evidence/go-coverage.out ./...
+go test -v ./...
+go test "-coverprofile=coverage.out" "-coverpkg=./..." ./...
 cd ..
 
-# 6. OpenSearch 2.19.0 실행 (포트 9200) 및 합성 fixture 시딩
+# 6. 보안 도구 검사
+govulncheck ./... (in backend)
+gitleaks dir . --config .gitleaks.toml --redact
+
+# 7. OpenSearch 2.19.0 실행 (포트 9200) 및 합성 fixture 시딩
 node scripts/start-opensearch.mjs
 python scripts/seed.py
 
-# 7. Playwright 브라우저 E2E 전체 회귀 테스트 (5건 전체 PASS)
-# (Windows의 경우 CHROME_PATH 설정 권장)
+# 8. Playwright 브라우저 E2E 전체 회귀 테스트 (5건 전체 PASS)
+# (Windows의 경우 CHROME_PATH 설정)
 $env:CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
 npx playwright test
 ```
 
 ## 5. 다음 Gemini 세션 이어서 작업할 프롬프트
 ```text
-OpenPortal Search Phase 1(Tasks 011~018)이 구현 및 검증 완료된 인계 산출물을 기준으로 Phase 2(Tasks 021~030)를 이어서 개발하라.
-Phase 0과 Phase 1의 미해결 게이트(Docker Compose, CGO race, Flutter SDK 부재, 독립 감사자 승인)는 NO-GO 상태로 유지하고,
-임의의 인터넷 크롤링이나 결제/광고는 엄격히 비활성화(기본 거부)한 상태에서,
-Tasks 021~030의 URL frontier, RFC9309 robots.txt 파서, SSRF/DNS rebinding 격리 fetcher, 허가된 corpus(10~100개 사이트) 기반 수집 파이프라인의 로컬 구현과 검증을 순차적으로 수행하라.
+OpenPortal Search Phase 2(Tasks 021~030)가 구현 및 검증 완료된 인계 산출물을 기준으로 Phase 3(Tasks 031~040)를 이어서 개발하라.
+Phase 0/1/2의 미해결 게이트(Docker Compose, CGO race, Flutter SDK 부재, 독립 감사자 승인, 임의 인터넷 도메인 크롤링 비활성)는 NO-GO 상태로 유지하고,
+Phase 3(Tasks 031~040: HTML 보일러플레이트 제거, 본문 추출, SimHash 유사중복 제거, 한국어 Nori/영어 분석기 설정, Blue-Green 재색인, 문서 삭제 Tombstone 전파 파이프라인)의 구현과 로컬 검증을 순차적으로 수행하라.
 ```
 """
 (stage_dir / "START_HERE_KO.md").write_text(start_here_ko, encoding="utf-8")
@@ -138,17 +151,18 @@ zip_bytes = zip_out_path.read_bytes()
 zip_sha256 = hashlib.sha256(zip_bytes).hexdigest()
 zip_size_mb = len(zip_bytes) / 1024 / 1024
 
-(root_dir / "OpenPortal_Search_Gemini_Handoff_Phase1.zip.sha256").write_text(
-    f"{zip_sha256}  OpenPortal_Search_Gemini_Handoff_Phase1.zip\n", encoding="utf-8"
+(root_dir / "OpenPortal_Search_Gemini_Handoff_Phase2.zip.sha256").write_text(
+    f"{zip_sha256}  OpenPortal_Search_Gemini_Handoff_Phase2.zip\n", encoding="utf-8"
 )
 
 # Also copy ZIP to Artifact Directory so user can download directly
 artifact_dir = Path(r"C:\Users\dnjst\.gemini\antigravity\brain\47bdaef4-1b8c-409e-937d-6249a32dbf77")
 if artifact_dir.exists():
-    shutil.copy2(zip_out_path, artifact_dir / "OpenPortal_Search_Gemini_Handoff_Phase1.zip")
-    shutil.copy2(root_dir / "OpenPortal_Search_Gemini_Handoff_Phase1.zip.sha256", artifact_dir / "OpenPortal_Search_Gemini_Handoff_Phase1.zip.sha256")
+    shutil.copy2(zip_out_path, artifact_dir / "OpenPortal_Search_Gemini_Handoff_Phase2.zip")
+    shutil.copy2(root_dir / "OpenPortal_Search_Gemini_Handoff_Phase2.zip.sha256", artifact_dir / "OpenPortal_Search_Gemini_Handoff_Phase2.zip.sha256")
     print("Copied zip and sha256 to artifact directory.")
 
 print(f"ZIP created successfully: {zip_out_path}")
 print(f"Size: {zip_size_mb:.2f} MB")
 print(f"SHA-256: {zip_sha256}")
+

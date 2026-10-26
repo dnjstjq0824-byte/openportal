@@ -1,7 +1,7 @@
 ﻿=== RUN   TestHTTPBoundary
-2026/10/24 20:49:46 search backend failed
-2026/10/24 20:49:46 suggest backend failed
---- PASS: TestHTTPBoundary (0.11s)
+2026/10/26 15:15:42 search backend failed
+2026/10/26 15:15:42 suggest backend failed
+--- PASS: TestHTTPBoundary (0.04s)
 === RUN   TestGatewayAuthMFARecoveryAndBOLAEndpoints
 --- PASS: TestGatewayAuthMFARecoveryAndBOLAEndpoints (0.00s)
 === RUN   TestValidateQ
@@ -9,7 +9,7 @@
 === RUN   TestPageParam
 --- PASS: TestPageParam (0.00s)
 PASS
-ok  	example.com/openportal-search/backend/cmd/api	2.649s
+ok  	example.com/openportal-search/backend/cmd/api	(cached)
 ?   	example.com/openportal-search/backend/gen/openportal/ads/v1	[no test files]
 ?   	example.com/openportal-search/backend/gen/openportal/crawl/v1	[no test files]
 ?   	example.com/openportal-search/backend/gen/openportal/identity/v1	[no test files]
@@ -18,11 +18,81 @@ ok  	example.com/openportal-search/backend/cmd/api	2.649s
 === RUN   TestLoadConfigDefaultsAndOverrides
 --- PASS: TestLoadConfigDefaultsAndOverrides (0.00s)
 PASS
-ok  	example.com/openportal-search/backend/internal/config	1.045s
+ok  	example.com/openportal-search/backend/internal/config	(cached)
+=== RUN   TestCanonicalize
+=== RUN   TestCanonicalize/standard_HTTPS
+=== RUN   TestCanonicalize/standard_HTTP_default_port_stripped
+=== RUN   TestCanonicalize/custom_port_preserved
+=== RUN   TestCanonicalize/uppercase_scheme_and_host_normalized
+=== RUN   TestCanonicalize/IDN_punycode_conversion_for_Korean_domain
+=== RUN   TestCanonicalize/path_directory_traversal_and_duplicate_slashes_resolved
+=== RUN   TestCanonicalize/tracking_parameters_stripped_and_queries_sorted
+=== RUN   TestCanonicalize/fragment_removed
+=== RUN   TestCanonicalize/empty_path_becomes_slash
+=== RUN   TestCanonicalize/invalid_scheme_rejected
+=== RUN   TestCanonicalize/javascript_scheme_rejected
+=== RUN   TestCanonicalize/file_scheme_rejected
+=== RUN   TestCanonicalize/empty_URL_rejected
+--- PASS: TestCanonicalize (0.00s)
+    --- PASS: TestCanonicalize/standard_HTTPS (0.00s)
+    --- PASS: TestCanonicalize/standard_HTTP_default_port_stripped (0.00s)
+    --- PASS: TestCanonicalize/custom_port_preserved (0.00s)
+    --- PASS: TestCanonicalize/uppercase_scheme_and_host_normalized (0.00s)
+    --- PASS: TestCanonicalize/IDN_punycode_conversion_for_Korean_domain (0.00s)
+    --- PASS: TestCanonicalize/path_directory_traversal_and_duplicate_slashes_resolved (0.00s)
+    --- PASS: TestCanonicalize/tracking_parameters_stripped_and_queries_sorted (0.00s)
+    --- PASS: TestCanonicalize/fragment_removed (0.00s)
+    --- PASS: TestCanonicalize/empty_path_becomes_slash (0.00s)
+    --- PASS: TestCanonicalize/invalid_scheme_rejected (0.00s)
+    --- PASS: TestCanonicalize/javascript_scheme_rejected (0.00s)
+    --- PASS: TestCanonicalize/file_scheme_rejected (0.00s)
+    --- PASS: TestCanonicalize/empty_URL_rejected (0.00s)
+=== RUN   TestBoundedCrawlerEngine
+--- PASS: TestBoundedCrawlerEngine (1.01s)
+=== RUN   TestParseXRobotsTag
+--- PASS: TestParseXRobotsTag (0.00s)
+=== RUN   TestParseHTMLDirectivesAndLinks
+--- PASS: TestParseHTMLDirectivesAndLinks (0.00s)
+=== RUN   TestParseSitemapXML
+--- PASS: TestParseSitemapXML (0.00s)
+=== RUN   TestFetcherContentTypeValidation
+--- PASS: TestFetcherContentTypeValidation (0.00s)
+=== RUN   TestFetcherBodySizeLimit
+--- PASS: TestFetcherBodySizeLimit (0.01s)
+=== RUN   TestFetcherGzipDecompression
+--- PASS: TestFetcherGzipDecompression (0.00s)
+=== RUN   TestFetcherDecompressionBombGuard
+--- PASS: TestFetcherDecompressionBombGuard (0.00s)
+=== RUN   TestFetcherConditional304NotModified
+--- PASS: TestFetcherConditional304NotModified (0.00s)
+=== RUN   TestFrontierLifecycle
+--- PASS: TestFrontierLifecycle (0.00s)
+=== RUN   TestPolitenessManagerRateLimit
+--- PASS: TestPolitenessManagerRateLimit (1.00s)
+=== RUN   TestPolitenessManagerBackoffOn429
+--- PASS: TestPolitenessManagerBackoffOn429 (0.20s)
+=== RUN   TestConditionalHeaders
+--- PASS: TestConditionalHeaders (0.00s)
+=== RUN   TestRobotsRFC9309Compliance
+--- PASS: TestRobotsRFC9309Compliance (0.00s)
+=== RUN   TestRobotsCache
+--- PASS: TestRobotsCache (0.00s)
+=== RUN   TestSSRFBlockedIPs
+--- PASS: TestSSRFBlockedIPs (0.00s)
+=== RUN   TestSSRFBlockedHostnames
+--- PASS: TestSSRFBlockedHostnames (0.00s)
+=== RUN   TestSSRFGuardValidateTarget
+--- PASS: TestSSRFGuardValidateTarget (0.00s)
+=== RUN   TestSSRFClientRedirectProtection
+--- PASS: TestSSRFClientRedirectProtection (0.00s)
+=== RUN   TestCreateWARCResponseRecord
+--- PASS: TestCreateWARCResponseRecord (0.00s)
+PASS
+ok  	example.com/openportal-search/backend/internal/crawler	(cached)
 === RUN   TestPasskeyMFARecoveryAndBOLADefense
 --- PASS: TestPasskeyMFARecoveryAndBOLADefense (0.00s)
 PASS
-ok  	example.com/openportal-search/backend/internal/identity	1.046s
+ok  	example.com/openportal-search/backend/internal/identity	(cached)
 === RUN   TestNormalizeQuery
 --- PASS: TestNormalizeQuery (0.00s)
 === RUN   TestSuggestCorrection
@@ -44,4 +114,4 @@ ok  	example.com/openportal-search/backend/internal/identity	1.046s
 === RUN   TestSearchRequestAndMapping
 --- PASS: TestSearchRequestAndMapping (0.00s)
 PASS
-ok  	example.com/openportal-search/backend/internal/search	2.490s
+ok  	example.com/openportal-search/backend/internal/search	(cached)
