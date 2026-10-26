@@ -1,0 +1,28 @@
+[
+  {
+    "query": "검색엔진",
+    "language": "ko",
+    "expected_top_url": "https://example.org/intro",
+    "relevance_rankings": [
+      {"url": "https://example.org/intro", "min_score": 1.0, "expected_rank": 1},
+      {"url": "https://example.org/search", "min_score": 0.5, "expected_rank": 2}
+    ]
+  },
+  {
+    "query": "OpenPortal developer documentation",
+    "language": "en",
+    "expected_top_url": "https://example.org/docs",
+    "relevance_rankings": [
+      {"url": "https://example.org/docs", "min_score": 1.0, "expected_rank": 1}
+    ]
+  },
+  {
+    "query": "인덱싱과 랭킹",
+    "language": "ko",
+    "expected_top_url": "https://example.org/search",
+    "relevance_rankings": [
+      {"url": "https://example.org/search", "min_score": 1.0, "expected_rank": 1}
+    ]
+  }
+]
+

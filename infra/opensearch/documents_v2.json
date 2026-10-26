@@ -1,0 +1,115 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "tokenizer": {
+        "nori_user_dict": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "mixed"
+        }
+      },
+      "filter": {
+        "nori_posfilter": {
+          "type": "nori_part_of_speech",
+          "stoptags": [
+            "E", "IC", "J", "MAG", "MAJ", "MM", "SP", "SSC", "SSO", "SC", "SE",
+            "XPN", "XSA", "XSN", "XSV", "UNA", "NA", "VSV"
+          ]
+        },
+        "nori_readingform": {
+          "type": "nori_readingform"
+        },
+        "english_stop": {
+          "type": "stop",
+          "stopwords": "_english_"
+        },
+        "english_stemmer": {
+          "type": "stemmer",
+          "language": "english"
+        }
+      },
+      "analyzer": {
+        "korean_analyzer": {
+          "type": "custom",
+          "tokenizer": "nori_user_dict",
+          "filter": [
+            "nori_readingform",
+            "nori_posfilter",
+            "lowercase"
+          ]
+        },
+        "english_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "english_stop",
+            "english_stemmer",
+            "lowercase"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "document_id": { "type": "keyword" },
+      "url": { "type": "keyword", "ignore_above": 2048 },
+      "title": {
+        "type": "text",
+        "analyzer": "korean_analyzer",
+        "search_analyzer": "korean_analyzer",
+        "fields": {
+          "en": { "type": "text", "analyzer": "english_analyzer" },
+          "standard": { "type": "text", "analyzer": "standard" },
+          "keyword": { "type": "keyword", "ignore_above": 256 }
+        }
+      },
+      "description": {
+        "type": "text",
+        "analyzer": "korean_analyzer",
+        "search_analyzer": "korean_analyzer",
+        "fields": {
+          "en": { "type": "text", "analyzer": "english_analyzer" },
+          "standard": { "type": "text", "analyzer": "standard" }
+        }
+      },
+      "body": {
+        "type": "text",
+        "analyzer": "korean_analyzer",
+        "search_analyzer": "korean_analyzer",
+        "index_options": "offsets",
+        "fields": {
+          "en": { "type": "text", "analyzer": "english_analyzer" },
+          "standard": { "type": "text", "analyzer": "standard" }
+        }
+      },
+      "headings": {
+        "type": "text",
+        "analyzer": "korean_analyzer",
+        "search_analyzer": "korean_analyzer",
+        "fields": {
+          "en": { "type": "text", "analyzer": "english_analyzer" }
+        }
+      },
+      "anchor_texts": {
+        "type": "text",
+        "analyzer": "korean_analyzer",
+        "search_analyzer": "korean_analyzer",
+        "fields": {
+          "en": { "type": "text", "analyzer": "english_analyzer" }
+        }
+      },
+      "language": { "type": "keyword" },
+      "simhash": { "type": "keyword" },
+      "indexable": { "type": "boolean" },
+      "is_representative": { "type": "boolean" },
+      "is_tombstone": { "type": "boolean" },
+      "tombstone_reason": { "type": "keyword" },
+      "published_at": { "type": "date" },
+      "last_crawled_at": { "type": "date" }
+    }
+  }
+}
+

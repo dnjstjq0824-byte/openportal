@@ -5,19 +5,17 @@ This user must also own the server process.
 The database cluster will be initialized with locale "C".
 The default text search configuration will be set to "english".
 
-
 Data page checksums are disabled.
 
 
 
-fixing permissions on existing directory C:/Users/dnjst/Desktop/project/searchengine/work/pg-1792994914375 ... 
+fixing permissions on existing directory C:/Users/dnjst/Desktop/project/searchengine/work/pg-1792997006207 ... 
 ok
 
 creating subdirectories ... 
 ok
 
 selecting dynamic shared memory implementation ... windows
-
 selecting default "max_connections" ... 
 100
 selecting default "shared_buffers" ... 
@@ -38,16 +36,16 @@ ok
 
 Success. You can now start the database server using:
 
-    ^"C^:^\Users^\dnjst^\Desktop^\project^\searchengine^\node^_modules^\^@embedded^-postgres^\windows^-x64^\native^\bin^\pg^_ctl^" -D ^"C^:^\Users^\dnjst^\Desktop^\project^\searchengine^\work^\pg^-1792994914375^" -l logfile start
+    ^"C^:^\Users^\dnjst^\Desktop^\project^\searchengine^\node^_modules^\^@embedded^-postgres^\windows^-x64^\native^\bin^\pg^_ctl^" -D ^"C^:^\Users^\dnjst^\Desktop^\project^\searchengine^\work^\pg^-1792997006207^" -l logfile start
 
 
-2026-10-26 15:08:43.076 KST [26380] LOG:  starting PostgreSQL 17.10 on x86_64-windows, compiled by msvc-19.44.35226, 64-bit
+2026-10-26 15:43:40.009 KST [11720] LOG:  starting PostgreSQL 17.10 on x86_64-windows, compiled by msvc-19.44.35226, 64-bit
 
-2026-10-26 15:08:43.078 KST [26380] LOG:  listening on IPv4 address "127.0.0.1", port 55432
+2026-10-26 15:43:40.011 KST [11720] LOG:  listening on IPv4 address "127.0.0.1", port 55432
 
-2026-10-26 15:08:43.324 KST [9372] LOG:  database system was shut down at 2026-10-26 15:08:37 KST
+2026-10-26 15:43:40.076 KST [34436] LOG:  database system was shut down at 2026-10-26 15:43:32 KST
 
-2026-10-26 15:08:43.373 KST [26380] LOG:  database system is ready to accept connections
+2026-10-26 15:43:40.110 KST [11720] LOG:  database system is ready to accept connections
 
 [
   {
@@ -55,19 +53,19 @@ Success. You can now start the database server using:
   }
 ]
 PASS baseline: 86 tables / 8 schemas; validated foreign keys: 75
-2026-10-26 15:08:44.017 KST [30632] ERROR:  insert or update on table "sessions" violates foreign key constraint "sessions_account_id_fkey"
-2026-10-26 15:08:44.017 KST [30632] DETAIL:  Key (account_id)=(cf1a3c84-b7cb-4e29-baca-9890b73b24ae) is not present in table "accounts".
-2026-10-26 15:08:44.017 KST [30632] STATEMENT:  insert into identity.sessions(account_id,token_hash,expires_at) values(gen_random_uuid(),'abc',now())
+2026-10-26 15:43:41.003 KST [39088] ERROR:  insert or update on table "sessions" violates foreign key constraint "sessions_account_id_fkey"
+2026-10-26 15:43:41.003 KST [39088] DETAIL:  Key (account_id)=(a8f4940d-0ded-432c-b814-f816ad676e40) is not present in table "accounts".
+2026-10-26 15:43:41.003 KST [39088] STATEMENT:  insert into identity.sessions(account_id,token_hash,expires_at) values(gen_random_uuid(),'abc',now())
 
 PASS rejected FK violation
-2026-10-26 15:08:44.019 KST [30632] ERROR:  new row for relation "hosts" violates check constraint "hosts_scheme_check"
-2026-10-26 15:08:44.019 KST [30632] DETAIL:  Failing row contains (e79650c0-add6-47ca-9cdf-38e8f417fbd7, file, example.test, 443, t, 1000, null, 2026-10-26 06:08:44.019455+00).
-2026-10-26 15:08:44.019 KST [30632] STATEMENT:  insert into crawl.hosts(scheme,hostname) values('file','example.test')
+2026-10-26 15:43:41.005 KST [39088] ERROR:  new row for relation "hosts" violates check constraint "hosts_scheme_check"
+2026-10-26 15:43:41.005 KST [39088] DETAIL:  Failing row contains (156e78ef-7754-416b-b4c1-2be2b83533b6, file, example.test, 443, t, 1000, null, 2026-10-26 06:43:41.005184+00).
+2026-10-26 15:43:41.005 KST [39088] STATEMENT:  insert into crawl.hosts(scheme,hostname) values('file','example.test')
 
 PASS rejected CHECK violation
-2026-10-26 15:08:44.021 KST [30632] ERROR:  duplicate key value violates unique constraint "roles_pkey"
-2026-10-26 15:08:44.021 KST [30632] DETAIL:  Key (id)=(user) already exists.
-2026-10-26 15:08:44.021 KST [30632] STATEMENT:  insert into identity.roles values('user','duplicate')
+2026-10-26 15:43:41.007 KST [39088] ERROR:  duplicate key value violates unique constraint "roles_pkey"
+2026-10-26 15:43:41.007 KST [39088] DETAIL:  Key (id)=(user) already exists.
+2026-10-26 15:43:41.007 KST [39088] STATEMENT:  insert into identity.roles values('user','duplicate')
 
 PASS rejected UNIQUE violation
 PASS rollback leaves no account
@@ -75,15 +73,16 @@ APPLIED 001_initial.sql f39698d57c54533fb28bac11d151896bd267b6e94d7009dc6b4e6aaf
 APPLIED 002_phase0_access_boundary.sql 5ff7ef51440fe75fe56af2ad674d83aa31a6c5c8adcfeccd29c153f83b01810a
 APPLIED 003_phase1_identity_and_portal_flags.sql 21db3e2e71c5e0516b84b7d873789f5ce5e8aff11523d11d50d56272f67d68a6
 APPLIED 004_phase2_crawler_policy_and_corpus.sql 68f8657ef9f9cd85633236bcabfbe428fb17a65b549b9fc70c691a93360b3c6d
-PASS forward migrations (001..004) and repeat run
-PASS Phase 1 & 2 feature flags and bounded corpus hosts seeded
-2026-10-26 15:08:45.287 KST [23524] ERROR:  permission denied for schema identity at character 15
-2026-10-26 15:08:45.287 KST [23524] STATEMENT:  select * from identity.accounts
+APPLIED 005_phase3_indexing_and_tombstones.sql 15b79cbae4657a8836658bb92a4ecbaec0a1ff80eee96ca3be8f0064e1584a6f
+PASS forward migrations (001..005) and repeat run
+PASS Phase 1, 2 & 3 feature flags, bounded corpus hosts and catalog schema seeded
+2026-10-26 15:43:43.416 KST [39444] ERROR:  permission denied for schema identity at character 15
+2026-10-26 15:43:43.416 KST [39444] STATEMENT:  select * from identity.accounts
 
 PASS unprivileged account access denied
 PASS Phase 1 RLS prevents cross-account preference read/write (BOLA)
-2026-10-26 15:08:45.326 KST [23524] ERROR:  division by zero
-2026-10-26 15:08:45.326 KST [23524] STATEMENT:  CREATE TABLE public.must_rollback(id int); SELECT 1/0;
+2026-10-26 15:43:43.498 KST [39444] ERROR:  division by zero
+2026-10-26 15:43:43.498 KST [39444] STATEMENT:  CREATE TABLE public.must_rollback(id int); SELECT 1/0;
 
 PASS failed migration rolls back DDL and ledger
 PASS checksum drift rejected

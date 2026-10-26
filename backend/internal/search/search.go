@@ -106,21 +106,33 @@ func (c *Client) Search(ctx context.Context, phrase, lang string, page, limit in
 		return Response{}, errors.New("invalid pagination")
 	}
 	start := time.Now()
-	// Only indexable sample documents are included; production ingestion must enforce removal/tombstones.
-	query := map[string]interface{}{"from": (page - 1) * limit, "size": limit, "track_total_hits": true, "_source": []string{"document_id", "title", "url", "description", "language"},
-		"query": map[string]interface{}{"bool": map[string]interface{}{"must": []interface{}{map[string]interface{}{"multi_match": map[string]interface{}{"query": phrase, "fields": []string{"title^4", "description^2", "body"}, "type": "best_fields"}}},
-			"filter": []interface{}{map[string]interface{}{"term": map[string]interface{}{"indexable": true}}}}}}
-	if lang != "" {
-		boolQuery := query["query"].(map[string]interface{})["bool"].(map[string]interface{})
-		boolQuery["filter"] = append(boolQuery["filter"].([]interface{}), map[string]interface{}{"term": map[string]interface{}{"language": lang}})
+
+	parsed := ParseQuery(phrase)
+	opensearchDSL := parsed.BuildOpenSearchQuery(lang)
+
+	query := map[string]interface{}{
+		"from":             (page - 1) * limit,
+		"size":             limit,
+		"track_total_hits": true,
+		"_source":          []string{"document_id", "title", "url", "description", "language"},
+		"query":            opensearchDSL,
 	}
+
 	target := c.BaseURL + "/" + url.PathEscape(c.Index) + "/_search"
 	var result osResponse
 	err := c.do(ctx, target, query, &result)
 	if err != nil {
 		return Response{}, err
 	}
-	r := Response{Query: phrase, Total: result.Hits.Total.Value, Hits: make([]Hit, 0, len(result.Hits.Hits)), ElapsedMS: time.Since(start).Milliseconds()}
+	r := Response{
+		Query:     phrase,
+		Total:     result.Hits.Total.Value,
+		Hits:      make([]Hit, 0, len(result.Hits.Hits)),
+		ElapsedMS: time.Since(start).Milliseconds(),
+	}
+	if int64(page*limit) < result.Hits.Total.Value {
+		r.NextPageToken = EncodePageToken(page+1, limit)
+	}
 	for _, h := range result.Hits.Hits {
 		if !strings.HasPrefix(h.Source.URL, "https://") && !strings.HasPrefix(h.Source.URL, "http://") {
 			continue
