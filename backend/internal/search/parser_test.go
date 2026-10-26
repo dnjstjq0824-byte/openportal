@@ -5,7 +5,7 @@ import (
 )
 
 func TestParseQuery(t *testing.T) {
-	raw := `검색엔진 "분산 아키텍처" -스팸 site:example.org lang:ko`
+	raw := `검색엔진 "분산 아키텍처" -스팸 site:example.org lang:ko filetype:pdf`
 	parsed := ParseQuery(raw)
 
 	if len(parsed.PositiveTerms) != 1 || parsed.PositiveTerms[0] != "검색엔진" {
@@ -26,6 +26,10 @@ func TestParseQuery(t *testing.T) {
 
 	if parsed.LangFilter != "ko" {
 		t.Errorf("unexpected lang filter: %q", parsed.LangFilter)
+	}
+
+	if parsed.FiletypeFilter != "pdf" {
+		t.Errorf("unexpected filetype filter: %q", parsed.FiletypeFilter)
 	}
 
 	// Verify OpenSearch DSL construction

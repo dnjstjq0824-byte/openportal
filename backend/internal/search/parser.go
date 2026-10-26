@@ -9,13 +9,14 @@ import (
 
 // ParsedQuery contains structured elements from a search input string.
 type ParsedQuery struct {
-	RawQuery      string
-	CleanQuery    string
-	Phrases       []string
-	Negations     []string
-	SiteFilter    string
-	LangFilter    string
-	PositiveTerms []string
+	RawQuery       string
+	CleanQuery     string
+	Phrases        []string
+	Negations      []string
+	SiteFilter     string
+	LangFilter     string
+	FiletypeFilter string
+	PositiveTerms  []string
 }
 
 // ParseQuery extracts exact phrases ("..."), negations (-term), site filters (site:...),
@@ -79,6 +80,12 @@ func ParseQuery(raw string) ParsedQuery {
 			val := strings.TrimPrefix(t, "lang:")
 			val = strings.TrimPrefix(val, "LANG:")
 			res.LangFilter = strings.TrimSpace(val)
+		} else if strings.HasPrefix(lower, "filetype:") {
+			val := strings.TrimPrefix(lower, "filetype:")
+			res.FiletypeFilter = strings.TrimSpace(val)
+		} else if strings.HasPrefix(lower, "ext:") {
+			val := strings.TrimPrefix(lower, "ext:")
+			res.FiletypeFilter = strings.TrimSpace(val)
 		} else if strings.HasPrefix(t, "-") && len(t) > 1 {
 			neg := strings.TrimPrefix(t, "-")
 			res.Negations = append(res.Negations, strings.TrimSpace(neg))
@@ -158,6 +165,15 @@ func (p *ParsedQuery) BuildOpenSearchQuery(defaultLang string) map[string]interf
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"wildcard": map[string]interface{}{
 				"url": "*" + strings.ToLower(p.SiteFilter) + "*",
+			},
+		})
+	}
+
+	// 4b. Filetype filter
+	if p.FiletypeFilter != "" {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"wildcard": map[string]interface{}{
+				"url": "*." + strings.ToLower(p.FiletypeFilter) + "*",
 			},
 		})
 	}

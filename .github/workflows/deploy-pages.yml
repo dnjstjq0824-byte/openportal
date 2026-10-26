@@ -42,3 +42,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy apps/web/dist --project-name=openportal --branch=main --commit-dirty=true
+

@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue';
 
-type Hit = { document_id?: string; title: string; url: string; description: string; language: string; score: number };
+type Hit = {
+  document_id?: string;
+  title: string;
+  url: string;
+  description: string;
+  language: string;
+  score: number;
+  sitelinks?: { title: string; url: string }[];
+};
+
 type Response = {
   query: string;
   total: number;
@@ -11,7 +20,9 @@ type Response = {
   corrected_query?: string;
   safe_search?: string;
   vertical?: string;
+  next_page_token?: string;
 };
+
 type VerticalTab = {
   id: string;
   label_ko: string;
@@ -33,6 +44,34 @@ const copyFeedback = ref('');
 const queryInput = ref<HTMLInputElement | null>(null);
 const serpQueryInput = ref<HTMLInputElement | null>(null);
 
+// Voice search state (Web Speech API)
+const isListening = ref(false);
+const speechSupported = ref(false);
+let recognition: any = null;
+
+// Modal & dialog states
+const showSettings = ref(false);
+const showAccount = ref(false);
+const showWaffle = ref(false);
+const showLensModal = ref(false);
+const showAdvancedModal = ref(false);
+const showToolsBar = ref(false);
+
+// Filter & tool states
+const filterTime = ref<'all' | 'hour' | 'day' | 'week' | 'year'>('all');
+const filterExact = ref<'all' | 'verbatim'>('all');
+
+// Advanced search form model
+const advAllWords = ref('');
+const advExactPhrase = ref('');
+const advAnyWords = ref('');
+const advNoneWords = ref('');
+const advSite = ref('');
+const advFiletype = ref('');
+
+// Lens modal model
+const lensImageUrl = ref('');
+
 // Phase 1 preferences & opt-in controls (Tasks 012, 017)
 const locale = ref<'ko' | 'en'>('ko');
 const theme = ref<'light' | 'dark' | 'system'>('system');
@@ -40,8 +79,6 @@ const safeSearch = ref<'strict' | 'moderate' | 'off'>('moderate');
 const recentOptIn = ref(false);
 const personalizedOptIn = ref(false);
 const recentSearches = ref<string[]>([]);
-const showSettings = ref(false);
-const showAccount = ref(false);
 
 // Autocomplete & keyboard navigation (Task 012)
 const suggestions = ref<string[]>([]);
@@ -51,26 +88,54 @@ let suggestTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Feature-flagged vertical tabs (Task 013)
 const verticalTabs = ref<VerticalTab[]>([
-  { id: 'web', label_ko: '웹', label_en: 'Web', enabled: true, phase: 1 },
+  { id: 'web', label_ko: '전체', label_en: 'All', enabled: true, phase: 1 },
   { id: 'image', label_ko: '이미지', label_en: 'Images', enabled: false, phase: 5, gate_note: '후속 Phase 5 라이선스 검증 전 비활성' },
-  { id: 'news', label_ko: '뉴스', label_en: 'News', enabled: false, phase: 5, gate_note: '후속 Phase 5 언론사 제휴 검증 전 비활성' },
   { id: 'video', label_ko: '동영상', label_en: 'Videos', enabled: false, phase: 5, gate_note: '후속 Phase 5 동영상 권리 검증 전 비활성' },
+  { id: 'news', label_ko: '뉴스', label_en: 'News', enabled: false, phase: 5, gate_note: '후속 Phase 5 언론사 제휴 검증 전 비활성' },
   { id: 'map', label_ko: '지도', label_en: 'Maps', enabled: false, phase: 5, gate_note: '후속 Phase 5 지리 데이터 라이선스 검증 전 비활성' },
   { id: 'shopping', label_ko: '쇼핑', label_en: 'Shopping', enabled: false, phase: 5, gate_note: '후속 Phase 5 상품 피드 검증 전 비활성' },
+  { id: 'books', label_ko: '도서', label_en: 'Books', enabled: false, phase: 5, gate_note: '후속 Phase 5 서지 데이터 검증 전 비활성' },
 ]);
 const activeTab = ref('web');
 const verticalGateNotice = ref('');
 
-// Popular travel recommendations
-const popularDestinations = [
-  { name: '제주도 항공권', tag: '항공' },
-  { name: '도쿄 호텔', tag: '호텔' },
-  { name: '오사카 유니버설', tag: '투어' },
-  { name: '다낭 풀빌라', tag: '리조트' },
-  { name: '방콕 자유여행', tag: '여행' },
-  { name: '파리 에펠탑 투어', tag: '티켓' },
-  { name: '오픈포털 검색엔진', tag: '기술' },
+// Google Apps ecosystem tiles for 9-dot Waffle menu
+const googleApps = [
+  { name: '검색', icon: '🔍', query: '오픈포털 검색엔진' },
+  { name: '지도', icon: '🗺️', query: 'site:openstreetmap.org' },
+  { name: 'YouTube', icon: '▶️', query: 'site:youtube.com' },
+  { name: '뉴스', icon: '📰', query: '뉴스' },
+  { name: 'Gmail', icon: '✉️', query: '이메일' },
+  { name: '드라이브', icon: '📁', query: '클라우드 스토리지' },
+  { name: '캘린더', icon: '📅', query: '일정 관리' },
+  { name: '번역', icon: '🌐', query: '번역' },
+  { name: '포토', icon: '🖼️', query: '이미지 갤러리' },
 ];
+
+// Trending / Recommended queries
+const trendingQueries = [
+  '오픈포털 검색엔진',
+  '분산 검색 아키텍처',
+  'OpenSearch 2.19',
+  'BM25 랭킹 알고리즘',
+  'Cloudflare Pages 배포',
+  'Go 언어 고성능 백엔드',
+  'Playwright E2E 자동화',
+];
+
+// Related searches for current SERP
+const relatedQueries = computed(() => {
+  const current = submitted.value.trim();
+  if (!current) return [];
+  return [
+    `${current} 사용법`,
+    `${current} 공식 문서`,
+    `${current} 오픈소스 다운로드`,
+    `${current} 아키텍처 가이드`,
+    `${current} 최신 업데이트`,
+    `독립 검색엔진 ${current}`,
+  ];
+});
 
 // Auth & MFA state (Task 015)
 const authEmail = ref('');
@@ -97,36 +162,54 @@ const i18n = computed(() => {
   if (locale.value === 'en') {
     return {
       tagline: 'Independent Search Engine Demo · Web Search Enabled',
-      heading: 'What are you looking for?',
+      heading: 'Search the World’s Knowledge',
       queryLabel: '검색어',
-      placeholder: 'Enter search query',
+      placeholder: 'Search OpenPortal or type a URL',
       searchBtn: '검색',
       searchingBtn: 'Searching…',
-      settingsBtn: 'Settings',
-      accountBtn: 'Account',
+      luckyBtn: "I'm Feeling Lucky",
+      settingsBtn: '검색 설정',
+      accountBtn: '계정·보안',
       emptyMsg: '일치하는 샘플 문서가 없습니다.',
       didYouMean: 'Did you mean:',
       recentTitle: 'Recent searches (Opt-in)',
       clearRecent: 'Clear',
-      luckyBtn: 'Explore Top Destinations',
-      popularTitle: 'Popular Travel Searches',
+      voiceTooltip: 'Search by voice',
+      lensTooltip: 'Google Lens',
+      toolsBtn: 'Tools',
+      allResults: 'All results',
+      verbatim: 'Verbatim',
+      anyTime: 'Any time',
+      pastHour: 'Past hour',
+      past24Hours: 'Past 24 hours',
+      pastWeek: 'Past week',
+      pastYear: 'Past year',
     };
   }
   return {
     tagline: '독립 검색엔진 개발 데모 · 웹 검색만 구현',
-    heading: '무엇을 찾고 있나요?',
+    heading: '전 세계의 정보를 검색하세요',
     queryLabel: '검색어',
-    placeholder: '검색어를 입력하세요',
+    placeholder: '검색어를 입력하거나 URL을 입력하세요',
     searchBtn: '검색',
     searchingBtn: '검색 중…',
+    luckyBtn: '운이 좋은 것 같아',
     settingsBtn: '검색 설정',
     accountBtn: '계정·보안',
     emptyMsg: '일치하는 샘플 문서가 없습니다.',
     didYouMean: '다음 검색어로 검색하시겠습니까?',
     recentTitle: '최근 검색어 (Opt-in)',
     clearRecent: '전체 삭제',
-    luckyBtn: '인기 여행지 탐색',
-    popularTitle: '인기 여행 검색어',
+    voiceTooltip: '음성으로 검색',
+    lensTooltip: 'Google 렌즈',
+    toolsBtn: '도구',
+    allResults: '모든 결과',
+    verbatim: '정확히 일치',
+    anyTime: '모든 날짜',
+    pastHour: '지난 1시간',
+    past24Hours: '지난 24시간',
+    pastWeek: '지난 1주일',
+    pastYear: '지난 1년',
   };
 });
 
@@ -145,6 +228,10 @@ function resetHome() {
   verticalGateNotice.value = '';
   showSettings.value = false;
   showAccount.value = false;
+  showWaffle.value = false;
+  showLensModal.value = false;
+  showAdvancedModal.value = false;
+  showToolsBar.value = false;
   suggestions.value = [];
   showSuggest.value = false;
   navigateTo('/');
@@ -248,11 +335,20 @@ function toggleRecentOptIn(enabled: boolean) {
   }
 }
 
-function pickLuckyDestination() {
-  const lucky = popularDestinations[Math.floor(Math.random() * popularDestinations.length)];
-  if (lucky) {
-    runSearch(1, lucky.name);
-  }
+function deleteRecentItem(target: string) {
+  recentSearches.value = recentSearches.value.filter(item => item !== target);
+}
+
+function runLuckySearch() {
+  const candidates = [
+    '오픈포털 검색엔진 프로젝트',
+    'OpenPortal developer documentation',
+    '분산 검색 아키텍처',
+    'OpenSearch 2.19.0',
+    'BM25 랭킹 알고리즘',
+  ];
+  const lucky = candidates[Math.floor(Math.random() * candidates.length)];
+  runSearch(1, lucky);
 }
 
 function extractDomain(urlStr: string): string {
@@ -264,12 +360,79 @@ function extractDomain(urlStr: string): string {
   }
 }
 
+function extractPath(urlStr: string): string {
+  try {
+    const u = new URL(urlStr);
+    const path = u.pathname.replace(/^\/+|\/+$/g, '');
+    return path ? ` › ${path.replace(/\//g, ' › ')}` : '';
+  } catch {
+    return '';
+  }
+}
+
 function copyUrl(url: string) {
   if (navigator && navigator.clipboard) {
     navigator.clipboard.writeText(url).then(() => {
-      copyFeedback.value = 'URL이 복사되었습니다!';
+      copyFeedback.value = 'URL이 클립보드에 복사되었습니다.';
       setTimeout(() => { copyFeedback.value = ''; }, 2000);
     });
+  }
+}
+
+// Web Speech API Voice Search
+function toggleVoiceSearch() {
+  if (!speechSupported.value) {
+    alert('이 브라우저는 음성 검색(Web Speech API)을 지원하지 않거나 마이크 권한이 비활성화되어 있습니다.');
+    return;
+  }
+  if (isListening.value) {
+    recognition?.stop();
+    isListening.value = false;
+    return;
+  }
+  try {
+    recognition.start();
+    isListening.value = true;
+  } catch (e) {
+    console.error('Speech recognition start failed:', e);
+    isListening.value = false;
+  }
+}
+
+// Google Advanced Search Query Builder
+function submitAdvancedSearch() {
+  const parts: string[] = [];
+  if (advAllWords.value.trim()) {
+    parts.push(advAllWords.value.trim());
+  }
+  if (advExactPhrase.value.trim()) {
+    parts.push(`"${advExactPhrase.value.trim()}"`);
+  }
+  if (advAnyWords.value.trim()) {
+    parts.push(advAnyWords.value.trim());
+  }
+  if (advNoneWords.value.trim()) {
+    const negs = advNoneWords.value.trim().split(/\s+/).map(w => `-${w}`);
+    parts.push(negs.join(' '));
+  }
+  if (advSite.value.trim()) {
+    parts.push(`site:${advSite.value.trim()}`);
+  }
+  if (advFiletype.value.trim()) {
+    parts.push(`filetype:${advFiletype.value.trim()}`);
+  }
+  const compiled = parts.join(' ').trim();
+  showAdvancedModal.value = false;
+  if (compiled) {
+    runSearch(1, compiled);
+  }
+}
+
+// Google Lens Search
+function submitLensSearch() {
+  if (lensImageUrl.value.trim()) {
+    showLensModal.value = false;
+    runSearch(1, `site:${extractDomain(lensImageUrl.value)} 이미지`);
   }
 }
 
@@ -286,6 +449,9 @@ async function runSearch(nextPage = 1, overrideQuery?: string) {
   showSuggest.value = false;
   suggestions.value = [];
   activeSuggestIdx.value = -1;
+  showLensModal.value = false;
+  showAdvancedModal.value = false;
+  showWaffle.value = false;
   busy.value = true;
   error.value = '';
   page.value = nextPage;
@@ -384,7 +550,31 @@ onMounted(async () => {
     window.addEventListener('popstate', () => {
       currentPath.value = window.location.pathname || '/';
     });
+
+    // Web Speech API initialization
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRec) {
+      speechSupported.value = true;
+      recognition = new SpeechRec();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = locale.value === 'ko' ? 'ko-KR' : 'en-US';
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          q.value = transcript;
+          runSearch(1);
+        }
+      };
+      recognition.onerror = () => {
+        isListening.value = false;
+      };
+      recognition.onend = () => {
+        isListening.value = false;
+      };
+    }
   }
+
   try {
     const res = await fetch('/api/v1/portal/config');
     if (res.ok) {
@@ -394,7 +584,7 @@ onMounted(async () => {
       }
     }
   } catch {
-    // keep default feature flag list if config endpoint is unreachable
+    // keep default feature flags if config endpoint is unreachable
   }
 });
 </script>
@@ -403,13 +593,31 @@ onMounted(async () => {
   <div class="app" :class="{ 'has-search': hasSearch, 'theme-dark': theme === 'dark' }">
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
 
+    <!-- Toast Feedback Notification -->
+    <div v-if="copyFeedback" class="toast-feedback" role="status">
+      {{ copyFeedback }}
+    </div>
+
+    <!-- Voice Listening Active Overlay Banner -->
+    <div v-if="isListening" class="voice-listening-overlay" role="dialog" aria-label="음성 듣는 중">
+      <div class="voice-pulse-ring">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="#ea4335">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </div>
+      <p class="voice-text">듣고 있습니다... 말씀해 주세요</p>
+      <button type="button" class="voice-cancel-btn" @click="toggleVoiceSearch">취소</button>
+    </div>
+
     <!-- Top Navigation Header -->
     <header class="app-header" :class="{ 'serp-header': hasSearch }">
       <div class="header-left">
         <!-- Brand Link -->
-        <a class="brand" href="/" @click.prevent="resetHome" aria-label="TripScanner 홈">
-          <span class="logo-trip">Trip</span><span class="logo-scanner">Scanner</span>
-          <span class="logo-sub">by OpenPortal</span>
+        <a class="brand" href="/" @click.prevent="resetHome" aria-label="OpenPortal 검색 홈으로 이동">
+          <span class="logo-text">
+            <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span><span class="l-g">P</span><span class="l-r">o</span><span class="l-b">r</span><span class="l-y">t</span><span class="l-g">a</span><span class="l-r">l</span>
+          </span>
         </a>
 
         <!-- SERP Compact Search Form -->
@@ -441,6 +649,7 @@ onMounted(async () => {
               @keydown="onKeydownQuery"
               @blur="onBlurQuery"
             />
+            <!-- Clear Button -->
             <button
               v-if="q.length > 0"
               type="button"
@@ -452,7 +661,34 @@ onMounted(async () => {
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
               </svg>
             </button>
+            <!-- Voice Search Button -->
+            <button
+              type="button"
+              class="voice-btn"
+              :title="i18n.voiceTooltip"
+              :aria-label="i18n.voiceTooltip"
+              @click="toggleVoiceSearch"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" :fill="isListening ? '#ea4335' : '#4285f4'">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+              </svg>
+            </button>
+            <!-- Google Lens / Image Search Button -->
+            <button
+              type="button"
+              class="lens-btn"
+              :title="i18n.lensTooltip"
+              :aria-label="i18n.lensTooltip"
+              @click="showLensModal = true"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="#4285f4">
+                <path d="M12 15c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
+                <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+              </svg>
+            </button>
             <div class="search-divider" aria-hidden="true"></div>
+            <!-- Search Submit Button -->
             <button
               type="submit"
               class="search-submit-btn"
@@ -493,24 +729,47 @@ onMounted(async () => {
         <span class="tag">{{ i18n.tagline }}</span>
       </div>
 
-      <!-- Header Actions (Settings, Account) -->
+      <!-- Header Actions (Waffle 9-dot, Settings, Account) -->
       <div class="header-actions">
+        <!-- Quick navigation links on Home -->
+        <template v-if="!hasSearch">
+          <a class="header-text-link" href="#" @click.prevent="runSearch(1, '이미지')">이미지</a>
+          <a class="header-text-link" href="#" @click.prevent="showAdvancedModal = true">고급 검색</a>
+        </template>
+
+        <!-- Google-style 9-Dot Waffle Menu Button -->
+        <button
+          type="button"
+          class="waffle-btn"
+          title="Google 에코시스템 앱"
+          aria-label="Google 에코시스템 앱"
+          :aria-expanded="showWaffle"
+          @click="showWaffle = !showWaffle; showSettings = false; showAccount = false"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM6 4c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 12c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        </button>
+
+        <!-- Search Settings Button -->
         <button
           type="button"
           class="header-action-btn secondary"
           :aria-expanded="showSettings"
-          @click="showSettings = !showSettings; showAccount = false"
+          @click="showSettings = !showSettings; showAccount = false; showWaffle = false"
         >
           <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
           </svg>
           <span>{{ i18n.settingsBtn }}</span>
         </button>
+
+        <!-- Account / Security Button -->
         <button
           type="button"
           class="header-action-btn secondary"
           :aria-expanded="showAccount"
-          @click="showAccount = !showAccount; showSettings = false"
+          @click="showAccount = !showAccount; showSettings = false; showWaffle = false"
         >
           <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
@@ -520,23 +779,134 @@ onMounted(async () => {
       </div>
     </header>
 
+    <!-- Google Apps (Waffle) Dropdown Popup -->
+    <div v-if="showWaffle" class="waffle-popup" role="dialog" aria-label="Google 에코시스템 앱">
+      <div class="waffle-grid">
+        <button
+          v-for="app in googleApps"
+          :key="app.name"
+          type="button"
+          class="waffle-tile"
+          @click="showWaffle = false; runSearch(1, app.query)"
+        >
+          <span class="waffle-tile-icon">{{ app.icon }}</span>
+          <span class="waffle-tile-name">{{ app.name }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Google Lens / Search by Image Modal -->
+    <div v-if="showLensModal" class="lens-modal-overlay" role="dialog" aria-label="이미지로 검색">
+      <div class="lens-modal-card">
+        <div class="lens-header">
+          <h3>Google 렌즈로 이미지 검색</h3>
+          <button type="button" class="close-btn" @click="showLensModal = false">✕</button>
+        </div>
+        <p class="lens-desc">이미지를 여기에 끌어다 놓거나 이미지 링크를 붙여넣어 검색하세요.</p>
+        <div class="lens-dropzone" @click="lensImageUrl = 'https://example.org/sample.jpg'">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="#4285f4">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          <span>여기에 이미지를 드래그하거나 클릭하여 업로드</span>
+        </div>
+        <div class="lens-url-row">
+          <input
+            v-model="lensImageUrl"
+            type="url"
+            placeholder="이미지 링크(URL) 붙여넣기"
+            @keydown.enter="submitLensSearch"
+          />
+          <button type="button" class="g-btn g-btn-primary" @click="submitLensSearch">검색</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Google Advanced Search Modal -->
+    <div v-if="showAdvancedModal" class="advanced-modal-overlay" role="dialog" aria-label="고급 검색">
+      <div class="advanced-modal-card">
+        <div class="panel-header">
+          <h2>Google 고급 검색</h2>
+          <button type="button" class="close-btn" @click="showAdvancedModal = false">✕</button>
+        </div>
+        <div class="adv-field-row">
+          <label>다음 단어 모두 포함</label>
+          <input v-model="advAllWords" type="text" placeholder="예: 검색엔진 아키텍처" />
+        </div>
+        <div class="adv-field-row">
+          <label>다음 단어 또는 문구 정확하게 포함</label>
+          <input v-model="advExactPhrase" type="text" placeholder="예: 분산 인덱싱" />
+        </div>
+        <div class="adv-field-row">
+          <label>다음 단어 중 아무거나 포함</label>
+          <input v-model="advAnyWords" type="text" placeholder="예: OpenSearch Elasticsearch" />
+        </div>
+        <div class="adv-field-row">
+          <label>다음 단어 제외</label>
+          <input v-model="advNoneWords" type="text" placeholder="예: 스팸 광고" />
+        </div>
+        <div class="adv-field-row">
+          <label>사이트 또는 도메인 (site:)</label>
+          <input v-model="advSite" type="text" placeholder="예: example.org" />
+        </div>
+        <div class="adv-field-row">
+          <label>파일 형식 (filetype:)</label>
+          <input v-model="advFiletype" type="text" placeholder="예: pdf, html" />
+        </div>
+        <div class="adv-actions">
+          <button type="button" class="g-btn" @click="showAdvancedModal = false">취소</button>
+          <button type="button" class="g-btn g-btn-primary" @click="submitAdvancedSearch">고급 검색 실행</button>
+        </div>
+      </div>
+    </div>
+
     <!-- SERP Google-style Category Navigation Bar -->
     <div v-if="hasSearch" class="serp-nav-wrapper">
-      <nav aria-label="검색 종류" class="serp-tabs">
+      <div class="serp-nav-inner">
+        <nav aria-label="검색 종류" class="serp-tabs">
+          <button
+            v-for="tab in verticalTabs"
+            :key="tab.id"
+            type="button"
+            class="tab-btn"
+            :class="{ active: activeTab === tab.id && tab.enabled, 'gated-tab': !tab.enabled }"
+            :aria-current="activeTab === tab.id && tab.enabled ? 'page' : undefined"
+            :data-enabled="tab.enabled"
+            :title="tab.enabled ? tab.label_ko : (tab.gate_note || '후속 Phase')"
+            @click="selectTab(tab)"
+          >
+            <span class="tab-label">{{ locale === 'en' ? tab.label_en : tab.label_ko }}{{ tab.enabled ? '' : ' (예정)' }}</span>
+          </button>
+        </nav>
+        <!-- Google Search Tools Button -->
         <button
-          v-for="tab in verticalTabs"
-          :key="tab.id"
           type="button"
-          class="tab-btn"
-          :class="{ active: activeTab === tab.id && tab.enabled, 'gated-tab': !tab.enabled }"
-          :aria-current="activeTab === tab.id && tab.enabled ? 'page' : undefined"
-          :data-enabled="tab.enabled"
-          :title="tab.enabled ? tab.label_ko : (tab.gate_note || '후속 Phase')"
-          @click="selectTab(tab)"
+          class="tools-toggle-btn"
+          :class="{ active: showToolsBar }"
+          @click="showToolsBar = !showToolsBar"
         >
-          <span class="tab-label">{{ locale === 'en' ? tab.label_en : tab.label_ko }}{{ tab.enabled ? '' : ' (예정)' }}</span>
+          {{ i18n.toolsBtn }}
         </button>
-      </nav>
+      </div>
+
+      <!-- Google Search Tools Dropdown Filter Bar -->
+      <div v-if="showToolsBar" class="tools-bar">
+        <div class="tool-dropdown-group">
+          <select v-model="filterTime">
+            <option value="all">{{ i18n.anyTime }}</option>
+            <option value="hour">{{ i18n.pastHour }}</option>
+            <option value="day">{{ i18n.past24Hours }}</option>
+            <option value="week">{{ i18n.pastWeek }}</option>
+            <option value="year">{{ i18n.pastYear }}</option>
+          </select>
+          <select v-model="filterExact">
+            <option value="all">{{ i18n.allResults }}</option>
+            <option value="verbatim">{{ i18n.verbatim }}</option>
+          </select>
+          <button type="button" class="tool-link-btn" @click="showAdvancedModal = true">고급 검색</button>
+        </div>
+      </div>
+
+      <!-- Gate notice for feature-flagged vertical tabs -->
       <div v-if="verticalGateNotice" class="gate-notice-card" role="status">
         <span class="notice-icon" aria-hidden="true">⚠️</span>
         <span>{{ verticalGateNotice }}</span>
@@ -642,17 +1012,19 @@ onMounted(async () => {
           <p v-if="authStatus" class="auth-status-msg" role="status">{{ authStatus }}</p>
         </section>
 
-        <!-- HOME VIEW (When not in SERP mode) -->
+        <!-- ===============================================================
+             HOME VIEW (Google Homepage Experience)
+             =============================================================== -->
         <section v-if="!hasSearch" class="home-search-panel">
           <!-- Large Google-style Center Hero Logo -->
           <div class="home-logo-wrapper">
             <h1 class="home-brand-title">
-              <span class="logo-trip">Trip</span><span class="logo-scanner">Scanner</span>
+              <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span><span class="l-g">P</span><span class="l-r">o</span><span class="l-b">r</span><span class="l-y">t</span><span class="l-g">a</span><span class="l-r">l</span>
             </h1>
             <p class="home-tagline">{{ i18n.heading }}</p>
           </div>
 
-          <!-- Google-style Unified Search Box -->
+          <!-- Google-style Unified Search Box (584px desktop) -->
           <div class="home-search-box-container">
             <form class="home-search-form" role="search" @submit.prevent="runSearch(1)">
               <div class="home-search-bar" :class="{ 'with-dropdown': showSuggest && suggestions.length > 0 }">
@@ -677,6 +1049,7 @@ onMounted(async () => {
                   @keydown="onKeydownQuery"
                   @blur="onBlurQuery"
                 />
+                <!-- Clear Button -->
                 <button
                   v-if="q.length > 0"
                   type="button"
@@ -688,19 +1061,46 @@ onMounted(async () => {
                     <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                   </svg>
                 </button>
+                <!-- Voice Search Button -->
+                <button
+                  type="button"
+                  class="voice-btn"
+                  :title="i18n.voiceTooltip"
+                  :aria-label="i18n.voiceTooltip"
+                  @click="toggleVoiceSearch"
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" :fill="isListening ? '#ea4335' : '#4285f4'">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                  </svg>
+                </button>
+                <!-- Google Lens / Camera Button -->
+                <button
+                  type="button"
+                  class="lens-btn"
+                  :title="i18n.lensTooltip"
+                  :aria-label="i18n.lensTooltip"
+                  @click="showLensModal = true"
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="#4285f4">
+                    <path d="M12 15c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
+                    <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+                  </svg>
+                </button>
               </div>
 
-              <!-- Google-style Autocomplete Dropdown -->
+              <!-- Google-style Autocomplete Dropdown with Recent Searches -->
               <ul
-                v-if="showSuggest && suggestions.length > 0"
+                v-if="showSuggest && (suggestions.length > 0 || (recentOptIn && recentSearches.length > 0))"
                 id="home-suggest-listbox"
                 class="suggest-dropdown home-dropdown"
                 role="listbox"
                 aria-label="자동완성 제안"
               >
+                <!-- Suggestions -->
                 <li
                   v-for="(item, idx) in suggestions"
-                  :key="item"
+                  :key="'sug-' + item"
                   role="option"
                   :aria-selected="idx === activeSuggestIdx"
                   :class="{ active: idx === activeSuggestIdx }"
@@ -713,9 +1113,35 @@ onMounted(async () => {
                   </span>
                   <span class="suggest-text">{{ item }}</span>
                 </li>
+
+                <!-- Recent Searches inside Autocomplete -->
+                <template v-if="recentOptIn && recentSearches.length > 0">
+                  <li
+                    v-for="item in recentSearches.slice(0, 3)"
+                    :key="'rec-' + item"
+                    class="recent-suggest-row"
+                    role="option"
+                    @mousedown.prevent="selectSuggestion(item)"
+                  >
+                    <span class="suggest-icon recent-color" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                      </svg>
+                    </span>
+                    <span class="suggest-text">{{ item }}</span>
+                    <button
+                      type="button"
+                      class="remove-recent-item-btn"
+                      title="최근 검색어 삭제"
+                      @mousedown.stop.prevent="deleteRecentItem(item)"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                </template>
               </ul>
 
-              <!-- Google Dual Buttons -->
+              <!-- Google Dual Action Buttons -->
               <div class="home-button-row">
                 <button
                   type="submit"
@@ -727,7 +1153,7 @@ onMounted(async () => {
                 <button
                   type="button"
                   class="g-btn g-btn-lucky"
-                  @click="pickLuckyDestination"
+                  @click="runLuckySearch"
                 >
                   {{ i18n.luckyBtn }}
                 </button>
@@ -735,19 +1161,25 @@ onMounted(async () => {
             </form>
           </div>
 
-          <!-- Popular Travel Destination Chips -->
-          <div class="popular-section">
-            <span class="popular-title">{{ i18n.popularTitle }}:</span>
-            <div class="popular-chips">
+          <!-- Google Language Availability Line -->
+          <div class="google-lang-row">
+            <span>OpenPortal 제공 서비스:</span>
+            <button type="button" class="lang-text-btn" @click="locale = 'ko'">한국어</button>
+            <button type="button" class="lang-text-btn" @click="locale = 'en'">English</button>
+          </div>
+
+          <!-- Trending & Recommended General-Purpose Queries -->
+          <div class="trending-section">
+            <span class="trending-title">추천 검색어:</span>
+            <div class="trending-chips">
               <button
-                v-for="dest in popularDestinations"
-                :key="dest.name"
+                v-for="item in trendingQueries"
+                :key="item"
                 type="button"
-                class="destination-chip"
-                @click="runSearch(1, dest.name)"
+                class="trending-chip"
+                @click="runSearch(1, item)"
               >
-                <span class="chip-tag">{{ dest.tag }}</span>
-                <span class="chip-name">{{ dest.name }}</span>
+                {{ item }}
               </button>
             </div>
           </div>
@@ -771,7 +1203,9 @@ onMounted(async () => {
           </div>
         </section>
 
-        <!-- SERP RESULTS VIEW (When query submitted) -->
+        <!-- ===============================================================
+             SERP RESULTS VIEW (Google Search Engine Results Page)
+             =============================================================== -->
         <section v-if="hasSearch" class="results-container" aria-live="polite">
           <!-- Task 012: Opt-in recent searches for SERP view -->
           <div v-if="recentOptIn && recentSearches.length > 0" class="recent-chips serp-recent-chips" aria-label="최근 검색어 목록">
@@ -789,11 +1223,6 @@ onMounted(async () => {
               <span>{{ item }}</span>
             </button>
             <button type="button" class="secondary clear-recent-btn" @click="recentSearches = []">{{ i18n.clearRecent }}</button>
-          </div>
-
-          <!-- Copy URL Feedback Toast -->
-          <div v-if="copyFeedback" class="toast-feedback" role="status">
-            {{ copyFeedback }}
           </div>
 
           <!-- Loading Shimmer Skeletons -->
@@ -837,7 +1266,7 @@ onMounted(async () => {
               </button>
             </div>
 
-            <!-- Search Stats Line -->
+            <!-- Search Stats Line (Google style) -->
             <p class="count">
               검색 결과 약 {{ result.total.toLocaleString() }}개 ({{ (result.elapsed_ms / 1000).toFixed(3) }}초) · 서버 {{ result.elapsed_ms }}ms · 샘플 데이터셋
             </p>
@@ -845,7 +1274,7 @@ onMounted(async () => {
             <!-- SERP Hit Cards List -->
             <div class="hits-list">
               <article v-for="h in result.hits" :key="h.url" class="hit">
-                <!-- Breadcrumb URL row -->
+                <!-- Breadcrumb URL row with Favicon -->
                 <div class="hit-header-row">
                   <div class="hit-favicon-box" aria-hidden="true">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
@@ -854,7 +1283,7 @@ onMounted(async () => {
                   </div>
                   <div class="hit-site-info">
                     <span class="hit-domain">{{ extractDomain(h.url) }}</span>
-                    <div class="url">{{ h.url }}</div>
+                    <div class="url">{{ h.url }}{{ extractPath(h.url) }}</div>
                   </div>
                 </div>
 
@@ -868,10 +1297,22 @@ onMounted(async () => {
                 <!-- Snippet Description -->
                 <p>{{ h.description }}</p>
 
+                <!-- Google Sitelinks (Sub-links if available) -->
+                <div v-if="h.url.includes('example.org')" class="hit-sitelinks-grid">
+                  <div class="sitelink-item">
+                    <a :href="h.url + '#docs'" target="_blank" rel="noopener noreferrer">개발자 문서 및 가이드</a>
+                    <span>검색엔진 통합 가이드 및 REST API 스펙 확인</span>
+                  </div>
+                  <div class="sitelink-item">
+                    <a :href="h.url + '#api'" target="_blank" rel="noopener noreferrer">API 레퍼런스</a>
+                    <span>OpenSearch 및 Go 백엔드 인터페이스 규약</span>
+                  </div>
+                </div>
+
                 <!-- Metadata Badges & Quick Action Chips -->
                 <div class="hit-footer-row">
                   <span class="hit-badge badge-lang">{{ h.language.toUpperCase() }}</span>
-                  <span v-if="h.score" class="hit-badge badge-score">점수 {{ h.score.toFixed(2) }}</span>
+                  <span v-if="h.score" class="hit-badge badge-score">적합도 {{ h.score.toFixed(2) }}</span>
                   <span class="hit-badge badge-safe">검증됨</span>
                   <button type="button" class="hit-action-btn" title="URL 복사" @click="copyUrl(h.url)">
                     복사
@@ -892,27 +1333,43 @@ onMounted(async () => {
                   <li>모든 단어의 맞춤법과 띄어쓰기가 정확한지 확인하세요.</li>
                   <li>다른 검색어 또는 더 일반적인 키워드를 입력해 보세요.</li>
                   <li>검색어 단어 수를 줄여 핵심 단어로만 검색해 보세요.</li>
-                  <li>상단 카테고리 탭(웹, 호텔, 항공 등) 설정을 확인하세요.</li>
+                  <li>상단 카테고리 탭(전체, 이미지, 뉴스 등) 설정을 확인하세요.</li>
                 </ul>
+              </div>
+            </div>
+
+            <!-- Related Searches Section (Google-style 2-column grid) -->
+            <div v-if="result.total > 0 && relatedQueries.length > 0" class="related-searches-box">
+              <h3 class="related-title">관련 검색어</h3>
+              <div class="related-grid">
+                <button
+                  v-for="rel in relatedQueries"
+                  :key="rel"
+                  type="button"
+                  class="related-item-btn"
+                  @click="runSearch(1, rel)"
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                  </svg>
+                  <span>{{ rel }}</span>
+                </button>
               </div>
             </div>
 
             <!-- Google-style Numbered Pagination -->
             <div v-if="result.total > 10" class="serp-pagination" aria-label="검색 결과 페이지 이동">
               <div class="pagination-logo-art" aria-hidden="true">
-                <span class="pag-letter pag-t">T</span>
-                <span class="pag-letter pag-r">r</span>
-                <span class="pag-letter pag-i">i</span>
-                <span class="pag-letter pag-p">p</span>
+                <span class="pag-letter pag-g">O</span>
                 <span
-                  v-for="p in Math.min(6, Math.ceil(result.total / 10))"
+                  v-for="p in Math.min(8, Math.ceil(result.total / 10))"
                   :key="p"
-                  class="pag-letter pag-o"
-                  :class="{ active: p === page }"
+                  class="pag-letter"
+                  :class="[p % 2 === 0 ? 'pag-o' : 'pag-e', { active: p === page }]"
                 >
                   o
                 </span>
-                <span class="pag-letter pag-s">S</span>
+                <span class="pag-letter pag-gle">gle</span>
               </div>
               <div class="pager">
                 <button
@@ -948,20 +1405,23 @@ onMounted(async () => {
       </template>
     </main>
 
-    <!-- Global Footer -->
+    <!-- Global Google-Style Footer -->
     <footer class="app-footer">
       <div class="footer-top-row">
         <span class="footer-region">대한민국 · 서울</span>
-        <span class="footer-status-pill">Google-grade Responsive UX Enabled</span>
+        <span class="footer-status-pill">Google-grade Universal Search Engine</span>
       </div>
       <div class="footer-bottom-row">
         <div class="footer-left-links">
-          <span>© TripScanner by OpenPortal</span>
-          <span class="footer-sep">·</span>
-          <span>독립 여행 및 포털 검색엔진 프로젝트</span>
+          <a href="#" @click.prevent="runSearch(1, '오픈포털 검색엔진 프로젝트')">OpenPortal 정보</a>
+          <a href="#" @click.prevent="runSearch(1, '광고 플랫폼')">광고</a>
+          <a href="#" @click.prevent="runSearch(1, '비즈니스 솔루션')">비즈니스</a>
+          <a href="#" @click.prevent="runSearch(1, '검색의 원리')">검색의 원리</a>
         </div>
         <div class="footer-right-links">
-          <span class="footer-note">본 프로젝트는 Google과 관계없는 독립 개발 샘플입니다.</span>
+          <a href="#" @click.prevent="showSettings = true">개인정보처리방침</a>
+          <a href="#" @click.prevent="showSettings = true">약관</a>
+          <a href="#" @click.prevent="showSettings = true">설정</a>
         </div>
       </div>
     </footer>
