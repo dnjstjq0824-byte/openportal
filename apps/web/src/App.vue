@@ -343,6 +343,10 @@ function deleteRecentItem(target: string) {
 }
 
 function runLuckySearch() {
+  if (q.value.trim()) {
+    runSearch(1, q.value.trim());
+    return;
+  }
   const candidates = [
     '오픈포털 검색엔진 프로젝트',
     'OpenPortal developer documentation',
@@ -889,14 +893,14 @@ onMounted(async () => {
       <!-- Google Search Tools Dropdown Filter Bar -->
       <div v-if="showToolsBar" class="tools-bar">
         <div class="tool-dropdown-group">
-          <select v-model="filterTime">
+          <select v-model="filterTime" @change="runSearch(1)">
             <option value="all">{{ i18n.anyTime }}</option>
             <option value="hour">{{ i18n.pastHour }}</option>
             <option value="day">{{ i18n.past24Hours }}</option>
             <option value="week">{{ i18n.pastWeek }}</option>
             <option value="year">{{ i18n.pastYear }}</option>
           </select>
-          <select v-model="filterExact">
+          <select v-model="filterExact" @change="runSearch(1)">
             <option value="all">{{ i18n.allResults }}</option>
             <option value="verbatim">{{ i18n.verbatim }}</option>
           </select>

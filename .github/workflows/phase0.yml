@@ -42,7 +42,7 @@ jobs:
         run: |
           go test -race -coverprofile=../docs/evidence/go-coverage.out ./...
           go vet ./...
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
       - run: python -m unittest discover -s scripts -p test_seed.py
       - run: npm run test:db
@@ -74,8 +74,18 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
-        with: {languages: 'go,javascript-typescript', build-mode: none}
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
       - uses: github/codeql-action/analyze@v3
