@@ -97,11 +97,11 @@ test('Phase 1 features: query correction, opt-in recent searches, feature-flagge
   await searchBox.press('Enter');
   await expect(page.getByRole('button', {name: 'OpenPortal', exact: true})).toBeVisible();
 
-  // 5. Unverified authentication must not claim success.
+  // 5. Unverified authentication must not claim success or collect credentials.
   await page.getByRole('button', {name: '계정·보안'}).click();
   await expect(page.getByTestId('account-panel')).toBeVisible();
-  await page.getByRole('button', {name: '패스키로 시작'}).click();
-  await expect(page.getByText('로그인을 사용할 수 없습니다. 인증 서비스 연결과 보안 검증이 필요합니다.')).toBeVisible();
+  await expect(page.getByText('계정 인증 서비스가 연결되지 않아 로그인을 사용할 수 없습니다.')).toBeVisible();
+  await expect(page.getByTestId('account-panel').getByRole('textbox')).toHaveCount(0);
 
   // 6. Admin/Partner console access boundary screen, User Web Console, and 404 screen
   await page.goto('/admin');
@@ -113,39 +113,34 @@ test('Phase 1 features: query correction, opt-in recent searches, feature-flagge
   await expect(page.getByTestId('not-found-view')).toBeVisible();
 });
 
-test('Google Auth Modal (인증창), User Profile Flyout, and Google Lens interaction', async ({page}) => {
+test('unverified authentication fails closed and visual search controls remain accessible', async ({page}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('openportal.auth_session', JSON.stringify({
+      token: 'opt_sess_forged', id: 'usr_forged', email: 'demo@openportal.local',
+      name: 'demo', mfa: true,
+    }));
+  });
   await page.goto('/');
 
-  // 1. Google Blue "로그인" button is visible and opens Auth Modal (인증창)
+  // A browser-only legacy session cannot authenticate the user.
   const signInBtn = page.getByRole('button', {name: 'Google 계정 로그인'});
   await expect(signInBtn).toBeVisible();
   await signInBtn.click();
-
-  // Verify Auth Modal is displayed with title and tabs
   const authModal = page.locator('.auth-modal-card');
   await expect(authModal).toBeVisible();
-  await expect(authModal.getByRole('heading', {name: '로그인'})).toBeVisible();
-
-  // 2. Click "데모 계정 1초 로그인"
-  await page.getByRole('button', {name: /데모 계정/}).click();
+  await expect(authModal.getByRole('heading', {name: '계정 인증 준비 중'})).toBeVisible();
+  await expect(authModal.getByRole('textbox')).toHaveCount(0);
+  await expect(authModal.getByRole('button', {name: /데모 계정/})).toHaveCount(0);
+  await expect(page.locator('.g-avatar-btn')).toHaveCount(0);
+  await authModal.getByRole('button', {name: '닫기'}).click();
   await expect(authModal).not.toBeVisible();
-
-  // 3. User Avatar circle is displayed in header
-  const avatarBtn = page.locator('.g-avatar-btn');
-  await expect(avatarBtn).toBeVisible();
-
-  // 4. Clicking Avatar opens Google Profile Flyout with sign out option
-  await avatarBtn.click();
-  const profileFlyout = page.locator('.profile-flyout');
-  await expect(profileFlyout).toBeVisible();
-  await expect(profileFlyout.getByText('demo@openportal.local')).toBeVisible();
-
-  // 5. Sign out cleanly
-  await profileFlyout.getByRole('button', {name: '로그아웃'}).click();
-  await expect(profileFlyout).not.toBeVisible();
   await expect(signInBtn).toBeVisible();
+  await page.goto('/console');
+  await expect(page.getByText('계정 인증 서비스가 연결되지 않아 이 콘솔을 사용할 수 없습니다.')).toBeVisible();
+  await expect(page.getByText('demo@openportal.local')).toHaveCount(0);
+  await page.goto('/');
 
-  // 6. Google Lens Modal opens, shows drag & drop zone, samples, and search
+  // Visual search controls are independent of account authentication.
   const lensBtn = page.locator('.lens-btn');
   await lensBtn.click();
   const lensModal = page.locator('.lens-modal-card');

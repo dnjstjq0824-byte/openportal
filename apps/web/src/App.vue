@@ -137,20 +137,8 @@ const relatedQueries = computed(() => {
   ];
 });
 
-// Google Sign-In & Auth Modal state
+// Authentication is unavailable until server-side verification and persistence exist.
 const showAuthModal = ref(false);
-const authModalTab = ref<'signin' | 'signup' | 'recovery'>('signin');
-const loginEmail = ref('');
-const loginPassword = ref('');
-const loginRemember = ref(true);
-const signupName = ref('');
-const signupEmail = ref('');
-const signupPassword = ref('');
-const signupPasswordConfirm = ref('');
-const recoveryEmail = ref('');
-const recoveryCodeInput = ref('');
-const authModalError = ref('');
-const authModalSuccess = ref('');
 const showProfileFlyout = ref(false);
 const accountName = ref('');
 
@@ -188,11 +176,7 @@ function onLensDrop(e: DragEvent) {
   runSearch(1, `이미지 검색: ${file.name.replace(/\.[^/.]+$/, '')}`);
 }
 
-// Google Auth Modal Actions
-function openAuthModal(tab: 'signin' | 'signup' | 'recovery' = 'signin') {
-  authModalTab.value = tab;
-  authModalError.value = '';
-  authModalSuccess.value = '';
+function openAuthModal() {
   showAuthModal.value = true;
   showAccount.value = false;
   showSettings.value = false;
@@ -202,78 +186,6 @@ function openAuthModal(tab: 'signin' | 'signup' | 'recovery' = 'signin') {
 
 function closeAuthModal() {
   showAuthModal.value = false;
-  authModalError.value = '';
-  authModalSuccess.value = '';
-}
-
-function handleSignIn(targetEmail?: string) {
-  const email = targetEmail || loginEmail.value.trim();
-  if (!email) {
-    authModalError.value = '이메일 또는 휴대전화 번호를 입력하세요.';
-    return;
-  }
-  const token = 'opt_sess_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
-  const id = 'usr_' + Math.random().toString(36).substring(2, 10);
-  const name = email.split('@')[0];
-  
-  sessionToken.value = token;
-  accountId.value = id;
-  accountEmail.value = email;
-  accountName.value = name;
-  mfaEnrolled.value = true;
-  recoveryCodes.value = ['8a4f-9921', '3d7c-1102', '5b9e-4481'];
-  
-  if (loginRemember.value) {
-    try {
-      localStorage.setItem('openportal.auth_session', JSON.stringify({
-        token,
-        id,
-        email,
-        name,
-        mfa: true,
-      }));
-    } catch {}
-  }
-  
-  authModalSuccess.value = '성공적으로 로그인되었습니다.';
-  copyFeedback.value = `로그인되었습니다: ${email}`;
-  setTimeout(() => { copyFeedback.value = ''; }, 3000);
-  setTimeout(() => {
-    closeAuthModal();
-  }, 350);
-}
-
-function handleSignUp() {
-  const name = signupName.value.trim();
-  const email = signupEmail.value.trim();
-  const pwd = signupPassword.value;
-  const pwdConfirm = signupPasswordConfirm.value;
-  
-  if (!name || !email || !pwd) {
-    authModalError.value = '모든 필드를 올바르게 입력해 주세요.';
-    return;
-  }
-  if (pwd !== pwdConfirm) {
-    authModalError.value = '비밀번호가 일치하지 않습니다.';
-    return;
-  }
-  if (pwd.length < 8) {
-    authModalError.value = '비밀번호는 최소 8자 이상이어야 합니다.';
-    return;
-  }
-  
-  handleSignIn(email);
-  accountName.value = name;
-}
-
-function handleRecovery() {
-  const email = recoveryEmail.value.trim();
-  const code = recoveryCodeInput.value.trim();
-  if (!email || !code) {
-    authModalError.value = '이메일과 복구 코드를 모두 입력해 주세요.';
-    return;
-  }
-  handleSignIn(email);
 }
 
 function handleSignOut() {
@@ -891,10 +803,6 @@ async function runSearch(nextPage = 1, overrideQuery?: string, updateHistory = t
   }
 }
 
-async function signInPasskey() {
-  authStatus.value = '로그인을 사용할 수 없습니다. 인증 서비스 연결과 보안 검증이 필요합니다.';
-}
-
 async function revokeCurrentSession() {
   if (!sessionToken.value) return;
   try {
@@ -959,14 +867,8 @@ onMounted(async () => {
     recentOptIn.value = prefs.recentOptIn === true;
     const recent = JSON.parse(localStorage.getItem('openportal.recent') || '[]');
     if (recentOptIn.value && Array.isArray(recent)) recentSearches.value = recent.filter(x => typeof x === 'string').slice(0, 8);
-    const savedAuth = JSON.parse(localStorage.getItem('openportal.auth_session') || '{}');
-    if (savedAuth.token) {
-      sessionToken.value = savedAuth.token;
-      accountId.value = savedAuth.id || 'usr_saved';
-      accountEmail.value = savedAuth.email || 'user@example.org';
-      accountName.value = savedAuth.name || savedAuth.email?.split('@')[0] || '사용자';
-      mfaEnrolled.value = savedAuth.mfa === true;
-    }
+    // Previously minted browser-only sessions were never authenticated.
+    localStorage.removeItem('openportal.auth_session');
   } catch { /* Storage may be disabled by the browser. */ }
   if (typeof window !== 'undefined') {
     restoreLocation();
@@ -1215,7 +1117,7 @@ onMounted(async () => {
           type="button"
           class="g-signin-btn"
           aria-label="Google 계정 로그인"
-          @click="openAuthModal('signin')"
+          @click="openAuthModal()"
         >
           로그인
         </button>
@@ -1280,249 +1182,27 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Google Authentication Modal Dialog (인증창) -->
+    <!-- Authentication remains closed until a verified server-side flow is available. -->
     <div
       v-if="showAuthModal"
       class="auth-modal-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="Google 계정 로그인"
+      aria-label="계정 인증 안내"
       @click.self="closeAuthModal"
     >
       <div class="auth-modal-card">
         <div class="auth-modal-header">
-          <div class="auth-brand-logo">
-            <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span><span class="l-g">P</span><span class="l-r">o</span><span class="l-b">r</span><span class="l-y">t</span><span class="l-g">a</span><span class="l-r">l</span>
-          </div>
-          <h2 class="auth-modal-title">
-            {{ authModalTab === 'signin' ? '로그인' : authModalTab === 'signup' ? '계정 만들기' : '비밀번호 복구' }}
-          </h2>
-          <p class="auth-modal-subtitle">OpenPortal 계정으로 이동</p>
-        </div>
-
-        <!-- Mode Navigation Tabs -->
-        <div class="auth-tab-row">
-          <button
-            type="button"
-            class="auth-tab-btn"
-            :class="{ active: authModalTab === 'signin' }"
-            @click="authModalTab = 'signin'; authModalError = ''"
-          >
-            로그인
-          </button>
-          <button
-            type="button"
-            class="auth-tab-btn"
-            :class="{ active: authModalTab === 'signup' }"
-            @click="authModalTab = 'signup'; authModalError = ''"
-          >
-            계정 만들기
-          </button>
-          <button
-            type="button"
-            class="auth-tab-btn"
-            :class="{ active: authModalTab === 'recovery' }"
-            @click="authModalTab = 'recovery'; authModalError = ''"
-          >
-            비밀번호 복구
-          </button>
-        </div>
-
-        <!-- Feedback Alerts -->
-        <div v-if="authModalError" class="auth-error-alert" role="alert">
-          {{ authModalError }}
-        </div>
-        <div v-if="authModalSuccess" class="auth-success-alert" role="status">
-          {{ authModalSuccess }}
-        </div>
-
-        <!-- TAB 1: SIGN IN -->
-        <form v-if="authModalTab === 'signin'" class="auth-form" @submit.prevent="handleSignIn()">
-          <div class="auth-input-group">
-            <label for="signin-email">이메일 또는 휴대전화</label>
-            <input
-              id="signin-email"
-              v-model="loginEmail"
-              type="email"
-              required
-              placeholder="name@example.com"
-              autocomplete="username"
-            />
-          </div>
-
-          <div class="auth-input-group">
-            <label for="signin-password">비밀번호</label>
-            <input
-              id="signin-password"
-              v-model="loginPassword"
-              type="password"
-              required
-              placeholder="••••••••"
-              autocomplete="current-password"
-            />
-          </div>
-
-          <div class="auth-options-row">
-            <label class="remember-label">
-              <input v-model="loginRemember" type="checkbox" />
-              <span>로그인 상태 유지</span>
-            </label>
-            <button
-              type="button"
-              class="auth-link-btn"
-              @click="authModalTab = 'recovery'"
-            >
-              비밀번호를 잊으셨나요?
-            </button>
-          </div>
-
-          <div class="auth-action-buttons">
-            <button
-              type="button"
-              class="auth-demo-btn"
-              @click="handleSignIn('demo@openportal.local')"
-            >
-              ⚡ 데모 계정 1초 로그인
-            </button>
-            <div class="auth-main-actions">
-              <button
-                type="button"
-                class="auth-secondary-btn"
-                @click="closeAuthModal"
-              >
-                닫기
-              </button>
-              <button
-                type="submit"
-                class="g-btn g-btn-primary auth-submit-btn"
-              >
-                다음
-              </button>
-            </div>
-          </div>
-        </form>
-
-        <!-- TAB 2: SIGN UP -->
-        <form v-else-if="authModalTab === 'signup'" class="auth-form" @submit.prevent="handleSignUp">
-          <div class="auth-input-group">
-            <label for="signup-name">이름</label>
-            <input
-              id="signup-name"
-              v-model="signupName"
-              type="text"
-              required
-              placeholder="홍길동"
-            />
-          </div>
-
-          <div class="auth-input-group">
-            <label for="signup-email">이메일 주소</label>
-            <input
-              id="signup-email"
-              v-model="signupEmail"
-              type="email"
-              required
-              placeholder="newuser@example.com"
-            />
-          </div>
-
-          <div class="auth-input-group">
-            <label for="signup-pwd">비밀번호</label>
-            <input
-              id="signup-pwd"
-              v-model="signupPassword"
-              type="password"
-              required
-              minlength="8"
-              placeholder="8자 이상 입력"
-            />
-          </div>
-
-          <div class="auth-input-group">
-            <label for="signup-pwd-confirm">비밀번호 확인</label>
-            <input
-              id="signup-pwd-confirm"
-              v-model="signupPasswordConfirm"
-              type="password"
-              required
-              minlength="8"
-              placeholder="비밀번호 재입력"
-            />
-          </div>
-
-          <div class="auth-action-buttons">
-            <button
-              type="button"
-              class="auth-secondary-btn"
-              @click="authModalTab = 'signin'"
-            >
-              로그인으로 돌아가기
-            </button>
-            <button
-              type="submit"
-              class="g-btn g-btn-primary auth-submit-btn"
-            >
-              계정 생성 완료
-            </button>
-          </div>
-        </form>
-
-        <!-- TAB 3: RECOVERY -->
-        <form v-else-if="authModalTab === 'recovery'" class="auth-form" @submit.prevent="handleRecovery">
-          <p class="auth-notice-text">
-            가입 시 발급받은 비상 복구 코드 또는 등록된 이메일을 입력하세요.
+          <h2 class="auth-modal-title">계정 인증 준비 중</h2>
+          <p class="auth-modal-subtitle" role="status">
+            로그인, 계정 생성, 비밀번호 복구는 현재 사용할 수 없습니다. 인증 서비스와 보안 검증이 완료되면 제공됩니다.
           </p>
-
-          <div class="auth-input-group">
-            <label for="rec-email">등록된 이메일</label>
-            <input
-              id="rec-email"
-              v-model="recoveryEmail"
-              type="email"
-              required
-              placeholder="name@example.com"
-            />
-          </div>
-
-          <div class="auth-input-group">
-            <label for="rec-code">비상 복구 코드</label>
-            <input
-              id="rec-code"
-              v-model="recoveryCodeInput"
-              type="text"
-              required
-              placeholder="예: 8e4b-912a-4f"
-            />
-          </div>
-
-          <div class="auth-action-buttons">
-            <button
-              type="button"
-              class="auth-secondary-btn"
-              @click="authModalTab = 'signin'"
-            >
-              로그인으로 돌아가기
-            </button>
-            <button
-              type="submit"
-              class="g-btn g-btn-primary auth-submit-btn"
-            >
-              복구 및 로그인
-            </button>
-          </div>
-        </form>
-
-        <div class="auth-modal-footer">
-          <span>한국어</span>
-          <div class="footer-mini-links">
-            <a href="#" @click.prevent>도움말</a>
-            <a href="#" @click.prevent>개인정보처리방침</a>
-            <a href="#" @click.prevent>약관</a>
-          </div>
+        </div>
+        <div class="auth-action-buttons">
+          <button type="button" class="auth-secondary-btn" @click="closeAuthModal">닫기</button>
         </div>
       </div>
     </div>
-
     <!-- Image search / Search by Image Modal (Google Lens) -->
     <div
       v-if="showLensModal"
@@ -1707,156 +1387,14 @@ onMounted(async () => {
         <button type="button" class="g-btn g-btn-primary" @click="resetHome">검색 홈으로 이동</button>
       </section>
 
-      <!-- User Web Console View (/console or /account) -->
+      <!-- Account console is inaccessible until production authentication exists. -->
       <section v-else-if="isUserConsoleRoute" class="user-console-view" data-testid="user-console-view">
-        <div class="console-hero">
-          <div class="console-hero-left">
-            <div class="console-avatar-large">
-              <span>{{ (accountName || accountEmail || 'D').charAt(0).toUpperCase() }}</span>
-            </div>
-            <div class="console-hero-info">
-              <div class="console-title-row">
-                <h1>사용자 계정 &amp; 웹 콘솔</h1>
-                <span class="console-mfa-badge">🛡️ 2단계 인증(MFA) 활성</span>
-              </div>
-              <p class="console-subtitle">{{ accountEmail || 'demo@openportal.local' }} · 개인정보 통제 및 검색 환경설정 대시보드</p>
-            </div>
-          </div>
-          <div class="console-hero-actions">
-            <button type="button" class="g-btn g-btn-primary" @click="resetHome">
-              ← 검색 홈으로
-            </button>
-            <button v-if="sessionToken" type="button" class="g-btn g-btn-secondary" @click="handleSignOut">
-              로그아웃
-            </button>
-            <button v-else type="button" class="g-btn g-btn-primary" @click="openAuthModal('signin')">
-              로그인
-            </button>
-          </div>
-        </div>
-
-        <div class="console-grid">
-          <!-- Card 1: 계정 보안 & 세션 원장 -->
-          <div class="console-card">
-            <div class="console-card-header">
-              <span class="card-icon">🔐</span>
-              <h2>보안 및 세션 관리</h2>
-            </div>
-            <div class="console-card-body">
-              <div class="console-row">
-                <span class="label">계정 식별자 (ID)</span>
-                <code class="val-code">{{ accountId || 'usr_demo_session' }}</code>
-              </div>
-              <div class="console-row">
-                <span class="label">인증 수단</span>
-                <span class="val-text">피싱 저항 MFA (RFC 6238 TOTP)</span>
-              </div>
-              <div class="console-row">
-                <span class="label">현재 세션 상태</span>
-                <span class="val-badge success">{{ sessionToken ? '정상 활성 세션 (Bearer)' : '비로그인 게스트' }}</span>
-              </div>
-              <div class="console-row">
-                <span class="label">비상 복구 코드</span>
-                <div class="recovery-tags">
-                  <span v-for="c in recoveryCodes" :key="c" class="recovery-code-pill">{{ c }}</span>
-                </div>
-              </div>
-              <div class="console-actions-row">
-                <button type="button" class="g-btn g-btn-secondary btn-sm" @click="revokeCurrentSession">
-                  다른 모든 기기 세션 즉시 만료
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 2: 검색 환경설정 -->
-          <div class="console-card">
-            <div class="console-card-header">
-              <span class="card-icon">⚙️</span>
-              <h2>검색 환경설정 (Preferences)</h2>
-            </div>
-            <div class="console-card-body">
-              <div class="console-row">
-                <label for="console-safesearch" class="label">세이프서치 필터</label>
-                <select id="console-safesearch" v-model="safeSearch" class="console-select">
-                  <option value="strict">엄격 (Strict) — 유해 콘텐츠 완전 차단</option>
-                  <option value="moderate">보통 (Moderate) — 성인용 이미지/영상 필터링</option>
-                  <option value="off">사용 안함 (Off)</option>
-                </select>
-              </div>
-              <div class="console-row">
-                <label for="console-theme" class="label">화면 테마</label>
-                <select id="console-theme" v-model="theme" class="console-select">
-                  <option value="light">라이트 모드 (기본)</option>
-                  <option value="dark">다크 모드</option>
-                  <option value="system">기기 시스템 설정 동기화</option>
-                </select>
-              </div>
-              <div class="console-row">
-                <label for="console-lang" class="label">검색 언어</label>
-                <select id="console-lang" v-model="locale" class="console-select">
-                  <option value="ko">한국어 (Korean)</option>
-                  <option value="en">English (영어)</option>
-                </select>
-              </div>
-              <div class="console-row">
-                <label class="label">최근 검색어 저장 (Opt-in)</label>
-                <label class="toggle-switch">
-                  <input type="checkbox" v-model="recentOptIn" />
-                  <span class="slider"></span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 3: 내 검색 활동 & 기록 관리 -->
-          <div class="console-card">
-            <div class="console-card-header">
-              <span class="card-icon">🕒</span>
-              <h2>최근 검색 활동 내역</h2>
-              <button v-if="recentSearches.length > 0" type="button" class="clear-all-btn" @click="clearRecentSearches">
-                전체 비우기
-              </button>
-            </div>
-            <div class="console-card-body">
-              <div v-if="recentSearches.length === 0" class="console-empty-text">
-                기록된 최근 검색어가 없습니다. (검색어 저장 Opt-in 활성화 시 표시됩니다)
-              </div>
-              <ul v-else class="console-history-list">
-                <li v-for="item in recentSearches" :key="item" class="console-history-item">
-                  <button type="button" class="history-item-link" @click="runSearch(1, item)">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
-                    <span>{{ item }}</span>
-                  </button>
-                  <button type="button" class="history-item-del" @click="deleteRecentItem(item)" aria-label="삭제">✕</button>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Card 4: 정보주체 권리 및 데이터 주권 -->
-          <div class="console-card">
-            <div class="console-card-header">
-              <span class="card-icon">🛡️</span>
-              <h2>개인정보 및 데이터 주권 (DSAR)</h2>
-            </div>
-            <div class="console-card-body">
-              <p class="console-desc-text">
-                OpenPortal은 개인정보 보호법 및 GDPR을 준수하며, 사용자 데이터의 최소 수집 원칙을 적용합니다. 사용자는 언제든지 수집된 정보의 열람, 정정, 삭제(잊힐 권리)를 요청할 수 있습니다.
-              </p>
-              <div class="console-actions-row">
-                <button type="button" class="g-btn g-btn-secondary btn-sm" @click="showSettings = true">
-                  개인정보처리방침 열람
-                </button>
-                <button type="button" class="g-btn g-btn-secondary btn-sm" @click="exportUserData">
-                  내 검색 및 활동 데이터 내보내기 (JSON)
-                </button>
-              </div>
-            </div>
-          </div>
+        <div class="panel-card" role="status">
+          <h1>사용자 계정 &amp; 웹 콘솔</h1>
+          <p>계정 인증 서비스가 연결되지 않아 이 콘솔을 사용할 수 없습니다.</p>
+          <button type="button" class="g-btn g-btn-primary" @click="resetHome">검색 홈으로 이동</button>
         </div>
       </section>
-
       <!-- Normal Search Home & Results View -->
       <template v-else>
         <!-- Task 017: Search Settings Panel -->
@@ -1909,14 +1447,8 @@ onMounted(async () => {
             <h2>계정 및 보안</h2>
             <button type="button" class="close-panel-btn" @click="showAccount = false" aria-label="패널 닫기">✕</button>
           </div>
-          <template v-if="!sessionToken"><p>계정 인증 서비스가 연결되지 않아 로그인을 사용할 수 없습니다.</p>
-            <div class="field-row">
-              <label for="auth-email">이메일</label>
-              <div class="input-action-group">
-                <input id="auth-email" v-model="authEmail" type="email" placeholder="user@example.org" />
-                <button type="button" class="g-btn g-btn-primary" @click="signInPasskey">패스키로 시작</button>
-              </div>
-            </div>
+          <template v-if="!sessionToken">
+            <p role="status">계정 인증 서비스가 연결되지 않아 로그인을 사용할 수 없습니다.</p>
           </template>
           <template v-else>
             <p>로그인 계정: <strong>{{ accountEmail }}</strong> (ID: <code>{{ accountId }}</code>)</p>

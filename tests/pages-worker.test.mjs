@@ -35,3 +35,35 @@ test('non-API requests retain asset routing', async () => {
   const response = await worker.fetch(request('/'), {ASSETS:{fetch:async()=>new Response('home')}});
   assert.equal(await response.text(), 'home');
 });
+
+test('edge search fallback on production pages.dev serves live verified corpus without 503', async () => {
+  const reqPages = (path) => new Request(`https://openportal.pages.dev${path}`, { method: 'GET' });
+  
+  // Test search match
+  const matchRes = await worker.fetch(reqPages('/api/v1/search?q=openportal'), {});
+  assert.equal(matchRes.status, 200);
+  const matchBody = await matchRes.json();
+  assert.ok(matchBody.total > 0);
+  assert.ok(matchBody.hits.length > 0);
+  assert.equal(typeof matchBody.hits[0].title, 'string');
+  assert.equal(typeof matchBody.hits[0].url, 'string');
+
+  // Test zero results match (query '0') - must be 200 with hits: [], NEVER 503
+  const zeroRes = await worker.fetch(reqPages('/api/v1/search?q=0'), {});
+  assert.equal(zeroRes.status, 200);
+  const zeroBody = await zeroRes.json();
+  assert.equal(zeroBody.total, 0);
+  assert.deepEqual(zeroBody.hits, []);
+
+  // Test suggestions
+  const sugRes = await worker.fetch(reqPages('/api/v1/suggest?q=검색'), {});
+  assert.equal(sugRes.status, 200);
+  const sugBody = await sugRes.json();
+  assert.ok(Array.isArray(sugBody.suggestions));
+
+  // Test portal config
+  const cfgRes = await worker.fetch(reqPages('/api/v1/portal/config'), {});
+  assert.equal(cfgRes.status, 200);
+  const cfgBody = await cfgRes.json();
+  assert.equal(cfgBody.search_enabled, true);
+});
