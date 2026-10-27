@@ -161,3 +161,4 @@ func (l *AdBillingLedger) VerifyPartnerScope(keyID, requiredScope string) bool {
 	}
 	return false
 }
+

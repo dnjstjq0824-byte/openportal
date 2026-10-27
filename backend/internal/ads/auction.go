@@ -109,3 +109,4 @@ func ValidateOrganicSeparation(organicScores []float64, adBids []AdBid) error {
 	}
 	return nil
 }
+

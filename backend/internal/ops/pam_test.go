@@ -44,3 +44,4 @@ func TestPAMManagerLifecycle(t *testing.T) {
 		t.Errorf("expected revoked elevation to be inactive")
 	}
 }
+

@@ -116,3 +116,4 @@ func (m *DSARManager) ExecuteErasure(requestID string, purgeHook func(accountID 
 	m.requests[requestID] = req
 	return nil
 }
+

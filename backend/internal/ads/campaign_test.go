@@ -81,3 +81,4 @@ func TestApplyTransitionRoleEnforcement(t *testing.T) {
 		t.Errorf("expected status approved, got %s", c.Status)
 	}
 }
+

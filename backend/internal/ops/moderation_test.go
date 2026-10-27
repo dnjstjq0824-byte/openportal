@@ -32,3 +32,4 @@ func TestModerationTakedownAndAppeal(t *testing.T) {
 		t.Fatalf("failed submitting appeal: %v", err)
 	}
 }
+

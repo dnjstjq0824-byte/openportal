@@ -106,3 +106,4 @@ func ApplyTransition(c *AdCreative, target CampaignStatus, actorRole string) err
 	c.Status = target
 	return nil
 }
+

@@ -33,3 +33,4 @@ func TestDualCustodyApprovalWorkflow(t *testing.T) {
 		t.Errorf("expected approved status by operator B, got %+v", approved)
 	}
 }
+

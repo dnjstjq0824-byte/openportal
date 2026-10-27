@@ -51,3 +51,4 @@ func TestDSARManagerExportAndErasure(t *testing.T) {
 		t.Errorf("expected purgeHook to be called for %s", acc)
 	}
 }
+

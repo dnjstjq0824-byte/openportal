@@ -149,3 +149,4 @@ func PlanClusterCapacity(docCount int64, avgSizeBytes int64, replicaCount int) (
 		RecommendedNodeRAM: ramTier,
 	}, nil
 }
+

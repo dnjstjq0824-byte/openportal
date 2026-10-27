@@ -72,3 +72,4 @@ func (d *ClickFraudDetector) ValidateClick(clientIP, userAgent, adID string, cle
 		BillableAmount: clearingCPC,
 	}
 }
+

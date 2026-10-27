@@ -90,3 +90,4 @@ func (m *ModerationTakedownManager) SubmitAppeal(docURL, reason string) error {
 	m.takedowns[docURL] = rec
 	return nil
 }
+

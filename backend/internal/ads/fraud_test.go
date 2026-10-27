@@ -37,3 +37,4 @@ func TestClickFraudDetector(t *testing.T) {
 		t.Errorf("unexpected invalid reason: %s", resBot.InvalidReason)
 	}
 }
+

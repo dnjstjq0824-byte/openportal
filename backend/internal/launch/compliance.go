@@ -88,3 +88,4 @@ func AuditReleaseCompliance(a AccessibilityChecklist, l LocalizationAudit, priva
 		MissingRequirements:  missing,
 	}
 }
+

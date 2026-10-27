@@ -56,3 +56,4 @@ CREATE TABLE IF NOT EXISTS control.security_audit_events (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   occurred_at timestamptz NOT NULL DEFAULT now()
 );
+

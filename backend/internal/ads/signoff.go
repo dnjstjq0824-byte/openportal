@@ -89,3 +89,4 @@ func EvaluatePhase7ReleaseGate(checklist AdsAuditChecklist) Phase7GateReport {
 
 	return report
 }
+

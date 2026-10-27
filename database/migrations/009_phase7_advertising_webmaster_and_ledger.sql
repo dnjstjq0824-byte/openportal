@@ -58,3 +58,4 @@ CREATE TABLE IF NOT EXISTS ads.ledger_entries (
   balance_after numeric(14, 4) NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+

@@ -143,3 +143,4 @@ func (m *WebmasterManager) SubmitSitemap(accountID, rawURL string) (*SitemapReco
 
 	return &entry, nil
 }
+

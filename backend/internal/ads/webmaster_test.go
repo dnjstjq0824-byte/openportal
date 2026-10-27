@@ -46,3 +46,4 @@ func TestWebmasterDomainVerificationAndSitemap(t *testing.T) {
 		t.Errorf("expected status 'processed', got %s", sitemap.Status)
 	}
 }
+

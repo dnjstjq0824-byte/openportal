@@ -130,3 +130,4 @@ func (fi *FaultInjector) Intercept(ctx context.Context, sample float64) error {
 
 	return nil
 }
+

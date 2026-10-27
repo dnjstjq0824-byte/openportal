@@ -46,3 +46,4 @@ func TestValidateOrganicSeparation(t *testing.T) {
 		t.Errorf("unexpected validation failure: %v", err)
 	}
 }
+

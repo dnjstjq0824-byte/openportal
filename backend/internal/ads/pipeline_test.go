@@ -92,3 +92,4 @@ func TestPhase7EndToEndAdsPipeline(t *testing.T) {
 		t.Fatalf("expected 2 unresolved risks, got %d", len(report.UnresolvedRisks))
 	}
 }
+

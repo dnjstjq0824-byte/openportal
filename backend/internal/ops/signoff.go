@@ -85,3 +85,4 @@ func EvaluatePhase8ReleaseGate(checklist OpsAuditChecklist) Phase8GateReport {
 
 	return report
 }
+

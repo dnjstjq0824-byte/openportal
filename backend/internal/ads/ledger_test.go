@@ -53,3 +53,4 @@ func TestPartnerAPIKeyScopes(t *testing.T) {
 		t.Errorf("expected key not to have ads:write scope")
 	}
 }
+

@@ -87,3 +87,4 @@ func TestPhase8EndToEndOpsPipeline(t *testing.T) {
 		t.Fatalf("expected 2 unresolved risks, got %d", len(report.UnresolvedRisks))
 	}
 }
+

@@ -99,3 +99,4 @@ func (m *DRManager) HasPassingRehearsal(maxAge time.Duration) bool {
 	}
 	return false
 }
+

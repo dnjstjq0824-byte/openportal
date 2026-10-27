@@ -121,3 +121,4 @@ func (r *DefectRegister) ListDefects() []DefectRecord {
 	}
 	return list
 }
+
