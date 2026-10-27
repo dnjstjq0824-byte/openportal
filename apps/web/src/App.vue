@@ -509,9 +509,13 @@ const hasSearch = computed(() => submitted.value.length > 0);
 const isConsoleDeniedRoute = computed(() =>
   currentPath.value.startsWith('/admin') || currentPath.value.startsWith('/partner')
 );
+const isUserConsoleRoute = computed(() =>
+  currentPath.value === '/console' || currentPath.value === '/account'
+);
 const isNotFoundRoute = computed(() =>
   currentPath.value !== '/' &&
   currentPath.value !== '/search' &&
+  !isUserConsoleRoute.value &&
   !isConsoleDeniedRoute.value
 );
 
@@ -700,6 +704,38 @@ function toggleRecentOptIn(enabled: boolean) {
 
 function deleteRecentItem(target: string) {
   recentSearches.value = recentSearches.value.filter(item => item !== target);
+}
+
+function clearRecentSearches() {
+  recentSearches.value = [];
+}
+
+function exportUserData() {
+  const data = {
+    account: {
+      id: accountId.value || 'usr_demo',
+      email: accountEmail.value || 'demo@openportal.local',
+      name: accountName.value || 'demo',
+      mfaEnrolled: mfaEnrolled.value,
+    },
+    preferences: {
+      safeSearch: safeSearch.value,
+      theme: theme.value,
+      locale: locale.value,
+      recentOptIn: recentOptIn.value,
+    },
+    recentSearches: recentSearches.value,
+    exportedAt: new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `openportal-data-${accountId.value || 'user'}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  copyFeedback.value = '개인정보 및 검색 데이터가 JSON으로 다운로드되었습니다.';
+  setTimeout(() => { copyFeedback.value = ''; }, 3000);
 }
 
 function runLuckySearch() {
@@ -1165,7 +1201,7 @@ onMounted(async () => {
           type="button"
           class="header-action-btn secondary"
           :aria-expanded="showAccount"
-          @click="showAccount = !showAccount; showSettings = false; showWaffle = false; showProfileFlyout = false"
+          @click="sessionToken ? navigateTo('/console') : (showAccount = !showAccount); showSettings = false; showWaffle = false; showProfileFlyout = false"
         >
           <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
@@ -1227,8 +1263,8 @@ onMounted(async () => {
         </div>
       </div>
       <div class="flyout-actions">
-        <button type="button" class="flyout-action-btn" @click="showAccount = true; showProfileFlyout = false">
-          계정 및 보안 설정
+        <button type="button" class="flyout-action-btn" @click="navigateTo('/console'); showProfileFlyout = false">
+          Google 계정 관리 (사용자 웹 콘솔)
         </button>
         <button type="button" class="flyout-action-btn" @click="showSettings = true; showProfileFlyout = false">
           검색 설정 및 개인정보
@@ -1669,6 +1705,156 @@ onMounted(async () => {
         <h1>페이지를 찾을 수 없습니다</h1>
         <p>요청하신 경로(<code>{{ currentPath }}</code>)는 존재하지 않습니다.</p>
         <button type="button" class="g-btn g-btn-primary" @click="resetHome">검색 홈으로 이동</button>
+      </section>
+
+      <!-- User Web Console View (/console or /account) -->
+      <section v-else-if="isUserConsoleRoute" class="user-console-view" data-testid="user-console-view">
+        <div class="console-hero">
+          <div class="console-hero-left">
+            <div class="console-avatar-large">
+              <span>{{ (accountName || accountEmail || 'D').charAt(0).toUpperCase() }}</span>
+            </div>
+            <div class="console-hero-info">
+              <div class="console-title-row">
+                <h1>사용자 계정 &amp; 웹 콘솔</h1>
+                <span class="console-mfa-badge">🛡️ 2단계 인증(MFA) 활성</span>
+              </div>
+              <p class="console-subtitle">{{ accountEmail || 'demo@openportal.local' }} · 개인정보 통제 및 검색 환경설정 대시보드</p>
+            </div>
+          </div>
+          <div class="console-hero-actions">
+            <button type="button" class="g-btn g-btn-primary" @click="resetHome">
+              ← 검색 홈으로
+            </button>
+            <button v-if="sessionToken" type="button" class="g-btn g-btn-secondary" @click="handleSignOut">
+              로그아웃
+            </button>
+            <button v-else type="button" class="g-btn g-btn-primary" @click="openAuthModal('signin')">
+              로그인
+            </button>
+          </div>
+        </div>
+
+        <div class="console-grid">
+          <!-- Card 1: 계정 보안 & 세션 원장 -->
+          <div class="console-card">
+            <div class="console-card-header">
+              <span class="card-icon">🔐</span>
+              <h2>보안 및 세션 관리</h2>
+            </div>
+            <div class="console-card-body">
+              <div class="console-row">
+                <span class="label">계정 식별자 (ID)</span>
+                <code class="val-code">{{ accountId || 'usr_demo_session' }}</code>
+              </div>
+              <div class="console-row">
+                <span class="label">인증 수단</span>
+                <span class="val-text">피싱 저항 MFA (RFC 6238 TOTP)</span>
+              </div>
+              <div class="console-row">
+                <span class="label">현재 세션 상태</span>
+                <span class="val-badge success">{{ sessionToken ? '정상 활성 세션 (Bearer)' : '비로그인 게스트' }}</span>
+              </div>
+              <div class="console-row">
+                <span class="label">비상 복구 코드</span>
+                <div class="recovery-tags">
+                  <span v-for="c in recoveryCodes" :key="c" class="recovery-code-pill">{{ c }}</span>
+                </div>
+              </div>
+              <div class="console-actions-row">
+                <button type="button" class="g-btn g-btn-secondary btn-sm" @click="revokeCurrentSession">
+                  다른 모든 기기 세션 즉시 만료
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: 검색 환경설정 -->
+          <div class="console-card">
+            <div class="console-card-header">
+              <span class="card-icon">⚙️</span>
+              <h2>검색 환경설정 (Preferences)</h2>
+            </div>
+            <div class="console-card-body">
+              <div class="console-row">
+                <label for="console-safesearch" class="label">세이프서치 필터</label>
+                <select id="console-safesearch" v-model="safeSearch" class="console-select">
+                  <option value="strict">엄격 (Strict) — 유해 콘텐츠 완전 차단</option>
+                  <option value="moderate">보통 (Moderate) — 성인용 이미지/영상 필터링</option>
+                  <option value="off">사용 안함 (Off)</option>
+                </select>
+              </div>
+              <div class="console-row">
+                <label for="console-theme" class="label">화면 테마</label>
+                <select id="console-theme" v-model="theme" class="console-select">
+                  <option value="light">라이트 모드 (기본)</option>
+                  <option value="dark">다크 모드</option>
+                  <option value="system">기기 시스템 설정 동기화</option>
+                </select>
+              </div>
+              <div class="console-row">
+                <label for="console-lang" class="label">검색 언어</label>
+                <select id="console-lang" v-model="locale" class="console-select">
+                  <option value="ko">한국어 (Korean)</option>
+                  <option value="en">English (영어)</option>
+                </select>
+              </div>
+              <div class="console-row">
+                <label class="label">최근 검색어 저장 (Opt-in)</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" v-model="recentOptIn" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: 내 검색 활동 & 기록 관리 -->
+          <div class="console-card">
+            <div class="console-card-header">
+              <span class="card-icon">🕒</span>
+              <h2>최근 검색 활동 내역</h2>
+              <button v-if="recentSearches.length > 0" type="button" class="clear-all-btn" @click="clearRecentSearches">
+                전체 비우기
+              </button>
+            </div>
+            <div class="console-card-body">
+              <div v-if="recentSearches.length === 0" class="console-empty-text">
+                기록된 최근 검색어가 없습니다. (검색어 저장 Opt-in 활성화 시 표시됩니다)
+              </div>
+              <ul v-else class="console-history-list">
+                <li v-for="item in recentSearches" :key="item" class="console-history-item">
+                  <button type="button" class="history-item-link" @click="runSearch(1, item)">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                    <span>{{ item }}</span>
+                  </button>
+                  <button type="button" class="history-item-del" @click="deleteRecentItem(item)" aria-label="삭제">✕</button>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Card 4: 정보주체 권리 및 데이터 주권 -->
+          <div class="console-card">
+            <div class="console-card-header">
+              <span class="card-icon">🛡️</span>
+              <h2>개인정보 및 데이터 주권 (DSAR)</h2>
+            </div>
+            <div class="console-card-body">
+              <p class="console-desc-text">
+                OpenPortal은 개인정보 보호법 및 GDPR을 준수하며, 사용자 데이터의 최소 수집 원칙을 적용합니다. 사용자는 언제든지 수집된 정보의 열람, 정정, 삭제(잊힐 권리)를 요청할 수 있습니다.
+              </p>
+              <div class="console-actions-row">
+                <button type="button" class="g-btn g-btn-secondary btn-sm" @click="showSettings = true">
+                  개인정보처리방침 열람
+                </button>
+                <button type="button" class="g-btn g-btn-secondary btn-sm" @click="exportUserData">
+                  내 검색 및 활동 데이터 내보내기 (JSON)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Normal Search Home & Results View -->

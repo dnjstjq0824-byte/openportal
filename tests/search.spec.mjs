@@ -103,9 +103,12 @@ test('Phase 1 features: query correction, opt-in recent searches, feature-flagge
   await page.getByRole('button', {name: '패스키로 시작'}).click();
   await expect(page.getByText('로그인을 사용할 수 없습니다. 인증 서비스 연결과 보안 검증이 필요합니다.')).toBeVisible();
 
-  // 6. Admin/Partner console access boundary screen and 404 screen
+  // 6. Admin/Partner console access boundary screen, User Web Console, and 404 screen
   await page.goto('/admin');
   await expect(page.getByTestId('console-denied-view')).toBeVisible();
+  await page.goto('/console');
+  await expect(page.getByTestId('user-console-view')).toBeVisible();
+  await expect(page.getByText('사용자 계정 & 웹 콘솔')).toBeVisible();
   await page.goto('/nonexistent-route-404');
   await expect(page.getByTestId('not-found-view')).toBeVisible();
 });

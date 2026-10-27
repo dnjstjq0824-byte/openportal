@@ -2631,3 +2631,306 @@ main {
   color: #fbbc05;
   font-weight: 500;
 }
+
+/* ==========================================================================
+   User Web Console View (/console or /account)
+   ========================================================================== */
+.user-console-view {
+  max-width: 1080px;
+  width: 100%;
+  margin: 32px auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  box-sizing: border-box;
+}
+
+.console-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 32px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.console-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.console-avatar-large {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #673ab7;
+  color: #fff;
+  font-size: 30px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(103, 58, 183, 0.25);
+  flex-shrink: 0;
+}
+
+.console-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.console-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.console-title-row h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text);
+}
+
+.console-mfa-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(52, 168, 83, 0.12);
+  color: #1e7e34;
+}
+
+.theme-dark .console-mfa-badge {
+  background: rgba(52, 168, 83, 0.25);
+  color: #81c995;
+}
+
+.console-subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.console-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.console-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .console-grid {
+    grid-template-columns: 1fr;
+  }
+  .console-hero {
+    padding: 20px;
+  }
+}
+
+.console-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.console-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.console-card-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+  flex: 1;
+}
+
+.console-card-header .card-icon {
+  font-size: 20px;
+}
+
+.console-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.console-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.console-row .label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.val-code {
+  background: var(--bg-hover);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.val-badge.success {
+  background: rgba(52, 168, 83, 0.12);
+  color: #1e7e34;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+
+.theme-dark .val-badge.success {
+  background: rgba(52, 168, 83, 0.25);
+  color: #81c995;
+}
+
+.recovery-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.recovery-code-pill {
+  background: var(--bg-hover);
+  border: 1px dashed var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--text);
+}
+
+.console-select {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.console-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.console-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  transition: background 0.15s;
+}
+
+.history-item-link {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  flex: 1;
+}
+
+.history-item-link:hover {
+  color: var(--primary);
+}
+
+.history-item-del {
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.history-item-del:hover {
+  color: var(--danger, #ea4335);
+}
+
+.clear-all-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.clear-all-btn:hover {
+  text-decoration: underline;
+}
+
+.console-desc-text {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.console-actions-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.console-empty-text {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 16px 0;
+  text-align: center;
+}
+
