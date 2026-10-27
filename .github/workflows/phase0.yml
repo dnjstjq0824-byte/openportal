@@ -18,6 +18,8 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
         with: {version: '1.74.0'}
       - run: npm ci && npm ci --prefix apps/web
+      - name: Pages API regression tests
+        run: node --test tests/pages-worker.test.mjs
       - name: Contracts and generated source
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
@@ -75,5 +77,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
-        with: {languages: 'go,javascript-typescript', build-mode: none}
+        with: {languages: 'go,javascript-typescript', build-mode: manual}
+      - uses: actions/setup-go@v5
+        with: {go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum}
+      - run: go build ./...
+        working-directory: backend
       - uses: github/codeql-action/analyze@v3

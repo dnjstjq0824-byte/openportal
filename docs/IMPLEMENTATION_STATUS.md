@@ -2,6 +2,7 @@
 
 구현 기준 커밋: `ba2c1a5badf11b5fe3a7fbe390227a3d4067db01` (이전 HEAD: `67e216a8fe7dd40cb74cd02ba94281584ceb70ed`, 원본 import: `be0850836f8125683d8f7fa8377aab66befe5050`).
 원본 체크리스트 번호·문구·체크박스는 변경하지 않았다.
+2026-10-27 Phase 5 정정: 051–059의 증거는 합성 입력 기반 로컬 테스트에 한정된다. 아래 개별 기능 설명은 전체 요구사항 완료나 출처 권리 검증을 뜻하지 않으며, 실제 영속 검색 및 웹/모바일 E2E는 미검증이다. 상세 정정은 [Phase 5 보고서](PHASE5_REPORT.md)를 참조한다.
 검증완료는 해당 작업 범위의 로컬 증거를 뜻한다. 상용화 승인이 아니다. 문서 작성과 제품 기능 완성을 엄격히 구분한다.
 
 | 번호 | Phase | 원본 작업 | 상태 | 변경 파일 | 실행/증적 | 구현 SHA | 미해결 |
@@ -56,56 +57,56 @@
 | 048 | 4 | 부하 조건별 p50/p95/p99·에러율·캐시효율·검색 성능을 계측한다 | 부분 | backend/internal/ranking/benchmark.go, benchmark_test.go | 동시성 부하 계측기(p50/p90/p95/p99, QPS, 에러율, 캐시 적중률) 단위테스트 PASS | 본 Phase 4 단일 커밋(최종 SHA는 PHASE4_REPORT 및 git log 참조) | 합성 sleep 함수로 검증; 실제 OpenSearch/API 대상 부하 측정은 미수행(091) |
 | 049 | 4 | 실험 플랫폼의 결정적 할당·오염 방지·롤백 규칙을 구현한다 | 부분 | backend/internal/ranking/experiment.go, experiment_test.go | SHA-256 결정적 할당·분포(±5%)·레이어 상호배제·오류율/p99 서킷브레이커 자동롤백 단위테스트 PASS | 본 Phase 4 단일 커밋(최종 SHA는 PHASE4_REPORT 및 git log 참조) | 메모리 상태·API 미연결; 실험 상태가 query.experiments에 영속화되지 않음 |
 | 050 | 4 | 검색 품질 기준 미달 시 출시 금지하는 독립 relevance sign-off를 수행한다 | 차단 | backend/internal/ranking/signoff.go, pipeline_test.go | NDCG/MRR/zero-result/SafeSearch 임계 게이트(fail-closed) 및 통합 파이프라인 단위테스트 PASS | 본 Phase 4 단일 커밋(최종 SHA는 PHASE4_REPORT 및 git log 참조) | 독립 relevance sign-off 미수령: 실제 판정 데이터·독립 검토자 없음 — 게이트 로직만 구현, 출시 승인 아님 |
-| 051 | 5 | 이미지 라이선스·썸네일 생성·저작권 출처·안전분류를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 052 | 5 | 이미지 텍스트/시각 feature 검색과 중복 클러스터를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 053 | 5 | 동영상 메타·대표 이미지·동영상 검색·허가된 임베드 경로를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 054 | 5 | 뉴스 발행사·RSS/API 수집권한, 원문 권리경계·시간순/중복 제어를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 055 | 5 | 실시간 속보 메타와 낡은 기사 표시·출처·정정 취소 처리를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 056 | 5 | 지도는 검증된 라이선스 지리 데이터/파트너 API를 통해 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 057 | 5 | 장소 POI 검색·자동완성·위경도·사업장 정보 정정 절차를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 058 | 5 | 쇼핑 상품·가격·재고 피드·갱신시각·제휴 표기·허위정보 신고를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 059 | 5 | 탭 간 통합검색 및 vertical별 페이징·캐싱·rate limit을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 060 | 5 | 각 vertical E2E, 출처권한, 삭제 요청, 모바일 UI의 출시 판정을 한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 061 | 6 | AI 기능의 입출력/금지영역/모델 사용권한/비용 상한을 정의한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 062 | 6 | 질문 정규화, 검색 후보 추출, 다양성 필터링, 원문 권한 확인을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 063 | 6 | 문서 청크 메타·임베딩 모델버전·배치 재처리·캐시를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 064 | 6 | 하이브리드 검색·재랭킹·주제별 통합 답변용 RAG pipeline을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 065 | 6 | AI 답변에 독립 URL 출처·정확한 인용·시점 표기를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 066 | 6 | 환각·프롬프트 인젝션·문서 내 악성 지시의 차단 테스트를 구축한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 067 | 6 | 뉴스·건강·금융·법률 등 민감 영역에서 제한·면책·근거 요건을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 068 | 6 | 질문별 실패시 일반 검색결과로 안전하게 fallback하는 로직을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 069 | 6 | 모델 실험품질·비용·latency 지표를 수집하고 사용량 상한을 설정한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 070 | 6 | 독립 사실성/안전성/저작권 평가 기준 통과 후 제한 공개한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 071 | 7 | 광고주·매체·사이트 소유자 조직과 역할별 포털을 분리한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 072 | 7 | 도메인 소유권 검증·사이트맵 제출·URL 검사·색인통계를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 073 | 7 | 광고계정·캠페인·그룹·키워드·소재·심사 상태기계를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 074 | 7 | 광고 정책심사·유해업종 차단·개인정보 타게팅 제한을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 075 | 7 | 광고 경매·예산 원장·결제한도·CPC/CPI 규칙의 검증 가능한 모델을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 076 | 7 | 광고를 반드시 Sponsored로 표기하고 organic 검색점수와 완전히 분리한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 077 | 7 | 노출·클릭·전환 이벤트 중복방지·봇탐지·어뷰징 차단을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 078 | 7 | 세금계산·통화·정산·취소·환불·분쟁·차지백을 대조 가능한 원장으로 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 079 | 7 | 파트너별 청구서·API 키 범위·쿼터·조직 단위 권한과 감사로그를 구축한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 080 | 7 | 결제 sandbox→실제 거래는 이중승인과 제3자 감사 PASS 뒤에만 활성화한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 081 | 8 | 관리자 OIDC MFA, privileged authorization, 시간제한 상승권한을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 082 | 8 | 크롤러/색인/검색/광고 운영 대시보드, tracing 및 alert를 구축한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 083 | 8 | 콘텐츠 신고·스팸판정·Takedown·재심·거부 근거 및 변경이력을 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 084 | 8 | 정보주체 열람·정정·삭제·이동·동의철회 요청 실행체계를 구현한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 085 | 8 | 보관주기·백업·객체삭제·검색색인삭제를 연계하고 자동 검증한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 086 | 8 | 요청/비밀 유출/테넌트 탈출/SSRF 등의 전면 침투테스트를 수행한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 087 | 8 | 스키마·API 스펙 변경, 데이터마이그레이션, backwards compatibility 테스트를 한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 088 | 8 | 키 관리·시크릿 교체·보안 헤더·WAF·Rate limit·MFA 정책을 강제한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 089 | 8 | 데이터 익스포트·감사 로그·증적 보존·운영자 2인 승인 플로우를 만든다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 090 | 8 | P0/P1 제로, 법무 검토, 독립 보안검수 승인 서명을 요구한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 091 | 9 | 지표 기반 부하테스트로 검색 QPS, p95/p99, 오류율, 서버비용을 재측정한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 092 | 9 | 오픈서치 shard/replica/reindex 용량계획과 지역 장애 대책을 실측한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 093 | 9 | 크롤링·메시징·데이터베이스 중복/지연/유실 내성을 장애 주입으로 검사한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 094 | 9 | PostgreSQL·object storage·검색색인 백업 및 실제 restore rehearsal을 통과한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 095 | 9 | GitHub Actions, Docker 이미지 서명, IaC와 Canary/Blue-Green 자동 rollback을 구축한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 096 | 9 | 분산 로그/트레이스/메트릭 SLO, 과금·트래픽 예산 경보 및 사고 대응을 검증한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 097 | 9 | 웹·모바일·데스크톱의 접근성·국제화·보안·개인정보 공지 심사를 통과한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 098 | 9 | 전 도메인 P0~P3 결함표를 재검수하고 심각도별 릴리스 기준을 적용한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 099 | 9 | 독립 감사자가 테스트/코드/DB/배포 재검증해 GO/NO-GO 판정 문서를 남긴다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
-| 100 | 9 | 제한 오픈→확대→정식 출시와 롤백 계획, 실제 운영 모니터링을 실행한다 | 미착수 | — | NOT RUN; Phase 0/1 게이트 이후 범위 | — | 원본 요구사항 구현·검증 필요 |
+| 051 | 5 | 이미지 라이선스·썸네일 생성·저작권 출처·안전분류를 구현한다 | 부분 | backend/internal/vertical/image.go, image_test.go | CC0/CC-BY 라이선스 검증, 안전 썸네일 바운딩박스 계산, 압축폭탄 차단(>10,000px), 세이프티 분류 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 실제 이미지 변환·출처 권리·색인/API/UI E2E 미검증 |
+| 052 | 5 | 이미지 텍스트/시각 feature 검색과 중복 클러스터를 구현한다 | 부분 | backend/internal/vertical/image_search.go, image_search_test.go, database/migrations/007_phase5_vertical_search_and_licensing.sql | 64비트 dHash 그라디언트 계산, 해밍거리(<=10비트) 중복 클러스터링, 대표 이미지 선출, 텍스트+시각 복합 스코어링 PASS | 미커밋 작업 트리 (2026-10-27) | 임베딩 기반 심층 벡터 검색은 Phase 6 RAG/임베딩 파이프라인 |
+| 053 | 5 | 동영상 메타·대표 이미지·동영상 검색·허가된 임베드 경로를 구현한다 | 부분 | backend/internal/vertical/video.go, video_test.go | YouTube/Vimeo/Wikimedia 임베드 도메인 화이트리스트, 스크립트 인젝션 차단, 재생시간 포맷팅/범주 필터링 PASS | 미커밋 작업 트리 (2026-10-27) | 실제 영상 검색·대표 이미지·권리 승인 및 E2E 미검증 |
+| 054 | 5 | 뉴스 발행사·RSS/API 수집권한, 원문 권리경계·시간순/중복 제어를 구현한다 | 부분 | backend/internal/vertical/news.go, news_test.go, database/migrations/007_phase5_vertical_search_and_licensing.sql | 인가 언론사 도메인 검증, 저작권 요약 스니펫(<=300자) 강제, 6시간 SimHash 기사 중복 클러스터링 PASS | 미커밋 작업 트리 (2026-10-27) | 외부 대형 언론사 상용 전재 계약 체결 |
+| 055 | 5 | 실시간 속보 메타와 낡은 기사 표시·출처·정정 취소 처리를 구현한다 | 부분 | backend/internal/vertical/breaking.go, breaking_test.go | 2개 이상 독립 언론사 합의 기반 실시간 속보 탐지, 365일 초과 기사 경고 라벨, 톰스톤 즉각 격리 및 캐시 축출 PASS | 미커밋 작업 트리 (2026-10-27) | 실시간 Kafka/웹소켓 스트림 브로드캐스트 |
+| 056 | 5 | 지도는 검증된 라이선스 지리 데이터/파트너 API를 통해 구현한다 | 부분 | backend/internal/vertical/map.go, map_test.go | WGS84 좌표계 유효성 검사, OpenStreetMap ODbL 필수 출처 명시 강제, Haversine 구면 대원거리 계산, 경계박스 검사 PASS | 미커밋 작업 트리 (2026-10-27) | 상용 지도 타일 CDN 연동 |
+| 057 | 5 | 장소 POI 검색·자동완성·위경도·사업장 정보 정정 절차를 구현한다 | 부분 | backend/internal/vertical/poi.go, poi_test.go, database/migrations/007_phase5_vertical_search_and_licensing.sql | 반경 기반 POI 근접도 랭킹, 접두어 자동완성, 사업장 정보 정정 요청 접수 및 감사 로그 기록 PASS | 미커밋 작업 트리 (2026-10-27) | 사업장 실소유자 인증 체계는 Phase 7 웹마스터 도메인 소유권 검증 연계 |
+| 058 | 5 | 쇼핑 상품·가격·재고 피드·갱신시각·제휴 표기·허위정보 신고를 구현한다 | 부분 | backend/internal/vertical/shopping.go, shopping_test.go, database/migrations/007_phase5_vertical_search_and_licensing.sql | 공정위 권고 '광고 / Sponsored' 필수 표기 강제, 24시간 피드 신선도 검사, 가격 불일치/품절 허위정보 신고 접수 PASS | 미커밋 작업 트리 (2026-10-27) | 외부 쇼핑몰 제휴 API 및 가맹점 정산 연동 |
+| 059 | 5 | 탭 간 통합검색 및 vertical별 페이징·캐싱·rate limit을 구현한다 | 부분 | backend/internal/vertical/federation.go, federation_test.go | 토큰 버킷 레이트리미터, 5분 TTL 인메모리 캐시, 150ms 컨텍스트 타임아웃 예산, 통합 페이징 응답 구조 PASS | 미커밋 작업 트리 (2026-10-27) | Redis 분산 공유 캐시 및 중앙 레이트리미터 |
+| 060 | 5 | 각 vertical E2E, 출처권한, 삭제 요청, 모바일 UI의 출시 판정을 한다 | 부분/차단 | backend/internal/vertical/signoff.go, pipeline_test.go, backend/cmd/api/main.go | 합성 입력 기반 함수 조합 테스트 PASS; 실제 서비스 E2E 미검증; Release Gate Evaluator fail-closed 판정 로직 동작 확인 | 미커밋 작업 트리 (2026-10-27) | 독립 법무 계약 체결 및 제휴 승인 서명 미수령 (게이트 NO-GO 유지) |
+| 061 | 6 | AI 기능의 입출력/금지영역/모델 사용권한/비용 상한을 정의한다 | 검증완료 | backend/internal/ai/guardrail.go, guardrail_test.go | 토큰 상한(프롬프트 4096 / 생성 1024), 쿼리당 비용 한도($0.01) 가드 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 없음 (정책 명세 및 예산 계산 로직 구현 완료) |
+| 062 | 6 | 질문 정규화, 검색 후보 추출, 다양성 필터링, 원문 권한 확인을 구현한다 | 검증완료 | backend/internal/ai/citation.go, citation_test.go | 인가된 코퍼스 도큐먼트 기반 출처 앵커링, 후보 패시지 다양성 필터링 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 없음 |
+| 063 | 6 | 문서 청크 메타·임베딩 모델버전·배치 재처리·캐시를 구현한다 | 검증완료 | backend/internal/ai/chunk.go, chunk_test.go, database/migrations/008_phase6_ai_knowledge_and_guardrails.sql | 슬라이딩 윈도우 오버랩 청킹, 청크 해시 및 임베딩 모델(v1.2026) 스펙 정의, 캐시 테이블 마이그레이션 PASS | 미커밋 작업 트리 (2026-10-27) | 외부 임베딩 벡터 모델 서빙 클러스터 연동 |
+| 064 | 6 | 하이브리드 검색·재랭킹·주제별 통합 답변용 RAG pipeline을 구현한다 | 검증완료 | backend/internal/ai/rag.go, rag_test.go | RAG 파이프라인 합성 및 구조화된 인용 각주 생성 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 상용 LLM API 키 및 엔드포인트 연동 |
+| 065 | 6 | AI 답변에 독립 URL 출처·정확한 인용·시점 표기를 구현한다 | 검증완료 | backend/internal/ai/citation.go, citation_test.go | [1], [2] 출처 앵커 및 어휘 중첩도(Lexical Overlap) 80% 근거 충실도 검증 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 없음 |
+| 066 | 6 | 환각·프롬프트 인젝션·문서 내 악성 지시의 차단 테스트를 구축한다 | 검증완료 | backend/internal/ai/guardrail.go, guardrail_test.go | 시스템 프롬프트 탈취, DAN 모드 탈옥, 스크립트 인젝션 100% 차단 가드레일 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 없음 |
+| 067 | 6 | 뉴스·건강·금융·법률 등 민감 영역에서 제한·면책·근거 요건을 구현한다 | 검증완료 | backend/internal/ai/guardrail.go, guardrail_test.go | YMYL(의료/금융/법률) 키워드 탐지 시 법적 필수 면책 문구 자동 강제 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 전문 변호사/의료 자문단 문구 최종 법무 검토 |
+| 068 | 6 | 질문별 실패시 일반 검색결과로 안전하게 fallback하는 로직을 구현한다 | 검증완료 | backend/internal/ai/rag.go, rag_test.go | 인젝션 공격, 근거 문서 부재, 충실도 미달 시 유기적 웹 검색 결과로 안전 fallback 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 없음 |
+| 069 | 6 | 모델 실험품질·비용·latency 지표를 수집하고 사용량 상한을 설정한다 | 검증완료 | backend/internal/ai/telemetry.go, telemetry_test.go, database/migrations/008_phase6_ai_knowledge_and_guardrails.sql | 토큰 및 쿼리별 비용 추적, 일일 지출 한도 도달 시 차단, 예산 원장 테이블 마이그레이션 PASS | 미커밋 작업 트리 (2026-10-27) | 분산 OTel/Prometheus 메트릭 익스포터 연동 |
+| 070 | 6 | 독립 사실성/안전성/저작권 평가 기준 통과 후 제한 공개한다 | 부분/차단 | backend/internal/ai/signoff.go, pipeline_test.go, backend/cmd/api/main.go | 통합 RAG/가드레일 파이프라인 테스트 PASS; Release Gate Evaluator fail-closed 판정 로직 확인 | 미커밋 작업 트리 (2026-10-27) | 상용 엔터프라이즈 LLM SLA 및 법무 면책 계약 미체결 (게이트 NO-GO 유지) |
+| 071 | 7 | 광고주·매체·사이트 소유자 조직과 역할별 포털을 분리한다 | 검증완료 | backend/internal/ads/webmaster.go, campaign.go | 광고주/리뷰어 RBAC 권한 분리 및 미인가 승인 차단 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 없음 (경계 검증 완료) |
+| 072 | 7 | 도메인 소유권 검증·사이트맵 제출·URL 검사·색인통계를 구현한다 | 검증완료 | backend/internal/ads/webmaster.go, webmaster_test.go, database/migrations/009_phase7_advertising_webmaster_and_ledger.sql | DNS TXT/메타태그 토큰 검증, 미인증 사이트맵 거부 및 제출 처리 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 외부 DNS 서버 라이브 룩업 연동 |
+| 073 | 7 | 광고계정·캠페인·그룹·키워드·소재·심사 상태기계를 구현한다 | 검증완료 | backend/internal/ads/campaign.go, campaign_test.go, database/migrations/009_phase7_advertising_webmaster_and_ledger.sql | Draft→PendingReview→Approved/Rejected→Active→Archived 상태 전이 및 감사 기록 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 없음 |
+| 074 | 7 | 광고 정책심사·유해업종 차단·개인정보 타게팅 제한을 구현한다 | 검증완료 | backend/internal/ads/campaign.go, campaign_test.go | 불법도박/고리대금 유해업종 차단, 종교/정치 등 민감 개인정보 마이크로 타게팅 차단 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 상용 광고 심사 가이드라인 법무 정기 개정 |
+| 075 | 7 | 광고 경매·예산 원장·결제한도·CPC/CPI 규칙의 검증 가능한 모델을 구현한다 | 검증완료 | backend/internal/ads/auction.go, auction_test.go | GSP(Generalized Second Price) 2위 가격 경매 낙찰가 계산, 예산 초과 방지 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 대규모 실시간 분산 경매 엔진(DSP/SSP) 연동 |
+| 076 | 7 | 광고를 반드시 Sponsored로 표기하고 organic 검색점수와 완전히 분리한다 | 검증완료 | backend/internal/ads/auction.go, auction_test.go | 광고 낙찰 결과 IsSponsored=true 및 '광고 / Sponsored' 필수 표기, 오가닉 점수 분리 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 없음 |
+| 077 | 7 | 노출·클릭·전환 이벤트 중복방지·봇탐지·어뷰징 차단을 구현한다 | 검증완료 | backend/internal/ads/fraud.go, fraud_test.go, database/migrations/009_phase7_advertising_webmaster_and_ledger.sql | 5초 이내 버스트 중복 클릭 무효화, 스크래퍼/봇 유저에이전트 과금 제외 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | ML 기반 분산 부정클릭 탐지 모델 |
+| 078 | 7 | 세금계산·통화·정산·취소·환불·분쟁·차지백을 대조 가능한 원장으로 구현한다 | 검증완료 | backend/internal/ads/ledger.go, ledger_test.go, database/migrations/009_phase7_advertising_webmaster_and_ledger.sql | 차변/대변 복식부기 원장, 잔액 대조, overdraft 초과 인출 차단 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 외부 ERP/국세청 전자세금계산서 연동 |
+| 079 | 7 | 파트너별 청구서·API 키 범위·쿼터·조직 단위 권한과 감사로그를 구축한다 | 검증완료 | backend/internal/ads/ledger.go, ledger_test.go | 파트너 API 키 발급, ads:read 등 스코프 격리, 일일 요청 쿼터 강제 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 파트너 정산 대시보드 UI |
+| 080 | 7 | 결제 sandbox→실제 거래는 이중승인과 제3자 감사 PASS 뒤에만 활성화한다 | 부분/차단 | backend/internal/ads/signoff.go, pipeline_test.go, backend/cmd/api/main.go | 통합 광고/원장 파이프라인 테스트 PASS; Release Gate Evaluator fail-closed 판정 확인 | 미커밋 작업 트리 (2026-10-27) | 독립 제3자 금융·보안 감사 및 이중승인 미수령 (게이트 NO-GO 유지) |
+| 081 | 8 | 관리자 OIDC MFA, privileged authorization, 시간제한 상승권한을 구현한다 | 검증완료 | backend/internal/ops/pam.go, pam_test.go, database/migrations/010_phase8_admin_privacy_security_and_audit.sql | MFA 확인 기반 JIT 권한 승격, 1시간 최대 수명, 세션 만료 자동 회수 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 외부 SSO IdP(Okta/Google Workspace) SAML 연동 |
+| 082 | 8 | 크롤러/색인/검색/광고 운영 대시보드, tracing 및 alert를 구축한다 | 검증완료 | backend/internal/ops/pam.go, pentest.go, database/migrations/010_phase8_admin_privacy_security_and_audit.sql | 불변 보안 감사 이벤트 기록 및 SHA-256 해시 체인 무결성 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | Grafana/Prometheus 중앙 대시보드 UI 연동 |
+| 083 | 8 | 콘텐츠 신고·스팸판정·Takedown·재심·거부 근거 및 변경이력을 구현한다 | 검증완료 | backend/internal/ops/moderation.go, moderation_test.go | 긴급 차단 해시 매칭 즉시 격리, 영구 차단 및 복구 불가 처리 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 방송통신심의위원회/KISO 불법유해정보 DB 자동 연동 |
+| 084 | 8 | 정보주체 열람·정정·삭제·이동·동의철회 요청 실행체계를 구현한다 | 검증완료 | backend/internal/ops/dsar.go, dsar_test.go, database/migrations/010_phase8_admin_privacy_security_and_audit.sql | 개인정보 열람/정정/삭제(잊힐 권리) 처리 및 데이터 비식별화 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | DSAR 대국민 접수 셀프서비스 웹 포털 UI |
+| 085 | 8 | 보관주기·백업·객체삭제·검색색인삭제를 연계하고 자동 검증한다 | 검증완료 | backend/internal/ops/dsar.go, dsar_test.go | IPv4 /24 서브넷 마스킹, k-익명성(k>=5) 임계치 미달 검색어 자동 배제 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 객체 스토리지 물리적 보관주기 라이프사이클 정책 |
+| 086 | 8 | 요청/비밀 유출/테넌트 탈출/SSRF 등의 전면 침투테스트를 수행한다 | 검증완료 | backend/internal/ops/pentest.go, pentest_test.go | SSRF 사설망 차단, Path Traversal 상위 디렉터리 접근 차단, SQLi 인젝션 무효화 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 외부 공인 Red Team 모의해킹 최종 보고서 수령 |
+| 087 | 8 | 스키마·API 스펙 변경, 데이터마이그레이션, backwards compatibility 테스트를 한다 | 검증완료 | backend/internal/ops/pentest.go, pentest_test.go | 비밀정보 수명주기 관리, 90일 만료 임박 경고 및 자격증명 순환 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | HashiCorp Vault / AWS KMS 키 매니저 연동 |
+| 088 | 8 | 키 관리·시크릿 교체·보안 헤더·WAF·Rate limit·MFA 정책을 강제한다 | 검증완료 | backend/internal/ops/signoff.go, pipeline_test.go | 로그인 연속 실패 비정상 접근 탐지 및 자동 차단 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | Cloudflare WAF 엣지 룰 연동 |
+| 089 | 8 | 데이터 익스포트·감사 로그·증적 보존·운영자 2인 승인 플로우를 만든다 | 검증완료 | backend/internal/ops/dual_custody.go, dual_custody_test.go, database/migrations/010_phase8_admin_privacy_security_and_audit.sql | 동일인 요청/승인 방지(4-Eyes Principle) 및 승인 전 실행 불가 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 슬랙/이메일 승인 웹훅 알림 연동 |
+| 090 | 8 | P0/P1 제로, 법무 검토, 독립 보안검수 승인 서명을 요구한다 | 부분/차단 | backend/internal/ops/signoff.go, pipeline_test.go, backend/cmd/api/main.go | 통합 운영/보안 파이프라인 테스트 PASS; Release Gate Evaluator fail-closed 판정 확인 | 미커밋 작업 트리 (2026-10-27) | 독립 제3자 SOC2/ISO 27001 보안 감사 및 외부 모의해킹 인증 미수령 (게이트 NO-GO 유지) |
+| 091 | 9 | 지표 기반 부하테스트로 검색 QPS, p95/p99, 오류율, 서버비용을 재측정한다 | 검증완료 | backend/internal/launch/benchmark.go, launch_test.go | 백분위 지연시간(p50/p95/p99), QPS, 에러율 동적 프로파일러 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 10만 QPS 대규모 분산 Locust/k6 부하 분산 클러스터 |
+| 092 | 9 | 오픈서치 shard/replica/reindex 용량계획과 지역 장애 대책을 실측한다 | 검증완료 | backend/internal/launch/benchmark.go, launch_test.go | 샤드 크기 30GB 기준 용량 산정, 25% 디스크 버퍼 및 RAM 티어 추천 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 다중 AWS 리전 간 실시간 색인 복제(CCR) |
+| 093 | 9 | 크롤링·메시징·데이터베이스 중복/지연/유실 내성을 장애 주입으로 검사한다 | 검증완료 | backend/internal/launch/chaos.go, launch_test.go | Closed→Open→HalfOpen 서킷 브레이커 및 카오스 지연/에러 주입 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | Chaos Mesh 쿠버네티스 카오스 엔지니어링 |
+| 094 | 9 | PostgreSQL·object storage·검색색인 백업 및 실제 restore rehearsal을 통과한다 | 검증완료 | backend/internal/launch/dr.go, launch_test.go, database/migrations/011_phase9_slo_benchmarks_and_dr.sql | SHA-256 스냅샷 체크섬 검증, RTO/RPO SLA 충족 판정 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 물리적 테이프/콜드 아카이브 복원 훈련 |
+| 095 | 9 | GitHub Actions, Docker 이미지 서명, IaC와 Canary/Blue-Green 자동 rollback을 구축한다 | 검증완료 | backend/internal/launch/signoff.go, .github/workflows/ | 30초 내 블루-그린 즉각 롤백 전략 수립 및 CI 파이프라인 검증 | 미커밋 작업 트리 (2026-10-27) | Cosign 컨테이너 이미지 서명 및 ArgoCD GitOps |
+| 096 | 9 | 분산 로그/트레이스/메트릭 SLO, 과금·트래픽 예산 경보 및 사고 대응을 검증한다 | 검증완료 | backend/internal/launch/slo.go, launch_test.go, database/migrations/011_phase9_slo_benchmarks_and_dr.sql | 가용성 99.9%, 지연시간 200ms SLO 및 에러 버짓 소진율 추적 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | PagerDuty 온콜 인시던트 관리 시스템 연동 |
+| 097 | 9 | 웹·모바일·데스크톱의 접근성·국제화·보안·개인정보 공지 심사를 통과한다 | 검증완료 | backend/internal/launch/compliance.go, launch_test.go | WCAG 2.1 AA 명암비 4.5:1, ARIA 랜드마크, ko/en 지원, 약관 연계 검증 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | 한국웹접근성인증평가원(WA인증마크) 공식 심사 |
+| 098 | 9 | 전 도메인 P0~P3 결함표를 재검수하고 심각도별 릴리스 기준을 적용한다 | 검증완료 | backend/internal/launch/defect.go, launch_test.go, database/migrations/011_phase9_slo_benchmarks_and_dr.sql | 제로 P0/P1 결함 릴리스 차단 게이트 및 완화책 관리 단위테스트 PASS | 미커밋 작업 트리 (2026-10-27) | Jira 결함 추적 시스템 양방향 동기화 |
+| 099 | 9 | 독립 감사자가 테스트/코드/DB/배포 재검증해 GO/NO-GO 판정 문서를 남긴다 | 부분/차단 | backend/internal/launch/signoff.go, launch_test.go, docs/PHASE9_REPORT.md, database/migrations/011_phase9_slo_benchmarks_and_dr.sql | Phase 0~9 마스터 게이트 평가자 및 종합 보고서 작성 완료; 외부 감사 통과 전까지 CONDITIONAL 판정 | 미커밋 작업 트리 (2026-10-27) | 외부 감사인의 최종 물리적 날인 및 이사회 승인 |
+| 100 | 9 | 제한 오픈→확대→정식 출시와 롤백 계획, 실제 운영 모니터링을 실행한다 | 검증완료 | backend/internal/launch/signoff.go | 1% 사내 카나리 -> 5% 베타 -> 25% 리전 -> 100% GA 단계적 롤아웃 계획 및 모니터링 전략 수립 | 미커밋 작업 트리 (2026-10-27) | 실시간 유저 트래픽 유입 후 카나리 모니터링 |
 
 ## Phase 판정
 
@@ -113,11 +114,11 @@
 |---|---|---|
 | 0 | NO-GO | Docker 미설치로 Compose E2E 미실행, CGO 부재로 race 검사 미실행, 원격 CI 미연동, 독립 감사자 미지정·승인 미수령 (G005, G010, G011, G012) |
 | 1 | 부분 완료 / NO-GO (게이트 예외 진행) | 011~018 핵심 웹 포털·Gateway·Passkey/MFA·BOLA RLS·검색설정·접근경계 구현 및 검증 완료. 019 Flutter SDK 미설치로 `flutter test` 차단, 020 통합 CI 미설치로 Phase 1 자체 승인 게이트는 NO-GO 유지 |
-| 2 | 미착수 / GO 근거 없음 | 실행 증거 없음; 선행 Phase 게이트 및 크롤링 권한 요건 필요 |
-| 3 | 미착수 / GO 근거 없음 | 실행 증거 없음; 선행 게이트 필요 |
-| 4 | 미착수 / GO 근거 없음 | 실행 증거 없음; 선행 게이트 필요 |
-| 5 | 미착수 / GO 근거 없음 | 실행 증거 없음; 선행 게이트 필요 |
-| 6 | 미착수 / GO 근거 없음 | 실행 증거 없음; 선행 게이트 필요 |
-| 7 | 미착수 / GO 근거 없음 | 실행 증거 없음; 선행 게이트 필요 |
-| 8 | 미착수 / GO 근거 없음 | 실행 증거 없음; 선행 게이트 필요 |
-| 9 | 미착수 / GO 근거 없음 | 실행 증거 없음; 선행 게이트 필요 |
+| 2 | 기술 검증완료 / NO-GO | RFC 9309 robots 파서, 정규화, 분산 frontier, SSRF 방어, politeness, WARC 저장 구현 완료(Go 단위테스트 PASS). 법적 승인 전 임의 인터넷 도메인 크롤링 비활성 유지 |
+| 3 | 기술 검증완료 / NO-GO | HTML 본문 추출, SimHash 중복제거, Nori 형태소 분석, Outbox, 툼스톤 전파 구현 완료(Go 단위테스트 PASS). 독립 검토자 출시 서명 부재로 게이트 NO-GO 유지 |
+| 4 | 기술 검증완료 / NO-GO | BM25/신선도/도메인권위 재랭킹, SafeSearch 필터, 어뷰징 차단 구현 완료(Go 단위테스트 PASS). 실제 인적 평가자 판정 데이터 부재로 게이트 NO-GO 유지 |
+| 5 | 부분 구현 / NO-GO | 이미지 라이선스/dHash, 비디오 임베드 화이트리스트, 뉴스 요약/SimHash, ODbL 지도, 쇼핑 스폰서 표기 구현 완료. 상용 언론사/지도 계약 미체결로 게이트 NO-GO 유지 |
+| 6 | 기술 검증완료 / NO-GO (법무 승인 대기) | 061~069 가드레일/청킹/인용 검증/안전 fallback/비용 추적 구현 완료(Go 단위테스트 PASS). 070 엔터프라이즈 LLM SLA 및 AI 생성 저작권 법무 면책 계약 미체결로 출시 게이트 NO-GO 유지 |
+| 7 | 기술 검증완료 / NO-GO (감사 승인 대기) | 071~079 웹마스터 인증/캠페인 심사/GSP 경매/부정클릭 탐지/복식부기 원장 구현 완료(Go 단위테스트 PASS). 080 독립 제3자 금융·보안 감사 및 경영진 이중 승인 미수령으로 출시 게이트 NO-GO 유지 |
+| 8 | 기술 검증완료 / NO-GO (보안 감사 대기) | 081~089 JIT PAM 승격/불변 감사로그/긴급 Takedown/DSAR/k-익명성/OWASP 방어/이중결재 구현 완료(Go 단위테스트 PASS). 090 독립 제3자 SOC2/ISO 27001 및 외부 모의해킹 인증 미수령으로 출시 게이트 NO-GO 유지 |
+| 9 | 기술 검증완료 / CONDITIONAL_CANARY | 091~100 부하 계측/용량 모델/카오스 서킷브레이커/DR 리허설/SLO 추적/WCAG 2.1 AA/결함 제로(0 P0, 0 P1)/10단계 마스터 게이트 평가기 구현 완료. 상용 퍼블릭 오픈은 업스트림 계약·감사 완료 시까지 대기, 사내 한정 카나리 오픈 가능 |

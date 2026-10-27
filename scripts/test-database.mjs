@@ -58,8 +58,8 @@ try {
   await client.connect();
   await migrate(client);
   await migrate(client);
-  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n, 6);
-  console.log('PASS forward migrations (001..006) and repeat run');
+  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n, 11);
+  console.log('PASS forward migrations (001..011) and repeat run');
   const flags = await client.query("select name, enabled from control.feature_flags order by name");
   assert.equal(flags.rows.find(r => r.name === 'vertical.web')?.enabled, true);
   assert.equal(flags.rows.find(r => r.name === 'vertical.image')?.enabled, false);
@@ -81,7 +81,45 @@ try {
   assert.ok(docCols.includes('simhash'));
   assert.ok(docCols.includes('tombstone_reason'));
   assert.ok(docCols.includes('is_representative'));
-  console.log('PASS Phase 1, 2, 3 & 4 feature flags, ranking profiles, bounded corpus hosts and catalog schema seeded');
+  // Migrations must not invent licensed publishers or geographic provenance.
+  const pubCount = (await client.query("select count(*)::int n from portal.news_publishers where licensed = true")).rows[0].n;
+  assert.equal(pubCount, 0, 'migrations must not grant unverified publisher licenses');
+  const placeCount = (await client.query("select count(*)::int n from portal.places")).rows[0].n;
+  assert.equal(placeCount, 0, 'place ingestion requires verified source provenance');
+  for (const name of ['image_search', 'video_search', 'news_search', 'maps_poi', 'shopping_feed']) {
+    assert.equal(flags.rows.find(r => r.name === `vertical.${name}_pipeline`)?.enabled, false);
+  }
+  const hasClusters = (await client.query("select to_regclass('portal.image_clusters') as relation")).rows[0].relation;
+  assert.ok(hasClusters);
+  const hasAICache = (await client.query("select to_regclass('portal.ai_query_caches') as relation")).rows[0].relation;
+  assert.ok(hasAICache);
+  const hasAIFeedback = (await client.query("select to_regclass('portal.ai_feedback') as relation")).rows[0].relation;
+  assert.ok(hasAIFeedback);
+  const hasDomainVerif = (await client.query("select to_regclass('portal.domain_verifications') as relation")).rows[0].relation;
+  assert.ok(hasDomainVerif);
+  const hasClickEvents = (await client.query("select to_regclass('ads.click_events') as relation")).rows[0].relation;
+  assert.ok(hasClickEvents);
+  const hasLedger = (await client.query("select to_regclass('ads.ledger_entries') as relation")).rows[0].relation;
+  assert.ok(hasLedger);
+  const hasElevations = (await client.query("select to_regclass('control.privileged_elevations') as relation")).rows[0].relation;
+  assert.ok(hasElevations);
+  const hasDSAR = (await client.query("select to_regclass('identity.dsar_requests') as relation")).rows[0].relation;
+  assert.ok(hasDSAR);
+  const hasDualApprovals = (await client.query("select to_regclass('control.dual_approvals') as relation")).rows[0].relation;
+  assert.ok(hasDualApprovals);
+  const hasSecurityAudit = (await client.query("select to_regclass('control.security_audit_events') as relation")).rows[0].relation;
+  assert.ok(hasSecurityAudit);
+  const hasSLO = (await client.query("select to_regclass('control.slo_measurements') as relation")).rows[0].relation;
+  assert.ok(hasSLO);
+  const hasDR = (await client.query("select to_regclass('control.dr_rehearsals') as relation")).rows[0].relation;
+  assert.ok(hasDR);
+  const hasDefects = (await client.query("select to_regclass('control.defect_register') as relation")).rows[0].relation;
+  assert.ok(hasDefects);
+  const hasReleaseGates = (await client.query("select to_regclass('control.release_gates') as relation")).rows[0].relation;
+  assert.ok(hasReleaseGates);
+  const gateCount = (await client.query("select count(*)::int n from control.release_gates")).rows[0].n;
+  assert.equal(gateCount, 10);
+  console.log('PASS Phase 1, 2, 3, 4, 5, 6, 7, 8 & 9 feature flags, ranking profiles, vertical schemas, AI tables, ads, PAM and SLO tables seeded');
   await client.query('create role phase0_untrusted');
   await client.query('set role phase0_untrusted');
   await assert.rejects(client.query('select * from identity.accounts'), e => e.code === '42501');
@@ -108,10 +146,10 @@ try {
 
   const copy = resolve(dir, 'migration-fixtures');
   await cp('database/migrations', copy, {recursive:true});
-  await writeFile(resolve(copy, '007_failure.sql'), 'CREATE TABLE public.must_rollback(id int); SELECT 1/0;');
+  await writeFile(resolve(copy, '012_failure.sql'), 'CREATE TABLE public.must_rollback(id int); SELECT 1/0;');
   await assert.rejects(migrate(client, copy), e => e.code === '22012');
   assert.equal((await client.query("select to_regclass('public.must_rollback') as relation")).rows[0].relation,null);
-  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n,6);
+  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n,11);
   console.log('PASS failed migration rolls back DDL and ledger');
   await writeFile(resolve(copy, '001_initial.sql'), '-- changed');
   await assert.rejects(migrate(client, copy), /checksum mismatch/);

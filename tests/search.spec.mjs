@@ -32,7 +32,7 @@ test('empty and invalid requests, suggestions, denied consoles',async ({page,req
   await page.goto('/');
   await page.getByRole('combobox',{name:'검색어'}).fill('zzzxnomatchq781');
   await page.getByRole('combobox',{name:'검색어'}).press('Enter');
-  await expect(page.getByText('일치하는 샘플 문서가 없습니다.')).toBeVisible();
+  await expect(page.getByText('검색 결과가 없습니다.')).toBeVisible();
   expect((await request.get('http://127.0.0.1:8080/api/v1/search?q=x&page=101')).status()).toBe(400);
   expect((await request.post('http://127.0.0.1:8080/api/v1/search?q=x')).status()).toBe(405);
   expect((await request.get('http://127.0.0.1:8080/admin')).status()).toBe(404);
@@ -79,7 +79,7 @@ test('Phase 1 features: query correction, opt-in recent searches, feature-flagge
   await expect(page.getByRole('link', {name: '오픈포털 검색엔진 프로젝트'})).toBeVisible();
 
   // 3. Feature-flagged vertical tabs (non-web tab shows gate notice)
-  await page.getByRole('button', {name: /이미지/}).click();
+  await page.locator('.serp-tabs button', {hasText: '이미지'}).click();
   await expect(page.getByText(/라이선스/)).toBeVisible();
 
   // 4. Settings: enable recent searches opt-in, dark theme, English i18n
@@ -89,7 +89,7 @@ test('Phase 1 features: query correction, opt-in recent searches, feature-flagge
   await page.locator('#pref-theme').selectOption('dark');
   await expect(page.locator('.app.theme-dark')).toBeVisible();
   await page.locator('#pref-lang').selectOption('en');
-  await expect(page.getByText('Independent Search Engine Demo · Web Search Enabled')).toBeVisible();
+  await expect(page.getByText('OpenPortal · Web Search')).toBeVisible();
   await page.locator('#pref-lang').selectOption('ko');
 
   // Verify recent search recorded when opt-in is enabled
@@ -97,16 +97,11 @@ test('Phase 1 features: query correction, opt-in recent searches, feature-flagge
   await searchBox.press('Enter');
   await expect(page.getByRole('button', {name: 'OpenPortal', exact: true})).toBeVisible();
 
-  // 5. Passkey/OIDC authentication, recovery codes, MFA secret enrollment, and session revocation
+  // 5. Unverified authentication must not claim success.
   await page.getByRole('button', {name: '계정·보안'}).click();
   await expect(page.getByTestId('account-panel')).toBeVisible();
-  await page.locator('#auth-email').fill('e2e-user@example.org');
   await page.getByRole('button', {name: '패스키로 시작'}).click();
-  await expect(page.getByText('패스키/OIDC 세션 인증 완료')).toBeVisible();
-  await expect(page.getByText(/OP-/)).toBeVisible();
-  await page.getByRole('button', {name: 'MFA 시크릿 발급'}).click();
-  await page.getByRole('button', {name: '로그아웃 (세션 폐기)'}).click();
-  await expect(page.getByText('세션이 안전하게 폐기되었습니다.')).toBeVisible();
+  await expect(page.getByText('로그인을 사용할 수 없습니다. 인증 서비스 연결과 보안 검증이 필요합니다.')).toBeVisible();
 
   // 6. Admin/Partner console access boundary screen and 404 screen
   await page.goto('/admin');

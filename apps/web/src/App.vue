@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
+import { readJSON, validateSearch } from './api';
 
 type Hit = {
   document_id?: string;
@@ -39,6 +40,8 @@ const page = ref(1);
 const result = ref<Response | null>(null);
 const busy = ref(false);
 const error = ref('');
+let searchController: AbortController | null = null;
+let searchSequence = 0;
 const copyFeedback = ref('');
 
 const queryInput = ref<HTMLInputElement | null>(null);
@@ -101,15 +104,12 @@ const verticalGateNotice = ref('');
 
 // Google Apps ecosystem tiles for 9-dot Waffle menu
 const googleApps = [
-  { name: '검색', icon: '🔍', query: '오픈포털 검색엔진' },
-  { name: '지도', icon: '🗺️', query: 'site:openstreetmap.org' },
-  { name: 'YouTube', icon: '▶️', query: 'site:youtube.com' },
-  { name: '뉴스', icon: '📰', query: '뉴스' },
-  { name: 'Gmail', icon: '✉️', query: '이메일' },
-  { name: '드라이브', icon: '📁', query: '클라우드 스토리지' },
-  { name: '캘린더', icon: '📅', query: '일정 관리' },
-  { name: '번역', icon: '🌐', query: '번역' },
-  { name: '포토', icon: '🖼️', query: '이미지 갤러리' },
+  { name: '웹', icon: '⌕', query: 'web' },
+  { name: '이미지', icon: '▧', query: 'image' },
+  { name: '뉴스', icon: '▤', query: 'news' },
+  { name: '동영상', icon: '▷', query: 'video' },
+  { name: '지도', icon: '⌖', query: 'map' },
+  { name: '쇼핑', icon: '▱', query: 'shopping' },
 ];
 
 // Trending / Recommended queries
@@ -161,7 +161,7 @@ const isNotFoundRoute = computed(() =>
 const i18n = computed(() => {
   if (locale.value === 'en') {
     return {
-      tagline: 'Independent Search Engine Demo · Web Search Enabled',
+      tagline: 'OpenPortal · Web Search',
       heading: 'Search the World’s Knowledge',
       queryLabel: '검색어',
       placeholder: 'Search OpenPortal or type a URL',
@@ -170,12 +170,12 @@ const i18n = computed(() => {
       luckyBtn: "I'm Feeling Lucky",
       settingsBtn: '검색 설정',
       accountBtn: '계정·보안',
-      emptyMsg: '일치하는 샘플 문서가 없습니다.',
+      emptyMsg: '검색 결과가 없습니다.',
       didYouMean: 'Did you mean:',
       recentTitle: 'Recent searches (Opt-in)',
       clearRecent: 'Clear',
       voiceTooltip: 'Search by voice',
-      lensTooltip: 'Google Lens',
+      lensTooltip: 'Image search',
       toolsBtn: 'Tools',
       allResults: 'All results',
       verbatim: 'Verbatim',
@@ -187,7 +187,7 @@ const i18n = computed(() => {
     };
   }
   return {
-    tagline: '독립 검색엔진 개발 데모 · 웹 검색만 구현',
+    tagline: 'OpenPortal · 웹 검색',
     heading: '전 세계의 정보를 검색하세요',
     queryLabel: '검색어',
     placeholder: '검색어를 입력하거나 URL을 입력하세요',
@@ -196,12 +196,12 @@ const i18n = computed(() => {
     luckyBtn: '운이 좋은 것 같아',
     settingsBtn: '검색 설정',
     accountBtn: '계정·보안',
-    emptyMsg: '일치하는 샘플 문서가 없습니다.',
+    emptyMsg: '검색 결과가 없습니다.',
     didYouMean: '다음 검색어로 검색하시겠습니까?',
     recentTitle: '최근 검색어 (Opt-in)',
     clearRecent: '전체 삭제',
     voiceTooltip: '음성으로 검색',
-    lensTooltip: 'Google 렌즈',
+    lensTooltip: '이미지 검색',
     toolsBtn: '도구',
     allResults: '모든 결과',
     verbatim: '정확히 일치',
@@ -221,6 +221,9 @@ function navigateTo(path: string) {
 }
 
 function resetHome() {
+  searchController?.abort();
+  searchSequence++;
+  busy.value = false;
   submitted.value = '';
   q.value = '';
   result.value = null;
@@ -264,8 +267,8 @@ async function fetchSuggestions(prefix: string) {
     if (clean !== q.value.trim() || busy.value) {
       return;
     }
-    const data = (await res.json()) as { suggestions?: string[] };
-    suggestions.value = data.suggestions || [];
+    const data = (await readJSON(res)) as { suggestions?: string[] };
+    suggestions.value = Array.isArray(data.suggestions) ? data.suggestions.filter(s => typeof s === 'string') : [];
     activeSuggestIdx.value = -1;
     showSuggest.value = suggestions.value.length > 0;
   } catch {
@@ -428,7 +431,7 @@ function submitAdvancedSearch() {
   }
 }
 
-// Google Lens Search
+// Image search Search
 function submitLensSearch() {
   if (lensImageUrl.value.trim()) {
     showLensModal.value = false;
@@ -436,7 +439,7 @@ function submitLensSearch() {
   }
 }
 
-async function runSearch(nextPage = 1, overrideQuery?: string) {
+async function runSearch(nextPage = 1, overrideQuery?: string, updateHistory = true) {
   if (suggestTimer) {
     clearTimeout(suggestTimer);
     suggestTimer = null;
@@ -445,7 +448,11 @@ async function runSearch(nextPage = 1, overrideQuery?: string) {
     q.value = overrideQuery;
   }
   const text = q.value.trim();
-  if (!text || busy.value) return;
+  if (!text) return;
+  searchController?.abort();
+  const controller = new AbortController();
+  searchController = controller;
+  const sequence = ++searchSequence;
   showSuggest.value = false;
   suggestions.value = [];
   activeSuggestIdx.value = -1;
@@ -456,63 +463,36 @@ async function runSearch(nextPage = 1, overrideQuery?: string) {
   error.value = '';
   page.value = nextPage;
   submitted.value = text;
+  const params = new URLSearchParams({ q: text, page: String(nextPage), safe_search: safeSearch.value });
+  if (updateHistory) navigateTo(`/search?${params}`);
+  // currentPath contains only the path, never the query string.
+  currentPath.value = '/search';
   try {
     const headers: Record<string, string> = {};
     if (sessionToken.value) {
       headers['Authorization'] = `Bearer ${sessionToken.value}`;
     }
     const res = await fetch(
-      `/api/v1/search?q=${encodeURIComponent(text)}&page=${page.value}&safe_search=${safeSearch.value}`,
-      { headers }
+      `/api/v1/search?${params}`,
+      { headers, signal: controller.signal }
     );
-    if (!res.ok) throw new Error(`검색 서버 오류 (${res.status})`);
-    result.value = (await res.json()) as Response;
+    const data = validateSearch(await readJSON(res));
+    if (sequence !== searchSequence) return;
+    result.value = data as Response;
     if (recentOptIn.value) {
       recentSearches.value = [text, ...recentSearches.value.filter(x => x !== text)].slice(0, 8);
     }
   } catch (e) {
+    if (sequence !== searchSequence || controller.signal.aborted) return;
     result.value = null;
-    error.value = e instanceof Error ? e.message : '알 수 없는 오류';
+    error.value = e instanceof TypeError ? '네트워크 연결을 확인하고 다시 시도해 주세요.' : e instanceof Error ? e.message : '검색 요청을 처리하지 못했습니다.';
   } finally {
-    busy.value = false;
+    if (sequence === searchSequence) busy.value = false;
   }
 }
 
 async function signInPasskey() {
-  const email = authEmail.value.trim();
-  if (!email) return;
-  authStatus.value = '';
-  try {
-    const chRes = await fetch('/api/v1/auth/challenge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ challenge_type: 'passkey_register', email }),
-    });
-    if (!chRes.ok) throw new Error('인증 챌린지 생성 실패');
-    const ch = (await chRes.json()) as { challenge_id: string; challenge: string };
-    const vRes = await fetch('/api/v1/auth/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        challenge_id: ch.challenge_id,
-        challenge_response: `signed:${ch.challenge}`,
-      }),
-    });
-    if (!vRes.ok) throw new Error('패스키 검증 실패');
-    const vData = (await vRes.json()) as {
-      session_token: string;
-      account: { id: string; email: string; mfa_enrolled: boolean };
-      recovery_codes?: string[];
-    };
-    sessionToken.value = vData.session_token;
-    accountId.value = vData.account.id;
-    accountEmail.value = vData.account.email;
-    mfaEnrolled.value = vData.account.mfa_enrolled;
-    recoveryCodes.value = vData.recovery_codes || [];
-    authStatus.value = '패스키/OIDC 세션 인증 완료';
-  } catch (e) {
-    authStatus.value = e instanceof Error ? e.message : '인증 오류';
-  }
+  authStatus.value = '로그인을 사용할 수 없습니다. 인증 서비스 연결과 보안 검증이 필요합니다.';
 }
 
 async function revokeCurrentSession() {
@@ -544,12 +524,45 @@ async function enrollMFA() {
   }
 }
 
+function restoreLocation() {
+  currentPath.value = window.location.pathname || '/';
+  const params = new URLSearchParams(window.location.search);
+  if (currentPath.value === '/search' && params.get('q')?.trim()) {
+    const requestedPage = Number(params.get('page') || 1);
+    const safe = params.get('safe_search');
+    if (safe === 'strict' || safe === 'moderate' || safe === 'off') safeSearch.value = safe;
+    runSearch(Number.isInteger(requestedPage) && requestedPage > 0 && requestedPage <= 100 ? requestedPage : 1, params.get('q')!, false);
+  } else {
+    searchController?.abort();
+    searchSequence++;
+    busy.value = false;
+    submitted.value = '';
+    q.value = '';
+    result.value = null;
+    error.value = '';
+  }
+}
+watch([theme, locale, safeSearch, recentOptIn], () => {
+  localStorage.setItem('openportal.preferences', JSON.stringify({ theme: theme.value, locale: locale.value, safeSearch: safeSearch.value, recentOptIn: recentOptIn.value }));
+});
+watch(recentSearches, () => {
+  if (recentOptIn.value) localStorage.setItem('openportal.recent', JSON.stringify(recentSearches.value));
+  else localStorage.removeItem('openportal.recent');
+}, { deep: true });
+onUnmounted(() => { searchController?.abort(); window.removeEventListener('popstate', restoreLocation); });
 onMounted(async () => {
+  try {
+    const prefs = JSON.parse(localStorage.getItem('openportal.preferences') || '{}');
+    if (['light','dark','system'].includes(prefs.theme)) theme.value = prefs.theme;
+    if (['ko','en'].includes(prefs.locale)) locale.value = prefs.locale;
+    if (['strict','moderate','off'].includes(prefs.safeSearch)) safeSearch.value = prefs.safeSearch;
+    recentOptIn.value = prefs.recentOptIn === true;
+    const recent = JSON.parse(localStorage.getItem('openportal.recent') || '[]');
+    if (recentOptIn.value && Array.isArray(recent)) recentSearches.value = recent.filter(x => typeof x === 'string').slice(0, 8);
+  } catch { /* Storage may be disabled by the browser. */ }
   if (typeof window !== 'undefined') {
-    currentPath.value = window.location.pathname || '/';
-    window.addEventListener('popstate', () => {
-      currentPath.value = window.location.pathname || '/';
-    });
+    restoreLocation();
+    window.addEventListener('popstate', restoreLocation);
 
     // Web Speech API initialization
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -674,7 +687,7 @@ onMounted(async () => {
                 <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
               </svg>
             </button>
-            <!-- Google Lens / Image Search Button -->
+            <!-- Image search / Image Search Button -->
             <button
               type="button"
               class="lens-btn"
@@ -741,8 +754,8 @@ onMounted(async () => {
         <button
           type="button"
           class="waffle-btn"
-          title="Google 에코시스템 앱"
-          aria-label="Google 에코시스템 앱"
+          title="검색 카테고리"
+          aria-label="검색 카테고리"
           :aria-expanded="showWaffle"
           @click="showWaffle = !showWaffle; showSettings = false; showAccount = false"
         >
@@ -780,14 +793,14 @@ onMounted(async () => {
     </header>
 
     <!-- Google Apps (Waffle) Dropdown Popup -->
-    <div v-if="showWaffle" class="waffle-popup" role="dialog" aria-label="Google 에코시스템 앱">
+    <div v-if="showWaffle" class="waffle-popup" role="dialog" aria-label="검색 카테고리">
       <div class="waffle-grid">
         <button
           v-for="app in googleApps"
           :key="app.name"
           type="button"
           class="waffle-tile"
-          @click="showWaffle = false; runSearch(1, app.query)"
+          @click="showWaffle = false; selectTab(verticalTabs.find(tab => tab.id === app.query)!)"
         >
           <span class="waffle-tile-icon">{{ app.icon }}</span>
           <span class="waffle-tile-name">{{ app.name }}</span>
@@ -795,29 +808,14 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Google Lens / Search by Image Modal -->
+    <!-- Image search / Search by Image Modal -->
     <div v-if="showLensModal" class="lens-modal-overlay" role="dialog" aria-label="이미지로 검색">
       <div class="lens-modal-card">
         <div class="lens-header">
-          <h3>Google 렌즈로 이미지 검색</h3>
+          <h3>이미지 검색</h3>
           <button type="button" class="close-btn" @click="showLensModal = false">✕</button>
         </div>
-        <p class="lens-desc">이미지를 여기에 끌어다 놓거나 이미지 링크를 붙여넣어 검색하세요.</p>
-        <div class="lens-dropzone" @click="lensImageUrl = 'https://example.org/sample.jpg'">
-          <svg viewBox="0 0 24 24" width="40" height="40" fill="#4285f4">
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-          </svg>
-          <span>여기에 이미지를 드래그하거나 클릭하여 업로드</span>
-        </div>
-        <div class="lens-url-row">
-          <input
-            v-model="lensImageUrl"
-            type="url"
-            placeholder="이미지 링크(URL) 붙여넣기"
-            @keydown.enter="submitLensSearch"
-          />
-          <button type="button" class="g-btn g-btn-primary" @click="submitLensSearch">검색</button>
-        </div>
+        <p class="lens-desc" role="status">이미지 검색 데이터 공급원과 이미지 분석 서비스가 연결되지 않았습니다. 이미지는 전송하거나 저장하지 않습니다.</p>
       </div>
     </div>
 
@@ -825,7 +823,7 @@ onMounted(async () => {
     <div v-if="showAdvancedModal" class="advanced-modal-overlay" role="dialog" aria-label="고급 검색">
       <div class="advanced-modal-card">
         <div class="panel-header">
-          <h2>Google 고급 검색</h2>
+          <h2>고급 검색</h2>
           <button type="button" class="close-btn" @click="showAdvancedModal = false">✕</button>
         </div>
         <div class="adv-field-row">
@@ -981,10 +979,10 @@ onMounted(async () => {
         <!-- Task 015: OIDC/Passkey Account, MFA & Session Revocation Panel -->
         <section v-if="showAccount" class="panel-card account-card" aria-label="계정 및 보안 설정" data-testid="account-panel">
           <div class="panel-header">
-            <h2>패스키/OIDC 인증 · MFA · 세션 통제</h2>
+            <h2>계정 및 보안</h2>
             <button type="button" class="close-panel-btn" @click="showAccount = false" aria-label="패널 닫기">✕</button>
           </div>
-          <template v-if="!sessionToken">
+          <template v-if="!sessionToken"><p>계정 인증 서비스가 연결되지 않아 로그인을 사용할 수 없습니다.</p>
             <div class="field-row">
               <label for="auth-email">이메일</label>
               <div class="input-action-group">
@@ -1074,7 +1072,7 @@ onMounted(async () => {
                     <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
                   </svg>
                 </button>
-                <!-- Google Lens / Camera Button -->
+                <!-- Image search / Camera Button -->
                 <button
                   type="button"
                   class="lens-btn"
@@ -1409,7 +1407,7 @@ onMounted(async () => {
     <footer class="app-footer">
       <div class="footer-top-row">
         <span class="footer-region">대한민국 · 서울</span>
-        <span class="footer-status-pill">Google-grade Universal Search Engine</span>
+        <span class="footer-status-pill">OpenPortal Search</span>
       </div>
       <div class="footer-bottom-row">
         <div class="footer-left-links">

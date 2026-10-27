@@ -15,6 +15,7 @@ coverage/
 work/
 test-results/
 playwright-report/
+.vscode/
 *.exe
 *.zip
 *.zip.sha256

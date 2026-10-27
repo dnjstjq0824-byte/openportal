@@ -4,9 +4,10 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'apps/web/**'
-      - '.github/workflows/deploy-pages.yml'
+  workflow_run:
+    workflows: ['Phase 0 verification']
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +16,7 @@ permissions:
 
 jobs:
   deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,22 +26,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24.19.0'
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          node-version: 24
 
-      - name: Install web dependencies
-        working-directory: apps/web
-        run: npm ci
+      - name: Install dependencies
+        run: npm ci --prefix apps/web
+
+      - name: Typecheck
+        run: npm run typecheck --prefix apps/web
 
       - name: Build web application
-        working-directory: apps/web
-        run: npm run build
+        run: npm run build --prefix apps/web
 
-      - name: Deploy to Cloudflare Pages
+      - name: Publish to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy apps/web/dist --project-name=openportal --branch=main --commit-dirty=true
-
