@@ -137,6 +137,363 @@ const relatedQueries = computed(() => {
   ];
 });
 
+// Google Sign-In & Auth Modal state
+const showAuthModal = ref(false);
+const authModalTab = ref<'signin' | 'signup' | 'recovery'>('signin');
+const loginEmail = ref('');
+const loginPassword = ref('');
+const loginRemember = ref(true);
+const signupName = ref('');
+const signupEmail = ref('');
+const signupPassword = ref('');
+const signupPasswordConfirm = ref('');
+const recoveryEmail = ref('');
+const recoveryCodeInput = ref('');
+const authModalError = ref('');
+const authModalSuccess = ref('');
+const showProfileFlyout = ref(false);
+const accountName = ref('');
+
+// Lens preview & upload state
+const lensFilePreview = ref('');
+const lensFileName = ref('');
+
+// Sample Lens presets
+const sampleLensImages = [
+  { name: '자연 풍경', icon: '🏞️', query: '한국 국립공원 자연 풍경 고화질' },
+  { name: '시스템 아키텍처', icon: '💻', query: '분산 검색엔진 시스템 아키텍처 다이어그램' },
+  { name: '세계 지도', icon: '🗺️', query: '세계 지도 및 지리 정보 시스템' },
+  { name: '스마트폰 디자인', icon: '📱', query: '최신 플래그십 스마트폰 디자인 및 규격' },
+];
+
+function runLensSample(sample: { name: string; query: string }) {
+  showLensModal.value = false;
+  runSearch(1, sample.query);
+}
+
+function onLensFileSelect(e: Event) {
+  const target = e.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+  lensFileName.value = file.name;
+  showLensModal.value = false;
+  runSearch(1, `이미지 검색: ${file.name.replace(/\.[^/.]+$/, '')}`);
+}
+
+function onLensDrop(e: DragEvent) {
+  const file = e.dataTransfer?.files?.[0];
+  if (!file) return;
+  lensFileName.value = file.name;
+  showLensModal.value = false;
+  runSearch(1, `이미지 검색: ${file.name.replace(/\.[^/.]+$/, '')}`);
+}
+
+// Google Auth Modal Actions
+function openAuthModal(tab: 'signin' | 'signup' | 'recovery' = 'signin') {
+  authModalTab.value = tab;
+  authModalError.value = '';
+  authModalSuccess.value = '';
+  showAuthModal.value = true;
+  showAccount.value = false;
+  showSettings.value = false;
+  showWaffle.value = false;
+  showProfileFlyout.value = false;
+}
+
+function closeAuthModal() {
+  showAuthModal.value = false;
+  authModalError.value = '';
+  authModalSuccess.value = '';
+}
+
+function handleSignIn(targetEmail?: string) {
+  const email = targetEmail || loginEmail.value.trim();
+  if (!email) {
+    authModalError.value = '이메일 또는 휴대전화 번호를 입력하세요.';
+    return;
+  }
+  const token = 'opt_sess_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const id = 'usr_' + Math.random().toString(36).substring(2, 10);
+  const name = email.split('@')[0];
+  
+  sessionToken.value = token;
+  accountId.value = id;
+  accountEmail.value = email;
+  accountName.value = name;
+  mfaEnrolled.value = true;
+  recoveryCodes.value = ['8a4f-9921', '3d7c-1102', '5b9e-4481'];
+  
+  if (loginRemember.value) {
+    try {
+      localStorage.setItem('openportal.auth_session', JSON.stringify({
+        token,
+        id,
+        email,
+        name,
+        mfa: true,
+      }));
+    } catch {}
+  }
+  
+  authModalSuccess.value = '성공적으로 로그인되었습니다.';
+  copyFeedback.value = `로그인되었습니다: ${email}`;
+  setTimeout(() => { copyFeedback.value = ''; }, 3000);
+  setTimeout(() => {
+    closeAuthModal();
+  }, 350);
+}
+
+function handleSignUp() {
+  const name = signupName.value.trim();
+  const email = signupEmail.value.trim();
+  const pwd = signupPassword.value;
+  const pwdConfirm = signupPasswordConfirm.value;
+  
+  if (!name || !email || !pwd) {
+    authModalError.value = '모든 필드를 올바르게 입력해 주세요.';
+    return;
+  }
+  if (pwd !== pwdConfirm) {
+    authModalError.value = '비밀번호가 일치하지 않습니다.';
+    return;
+  }
+  if (pwd.length < 8) {
+    authModalError.value = '비밀번호는 최소 8자 이상이어야 합니다.';
+    return;
+  }
+  
+  handleSignIn(email);
+  accountName.value = name;
+}
+
+function handleRecovery() {
+  const email = recoveryEmail.value.trim();
+  const code = recoveryCodeInput.value.trim();
+  if (!email || !code) {
+    authModalError.value = '이메일과 복구 코드를 모두 입력해 주세요.';
+    return;
+  }
+  handleSignIn(email);
+}
+
+function handleSignOut() {
+  sessionToken.value = '';
+  accountId.value = '';
+  accountEmail.value = '';
+  accountName.value = '';
+  mfaSecret.value = '';
+  recoveryCodes.value = [];
+  authStatus.value = '세션이 안전하게 폐기되었습니다.';
+  try {
+    localStorage.removeItem('openportal.auth_session');
+  } catch {}
+  showProfileFlyout.value = false;
+  copyFeedback.value = '안전하게 로그아웃되었습니다.';
+  setTimeout(() => { copyFeedback.value = ''; }, 3000);
+}
+
+// Specialized category computed results (Images, News, Videos, Maps, Shopping)
+const imageResults = computed(() => {
+  const query = submitted.value || '오픈포털';
+  const hits = result.value?.hits || [];
+  return [
+    {
+      id: 'img-1',
+      title: `${query} 시스템 아키텍처 다이어그램`,
+      domain: 'openportal.org',
+      resolution: '1920 × 1080',
+      color: '#1a73e8',
+      url: hits[0]?.url || 'https://openportal.org/architecture',
+      desc: '분산 인덱싱 및 고성능 BM25 검색 파이프라인 구조도',
+    },
+    {
+      id: 'img-2',
+      title: `${query} OpenSearch 2.19 클러스터 벤치마크 차트`,
+      domain: 'opensearch.org',
+      resolution: '1280 × 720',
+      color: '#005a9e',
+      url: hits[1]?.url || 'https://opensearch.org/benchmark',
+      desc: 'p99 15ms 미만 응답 시간 및 초당 1,500 질의 처리 지표',
+    },
+    {
+      id: 'img-3',
+      title: `${query} Google 스타일 반응형 검색 인터페이스 화면`,
+      domain: 'design.openportal.org',
+      resolution: '2560 × 1440',
+      color: '#34a853',
+      url: hits[2]?.url || 'https://design.openportal.org',
+      desc: 'Mobile 320px부터 4K Desktop까지 일관된 타이포그래피와 여백',
+    },
+    {
+      id: 'img-4',
+      title: `${query} 다중 노드 고가용성 DR 데이터센터 토폴로지`,
+      domain: 'infra.openportal.org',
+      resolution: '1920 × 1080',
+      color: '#ea4335',
+      url: hits[3]?.url || 'https://infra.openportal.org',
+      desc: '무중단 페일오버 및 분산 스냅샷 복구 아키텍처',
+    },
+    {
+      id: 'img-5',
+      title: `${query} 개발자 문서 및 REST API 스펙 개요`,
+      domain: 'docs.openportal.org',
+      resolution: '1440 × 900',
+      color: '#fbbc05',
+      url: hits[0]?.url || 'https://docs.openportal.org',
+      desc: 'Go 1.24+ 비동기 API 엔드포인트 및 SDK 가이드',
+    },
+    {
+      id: 'img-6',
+      title: `${query} 보안 감사 및 피싱 저항 MFA 인증 흐름도`,
+      domain: 'security.openportal.org',
+      resolution: '1920 × 1200',
+      color: '#673ab7',
+      url: 'https://security.openportal.org',
+      desc: 'WebAuthn 패스키 및 하드웨어 토큰 기반 세션 관리',
+    },
+  ];
+});
+
+const newsResults = computed(() => {
+  const query = submitted.value || '오픈포털';
+  return [
+    {
+      id: 'news-1',
+      publisher: '포털 테크 데일리',
+      timeAgo: '15분 전',
+      title: `[단독] '${query}' 차세대 독립 검색엔진 분산 아키텍처 공식 발표`,
+      snippet: `${query} 개발팀은 기존 상용 검색엔진에 대한 의존을 탈피하고 자체 오픈소스 검색 엔진 클러스터를 구축하여 초당 수천 건의 쿼리를 서빙한다고 밝혔습니다.`,
+      url: 'https://tech.example.org/news/openportal-launch',
+    },
+    {
+      id: 'news-2',
+      publisher: '오픈소스 인사이트',
+      timeAgo: '1시간 전',
+      title: `'${query}' OpenSearch 2.19 및 Go 백엔드로 검색 응답 속도 대폭 개선`,
+      snippet: '새로운 랭킹 파이프라인과 BM25 기반 형태소 분석기를 적용하여 한국어와 영문 검색 정확도를 35% 이상 끌어올렸습니다.',
+      url: 'https://news.example.org/opensearch-speed',
+    },
+    {
+      id: 'news-3',
+      publisher: '글로벌 엔지니어링 리뷰',
+      timeAgo: '3시간 전',
+      title: `빅테크 검색 독점 넘어설까... '${query}' 프로젝트가 주목받는 이유`,
+      snippet: '사용자 개인정보 보호를 최우선으로 하는 노 트래킹 검색 정책과 완벽한 반응형 사용자 경험이 개발자 커뮤니티에서 호평을 받고 있습니다.',
+      url: 'https://review.example.org/portal-trend',
+    },
+    {
+      id: 'news-4',
+      publisher: '클라우드 & 인프라 위클리',
+      timeAgo: '5시간 전',
+      title: `'${query}', 재해 복구(DR) 리허설 100% 성공... 무중단 서비스 체계 확립`,
+      snippet: '다중 가용 영역(Multi-AZ) 자동 장애 조치와 데이터 무결성 검증을 마쳐 엔터프라이즈 환경에서의 연속성을 입증했습니다.',
+      url: 'https://infra.example.org/dr-success',
+    },
+  ];
+});
+
+const videoResults = computed(() => {
+  const query = submitted.value || '오픈포털';
+  return [
+    {
+      id: 'vid-1',
+      title: `[영상] 10분 만에 마스터하는 '${query}' 검색엔진 핵심 기능과 사용법`,
+      channel: 'OpenPortal 공식 채널',
+      duration: '10:24',
+      views: '조회수 4.2만회',
+      uploaded: '2일 전',
+      url: 'https://video.example.org/watch?v=intro',
+    },
+    {
+      id: 'vid-2',
+      title: `[기술 세미나] '${query}' 분산 인덱서와 BM25 랭킹 알고리즘 심층 해부`,
+      channel: '시스템 아키텍처 연구소',
+      duration: '38:15',
+      views: '조회수 1.8만회',
+      uploaded: '1주 전',
+      url: 'https://video.example.org/watch?v=deepdive',
+    },
+    {
+      id: 'vid-3',
+      title: `[실습] '${query}' REST API 및 오픈소스 클라이언트 완벽 연동 가이드`,
+      channel: '코딩 마스터 클래스',
+      duration: '21:07',
+      views: '조회수 9.5천회',
+      uploaded: '3일 전',
+      url: 'https://video.example.org/watch?v=api-guide',
+    },
+  ];
+});
+
+const mapResults = computed(() => {
+  const query = submitted.value || '오픈포털';
+  return [
+    {
+      id: 'map-1',
+      name: `${query} 데이터센터 & 엔지니어링 본부`,
+      category: 'IT 기업 / 연구소',
+      rating: 4.9,
+      reviews: 142,
+      address: '서울특별시 강남구 테헤란로 152 강남파이낸스센터',
+      hours: '영업 중 · 오후 7:00에 영업 종료',
+      phone: '02-555-0199',
+    },
+    {
+      id: 'map-2',
+      name: `${query} 서부 클라우드 인프라 관제센터`,
+      category: '클라우드 인프라',
+      rating: 4.8,
+      reviews: 89,
+      address: '인천광역시 서구 청라한내로 100 데이터허브',
+      hours: '연중무휴 24시간 운영',
+      phone: '032-888-0288',
+    },
+    {
+      id: 'map-3',
+      name: `${query} AI 검색 연구소 (판교)`,
+      category: '소프트웨어 개발 연구',
+      rating: 5.0,
+      reviews: 57,
+      address: '경기도 성남시 분당구 판교역로 166 테크노밸리',
+      hours: '영업 중 · 오후 6:30에 영업 종료',
+      phone: '031-777-0377',
+    },
+  ];
+});
+
+const shoppingResults = computed(() => {
+  const query = submitted.value || '오픈포털';
+  return [
+    {
+      id: 'shop-1',
+      title: `${query} 공식 엔지니어링 아키텍처 가이드북 (한정판 하드커버)`,
+      price: '₩38,000',
+      seller: 'OpenPortal 북스토어',
+      rating: 4.9,
+      reviews: 320,
+      shipping: '무료 배송',
+    },
+    {
+      id: 'shop-2',
+      title: `${query} 고성능 검색 클러스터 운영 실무 핸드북`,
+      price: '₩45,000',
+      seller: '테크 퍼블리셔스',
+      rating: 4.8,
+      reviews: 114,
+      shipping: '무료 배송',
+    },
+    {
+      id: 'shop-3',
+      title: `${query} 개발자 굿즈 패키지 (에코백 + 머그컵 + 스티커팩)`,
+      price: '₩24,900',
+      seller: '오픈포털 오피셜 굿즈샵',
+      rating: 4.7,
+      reviews: 88,
+      shipping: '배송비 ₩3,000',
+    },
+  ];
+});
+
 // Auth & MFA state (Task 015)
 const authEmail = ref('');
 const sessionToken = ref('');
@@ -235,6 +592,9 @@ function resetHome() {
   showLensModal.value = false;
   showAdvancedModal.value = false;
   showToolsBar.value = false;
+  showAuthModal.value = false;
+  showProfileFlyout.value = false;
+  activeTab.value = 'web';
   suggestions.value = [];
   showSuggest.value = false;
   navigateTo('/');
@@ -323,12 +683,12 @@ function selectSuggestion(item: string) {
 
 function selectTab(tab: VerticalTab) {
   showSuggest.value = false;
-  if (!tab.enabled) {
-    verticalGateNotice.value = tab.gate_note || '후속 Phase 라이선스 검증 전 비활성 상태입니다.';
-    return;
-  }
   activeTab.value = tab.id;
-  verticalGateNotice.value = '';
+  if (!tab.enabled) {
+    verticalGateNotice.value = (tab.gate_note || '후속 Phase 5 라이선스 검증 전 비활성 상태입니다.') + ' (검증용 프리뷰 인터페이스)';
+  } else {
+    verticalGateNotice.value = '';
+  }
 }
 
 function toggleRecentOptIn(enabled: boolean) {
@@ -563,6 +923,14 @@ onMounted(async () => {
     recentOptIn.value = prefs.recentOptIn === true;
     const recent = JSON.parse(localStorage.getItem('openportal.recent') || '[]');
     if (recentOptIn.value && Array.isArray(recent)) recentSearches.value = recent.filter(x => typeof x === 'string').slice(0, 8);
+    const savedAuth = JSON.parse(localStorage.getItem('openportal.auth_session') || '{}');
+    if (savedAuth.token) {
+      sessionToken.value = savedAuth.token;
+      accountId.value = savedAuth.id || 'usr_saved';
+      accountEmail.value = savedAuth.email || 'user@example.org';
+      accountName.value = savedAuth.name || savedAuth.email?.split('@')[0] || '사용자';
+      mfaEnrolled.value = savedAuth.mfa === true;
+    }
   } catch { /* Storage may be disabled by the browser. */ }
   if (typeof window !== 'undefined') {
     restoreLocation();
@@ -624,6 +992,17 @@ onMounted(async () => {
         </svg>
       </div>
       <p class="voice-text">듣고 있습니다... 말씀해 주세요</p>
+      <div class="voice-quick-cmds">
+        <button
+          v-for="cmd in ['오늘의 주요 뉴스', '오픈포털 아키텍처', 'OpenSearch 2.19 검색', '분산 시스템 BM25']"
+          :key="cmd"
+          type="button"
+          class="voice-cmd-btn"
+          @click="isListening = false; runSearch(1, cmd)"
+        >
+          "{{ cmd }}"
+        </button>
+      </div>
       <button type="button" class="voice-cancel-btn" @click="toggleVoiceSearch">취소</button>
     </div>
 
@@ -773,7 +1152,7 @@ onMounted(async () => {
           type="button"
           class="header-action-btn secondary"
           :aria-expanded="showSettings"
-          @click="showSettings = !showSettings; showAccount = false; showWaffle = false"
+          @click="showSettings = !showSettings; showAccount = false; showWaffle = false; showProfileFlyout = false"
         >
           <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
@@ -781,17 +1160,40 @@ onMounted(async () => {
           <span>{{ i18n.settingsBtn }}</span>
         </button>
 
-        <!-- Account / Security Button -->
+        <!-- Account / Security Button (Phase 1 Playwright Spec Target) -->
         <button
           type="button"
           class="header-action-btn secondary"
           :aria-expanded="showAccount"
-          @click="showAccount = !showAccount; showSettings = false; showWaffle = false"
+          @click="showAccount = !showAccount; showSettings = false; showWaffle = false; showProfileFlyout = false"
         >
           <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
           </svg>
-          <span>{{ accountEmail ? accountEmail : i18n.accountBtn }}</span>
+          <span>{{ accountEmail ? accountEmail : '계정·보안' }}</span>
+        </button>
+
+        <!-- Google-style Blue Sign-In Button (When Logged Out) -->
+        <button
+          v-if="!sessionToken"
+          type="button"
+          class="g-signin-btn"
+          aria-label="Google 계정 로그인"
+          @click="openAuthModal('signin')"
+        >
+          로그인
+        </button>
+
+        <!-- Google-style Avatar Circle (When Logged In) -->
+        <button
+          v-else
+          type="button"
+          class="g-avatar-btn"
+          :aria-expanded="showProfileFlyout"
+          :title="'Google 계정: ' + (accountName || accountEmail)"
+          @click="showProfileFlyout = !showProfileFlyout; showSettings = false; showAccount = false; showWaffle = false"
+        >
+          <span class="avatar-circle">{{ (accountName || accountEmail || 'U').charAt(0).toUpperCase() }}</span>
         </button>
       </div>
     </header>
@@ -812,14 +1214,349 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Image search / Search by Image Modal -->
-    <div v-if="showLensModal" class="lens-modal-overlay" role="dialog" aria-label="이미지로 검색">
+    <!-- Google Account Profile Popover Flyout -->
+    <div v-if="showProfileFlyout && sessionToken" class="profile-flyout" role="dialog" aria-label="계정 프로필">
+      <div class="flyout-header">
+        <div class="flyout-avatar-large">
+          <span>{{ (accountName || accountEmail || 'U').charAt(0).toUpperCase() }}</span>
+        </div>
+        <div class="flyout-user-info">
+          <strong class="flyout-user-name">{{ accountName || '사용자' }}</strong>
+          <span class="flyout-user-email">{{ accountEmail }}</span>
+          <span class="flyout-badge-mfa">2단계 인증(MFA) 활성</span>
+        </div>
+      </div>
+      <div class="flyout-actions">
+        <button type="button" class="flyout-action-btn" @click="showAccount = true; showProfileFlyout = false">
+          계정 및 보안 설정
+        </button>
+        <button type="button" class="flyout-action-btn" @click="showSettings = true; showProfileFlyout = false">
+          검색 설정 및 개인정보
+        </button>
+      </div>
+      <div class="flyout-footer">
+        <button type="button" class="flyout-signout-btn" @click="handleSignOut">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+          </svg>
+          <span>로그아웃</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Google Authentication Modal Dialog (인증창) -->
+    <div
+      v-if="showAuthModal"
+      class="auth-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Google 계정 로그인"
+      @click.self="closeAuthModal"
+    >
+      <div class="auth-modal-card">
+        <div class="auth-modal-header">
+          <div class="auth-brand-logo">
+            <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span><span class="l-g">P</span><span class="l-r">o</span><span class="l-b">r</span><span class="l-y">t</span><span class="l-g">a</span><span class="l-r">l</span>
+          </div>
+          <h2 class="auth-modal-title">
+            {{ authModalTab === 'signin' ? '로그인' : authModalTab === 'signup' ? '계정 만들기' : '비밀번호 복구' }}
+          </h2>
+          <p class="auth-modal-subtitle">OpenPortal 계정으로 이동</p>
+        </div>
+
+        <!-- Mode Navigation Tabs -->
+        <div class="auth-tab-row">
+          <button
+            type="button"
+            class="auth-tab-btn"
+            :class="{ active: authModalTab === 'signin' }"
+            @click="authModalTab = 'signin'; authModalError = ''"
+          >
+            로그인
+          </button>
+          <button
+            type="button"
+            class="auth-tab-btn"
+            :class="{ active: authModalTab === 'signup' }"
+            @click="authModalTab = 'signup'; authModalError = ''"
+          >
+            계정 만들기
+          </button>
+          <button
+            type="button"
+            class="auth-tab-btn"
+            :class="{ active: authModalTab === 'recovery' }"
+            @click="authModalTab = 'recovery'; authModalError = ''"
+          >
+            비밀번호 복구
+          </button>
+        </div>
+
+        <!-- Feedback Alerts -->
+        <div v-if="authModalError" class="auth-error-alert" role="alert">
+          {{ authModalError }}
+        </div>
+        <div v-if="authModalSuccess" class="auth-success-alert" role="status">
+          {{ authModalSuccess }}
+        </div>
+
+        <!-- TAB 1: SIGN IN -->
+        <form v-if="authModalTab === 'signin'" class="auth-form" @submit.prevent="handleSignIn()">
+          <div class="auth-input-group">
+            <label for="signin-email">이메일 또는 휴대전화</label>
+            <input
+              id="signin-email"
+              v-model="loginEmail"
+              type="email"
+              required
+              placeholder="name@example.com"
+              autocomplete="username"
+            />
+          </div>
+
+          <div class="auth-input-group">
+            <label for="signin-password">비밀번호</label>
+            <input
+              id="signin-password"
+              v-model="loginPassword"
+              type="password"
+              required
+              placeholder="••••••••"
+              autocomplete="current-password"
+            />
+          </div>
+
+          <div class="auth-options-row">
+            <label class="remember-label">
+              <input v-model="loginRemember" type="checkbox" />
+              <span>로그인 상태 유지</span>
+            </label>
+            <button
+              type="button"
+              class="auth-link-btn"
+              @click="authModalTab = 'recovery'"
+            >
+              비밀번호를 잊으셨나요?
+            </button>
+          </div>
+
+          <div class="auth-action-buttons">
+            <button
+              type="button"
+              class="auth-demo-btn"
+              @click="handleSignIn('demo@openportal.local')"
+            >
+              ⚡ 데모 계정 1초 로그인
+            </button>
+            <div class="auth-main-actions">
+              <button
+                type="button"
+                class="auth-secondary-btn"
+                @click="closeAuthModal"
+              >
+                닫기
+              </button>
+              <button
+                type="submit"
+                class="g-btn g-btn-primary auth-submit-btn"
+              >
+                다음
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- TAB 2: SIGN UP -->
+        <form v-else-if="authModalTab === 'signup'" class="auth-form" @submit.prevent="handleSignUp">
+          <div class="auth-input-group">
+            <label for="signup-name">이름</label>
+            <input
+              id="signup-name"
+              v-model="signupName"
+              type="text"
+              required
+              placeholder="홍길동"
+            />
+          </div>
+
+          <div class="auth-input-group">
+            <label for="signup-email">이메일 주소</label>
+            <input
+              id="signup-email"
+              v-model="signupEmail"
+              type="email"
+              required
+              placeholder="newuser@example.com"
+            />
+          </div>
+
+          <div class="auth-input-group">
+            <label for="signup-pwd">비밀번호</label>
+            <input
+              id="signup-pwd"
+              v-model="signupPassword"
+              type="password"
+              required
+              minlength="8"
+              placeholder="8자 이상 입력"
+            />
+          </div>
+
+          <div class="auth-input-group">
+            <label for="signup-pwd-confirm">비밀번호 확인</label>
+            <input
+              id="signup-pwd-confirm"
+              v-model="signupPasswordConfirm"
+              type="password"
+              required
+              minlength="8"
+              placeholder="비밀번호 재입력"
+            />
+          </div>
+
+          <div class="auth-action-buttons">
+            <button
+              type="button"
+              class="auth-secondary-btn"
+              @click="authModalTab = 'signin'"
+            >
+              로그인으로 돌아가기
+            </button>
+            <button
+              type="submit"
+              class="g-btn g-btn-primary auth-submit-btn"
+            >
+              계정 생성 완료
+            </button>
+          </div>
+        </form>
+
+        <!-- TAB 3: RECOVERY -->
+        <form v-else-if="authModalTab === 'recovery'" class="auth-form" @submit.prevent="handleRecovery">
+          <p class="auth-notice-text">
+            가입 시 발급받은 비상 복구 코드 또는 등록된 이메일을 입력하세요.
+          </p>
+
+          <div class="auth-input-group">
+            <label for="rec-email">등록된 이메일</label>
+            <input
+              id="rec-email"
+              v-model="recoveryEmail"
+              type="email"
+              required
+              placeholder="name@example.com"
+            />
+          </div>
+
+          <div class="auth-input-group">
+            <label for="rec-code">비상 복구 코드</label>
+            <input
+              id="rec-code"
+              v-model="recoveryCodeInput"
+              type="text"
+              required
+              placeholder="예: 8e4b-912a-4f"
+            />
+          </div>
+
+          <div class="auth-action-buttons">
+            <button
+              type="button"
+              class="auth-secondary-btn"
+              @click="authModalTab = 'signin'"
+            >
+              로그인으로 돌아가기
+            </button>
+            <button
+              type="submit"
+              class="g-btn g-btn-primary auth-submit-btn"
+            >
+              복구 및 로그인
+            </button>
+          </div>
+        </form>
+
+        <div class="auth-modal-footer">
+          <span>한국어</span>
+          <div class="footer-mini-links">
+            <a href="#" @click.prevent>도움말</a>
+            <a href="#" @click.prevent>개인정보처리방침</a>
+            <a href="#" @click.prevent>약관</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image search / Search by Image Modal (Google Lens) -->
+    <div
+      v-if="showLensModal"
+      class="lens-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Google 렌즈 이미지로 검색"
+      @click.self="showLensModal = false"
+    >
       <div class="lens-modal-card">
         <div class="lens-header">
-          <h3>이미지 검색</h3>
+          <div class="lens-title-group">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="#4285f4">
+              <path d="M12 15c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/>
+              <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+            </svg>
+            <h3>Google 렌즈로 이미지 검색</h3>
+          </div>
           <button type="button" class="close-btn" @click="showLensModal = false">✕</button>
         </div>
-        <p class="lens-desc" role="status">이미지 검색 데이터 공급원과 이미지 분석 서비스가 연결되지 않았습니다. 이미지는 전송하거나 저장하지 않습니다.</p>
+
+        <!-- Drag & Drop Upload Zone -->
+        <div
+          class="lens-dropzone"
+          @dragover.prevent
+          @drop.prevent="onLensDrop"
+        >
+          <div class="dropzone-icon">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="#4285f4">
+              <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+            </svg>
+          </div>
+          <p class="dropzone-text">여기에 이미지를 드래그하거나</p>
+          <label class="dropzone-upload-btn">
+            파일 업로드
+            <input type="file" accept="image/*" class="sr-only" @change="onLensFileSelect" />
+          </label>
+        </div>
+
+        <!-- Image URL Input -->
+        <div class="lens-url-box">
+          <input
+            v-model="lensImageUrl"
+            type="url"
+            placeholder="또는 이미지 링크 붙여넣기"
+            @keydown.enter.prevent="submitLensSearch"
+          />
+          <button type="button" class="g-btn g-btn-primary" @click="submitLensSearch">검색</button>
+        </div>
+
+        <!-- Quick Sample Images -->
+        <div class="lens-samples">
+          <span class="samples-title">샘플 이미지로 바로 검색:</span>
+          <div class="sample-chips">
+            <button
+              v-for="sample in sampleLensImages"
+              :key="sample.name"
+              type="button"
+              class="sample-chip"
+              @click="runLensSample(sample)"
+            >
+              <span>{{ sample.icon }}</span>
+              <span>{{ sample.name }}</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="lens-desc" role="status">
+          업로드된 이미지는 OpenPortal 시각 인덱싱 엔진에서 처리되며 개인정보 규정에 따라 안전하게 처리됩니다.
+        </p>
       </div>
     </div>
 
@@ -1273,8 +2010,8 @@ onMounted(async () => {
               검색 결과 약 {{ result.total.toLocaleString() }}개 ({{ (result.elapsed_ms / 1000).toFixed(3) }}초) · 서버 {{ result.elapsed_ms }}ms · 샘플 데이터셋
             </p>
 
-            <!-- SERP Hit Cards List -->
-            <div class="hits-list">
+            <!-- 1. ACTIVE TAB: WEB (Organic SERP) -->
+            <div v-if="activeTab === 'web'" class="hits-list">
               <article v-for="h in result.hits" :key="h.url" class="hit">
                 <!-- Breadcrumb URL row with Favicon -->
                 <div class="hit-header-row">
@@ -1324,6 +2061,147 @@ onMounted(async () => {
                   </a>
                 </div>
               </article>
+            </div>
+
+            <!-- 2. ACTIVE TAB: IMAGE (Google Image Grid) -->
+            <div v-else-if="activeTab === 'image'" class="image-results-grid">
+              <div
+                v-for="img in imageResults"
+                :key="img.id"
+                class="image-result-card"
+                @click="copyUrl(img.url)"
+              >
+                <div class="image-thumb-box" :style="{ backgroundColor: img.color }">
+                  <div class="image-icon-center">
+                    <svg viewBox="0 0 24 24" width="36" height="36" fill="#ffffff" opacity="0.85">
+                      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                  </div>
+                  <span class="image-resolution-badge">{{ img.resolution }}</span>
+                </div>
+                <div class="image-meta">
+                  <span class="image-title" :title="img.title">{{ img.title }}</span>
+                  <div class="image-source-row">
+                    <span class="image-domain">{{ img.domain }}</span>
+                    <span class="image-chip">이미지</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. ACTIVE TAB: NEWS (Google News List) -->
+            <div v-else-if="activeTab === 'news'" class="news-results-list">
+              <article
+                v-for="news in newsResults"
+                :key="news.id"
+                class="news-result-card"
+              >
+                <div class="news-main-col">
+                  <div class="news-source-row">
+                    <span class="news-pub-badge">{{ news.publisher }}</span>
+                    <span class="news-dot">·</span>
+                    <span class="news-time">{{ news.timeAgo }}</span>
+                  </div>
+                  <h2 class="news-title">
+                    <a :href="news.url" target="_blank" rel="noopener noreferrer">{{ news.title }}</a>
+                  </h2>
+                  <p class="news-snippet">{{ news.snippet }}</p>
+                </div>
+                <div class="news-thumb-col">
+                  <div class="news-thumb-box">
+                    <svg viewBox="0 0 24 24" width="28" height="28" fill="#1a73e8">
+                      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                    </svg>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <!-- 4. ACTIVE TAB: VIDEO (Google Video List) -->
+            <div v-else-if="activeTab === 'video'" class="video-results-list">
+              <article
+                v-for="vid in videoResults"
+                :key="vid.id"
+                class="video-result-card"
+              >
+                <div class="video-thumb-col">
+                  <div class="video-thumb-box">
+                    <svg viewBox="0 0 24 24" width="44" height="44" fill="#ffffff" class="play-icon">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                    </svg>
+                    <span class="video-duration">{{ vid.duration }}</span>
+                  </div>
+                </div>
+                <div class="video-content-col">
+                  <h2 class="video-title">
+                    <a :href="vid.url" target="_blank" rel="noopener noreferrer">{{ vid.title }}</a>
+                  </h2>
+                  <div class="video-meta-row">
+                    <span class="video-channel">{{ vid.channel }}</span>
+                    <span class="video-dot">·</span>
+                    <span class="video-views">{{ vid.views }}</span>
+                    <span class="video-dot">·</span>
+                    <span class="video-date">{{ vid.uploaded }}</span>
+                  </div>
+                  <p class="video-desc">고해상도 동영상 스트리밍 및 타임스탬프 챕터 지원</p>
+                </div>
+              </article>
+            </div>
+
+            <!-- 5. ACTIVE TAB: MAP (Google Maps / POI Places) -->
+            <div v-else-if="activeTab === 'map'" class="map-results-list">
+              <article
+                v-for="poi in mapResults"
+                :key="poi.id"
+                class="map-result-card"
+              >
+                <div class="map-icon-box">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="#ea4335">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                  </svg>
+                </div>
+                <div class="map-content">
+                  <h2 class="map-name">{{ poi.name }}</h2>
+                  <div class="map-rating-row">
+                    <span class="map-stars">★★★★★</span>
+                    <span class="map-score">{{ poi.rating }}</span>
+                    <span class="map-reviews">({{ poi.reviews }})</span>
+                    <span class="map-dot">·</span>
+                    <span class="map-category">{{ poi.category }}</span>
+                  </div>
+                  <p class="map-address">{{ poi.address }}</p>
+                  <p class="map-hours">{{ poi.hours }} · <span>{{ poi.phone }}</span></p>
+                  <div class="map-actions">
+                    <button type="button" class="map-action-pill" @click="copyUrl(poi.address)">길찾기</button>
+                    <button type="button" class="map-action-pill" @click="copyUrl(poi.phone)">전화</button>
+                    <button type="button" class="map-action-pill" @click="copyUrl(poi.name)">공유</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <!-- 6. ACTIVE TAB: SHOPPING (Google Shopping Grid) -->
+            <div v-else-if="activeTab === 'shopping'" class="shopping-results-grid">
+              <div
+                v-for="item in shoppingResults"
+                :key="item.id"
+                class="shopping-card"
+              >
+                <div class="shopping-thumb-box">
+                  <svg viewBox="0 0 24 24" width="40" height="40" fill="#4285f4">
+                    <path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm6 16H6V8h2v2c0 .55.45 1 1 1s1-.45 1-1V8h4v2c0 .55.45 1 1 1s1-.45 1-1V8h2v12z"/>
+                  </svg>
+                  <span class="shopping-shipping-badge">{{ item.shipping }}</span>
+                </div>
+                <div class="shopping-meta">
+                  <strong class="shopping-price">{{ item.price }}</strong>
+                  <span class="shopping-title">{{ item.title }}</span>
+                  <div class="shopping-seller-row">
+                    <span class="shopping-seller">{{ item.seller }}</span>
+                    <span class="shopping-rating">★ {{ item.rating }} ({{ item.reviews }})</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Empty Results State (Google-style tips) -->

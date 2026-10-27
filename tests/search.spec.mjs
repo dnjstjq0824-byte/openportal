@@ -109,3 +109,49 @@ test('Phase 1 features: query correction, opt-in recent searches, feature-flagge
   await page.goto('/nonexistent-route-404');
   await expect(page.getByTestId('not-found-view')).toBeVisible();
 });
+
+test('Google Auth Modal (인증창), User Profile Flyout, and Google Lens interaction', async ({page}) => {
+  await page.goto('/');
+
+  // 1. Google Blue "로그인" button is visible and opens Auth Modal (인증창)
+  const signInBtn = page.getByRole('button', {name: 'Google 계정 로그인'});
+  await expect(signInBtn).toBeVisible();
+  await signInBtn.click();
+
+  // Verify Auth Modal is displayed with title and tabs
+  const authModal = page.locator('.auth-modal-card');
+  await expect(authModal).toBeVisible();
+  await expect(authModal.getByRole('heading', {name: '로그인'})).toBeVisible();
+
+  // 2. Click "데모 계정 1초 로그인"
+  await page.getByRole('button', {name: /데모 계정/}).click();
+  await expect(authModal).not.toBeVisible();
+
+  // 3. User Avatar circle is displayed in header
+  const avatarBtn = page.locator('.g-avatar-btn');
+  await expect(avatarBtn).toBeVisible();
+
+  // 4. Clicking Avatar opens Google Profile Flyout with sign out option
+  await avatarBtn.click();
+  const profileFlyout = page.locator('.profile-flyout');
+  await expect(profileFlyout).toBeVisible();
+  await expect(profileFlyout.getByText('demo@openportal.local')).toBeVisible();
+
+  // 5. Sign out cleanly
+  await profileFlyout.getByRole('button', {name: '로그아웃'}).click();
+  await expect(profileFlyout).not.toBeVisible();
+  await expect(signInBtn).toBeVisible();
+
+  // 6. Google Lens Modal opens, shows drag & drop zone, samples, and search
+  const lensBtn = page.locator('.lens-btn');
+  await lensBtn.click();
+  const lensModal = page.locator('.lens-modal-card');
+  await expect(lensModal).toBeVisible();
+  await expect(lensModal.getByText('Google 렌즈로 이미지 검색')).toBeVisible();
+
+  // Click a sample image to execute search
+  await page.getByRole('button', {name: /자연 풍경/}).click();
+  await expect(lensModal).not.toBeVisible();
+  await expect(page.locator('.serp-search-box')).toBeVisible();
+});
+
