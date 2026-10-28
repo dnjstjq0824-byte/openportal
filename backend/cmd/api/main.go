@@ -721,6 +721,22 @@ func extractBearerToken(r *http.Request) string {
 	return ""
 }
 
+// clientIP returns the remote address without port, preferring a trusted
+// forwarded header only when present.
+func clientIP(r *http.Request) string {
+	if xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); xff != "" {
+		parts := strings.Split(xff, ",")
+		if ip := strings.TrimSpace(parts[0]); ip != "" {
+			return ip
+		}
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err != nil {
+		return strings.TrimSpace(r.RemoteAddr)
+	}
+	return host
+}
+
 func (a *app) search(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
@@ -936,6 +952,10 @@ func (a *app) handleAuthChallenge(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 503, map[string]string{"error": "authentication provider not configured", "code": "AUTH_NOT_CONFIGURED"})
 		return
 	}
+	if report := a.ensureAbuseDetector().InspectQuery(clientIP(r), "auth:challenge"); report.IsAbusive {
+		writeJSON(w, 429, map[string]string{"error": "too many authentication attempts", "code": "RATE_LIMITED"})
+		return
+	}
 	var body struct {
 		ChallengeType string `json:"challenge_type"`
 		Email         string `json:"email"`
@@ -960,6 +980,10 @@ func (a *app) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	if !a.ensureStore().VerifierConfigured() {
 		writeJSON(w, 503, map[string]string{"error": "authentication provider not configured", "code": "AUTH_NOT_CONFIGURED"})
+		return
+	}
+	if report := a.ensureAbuseDetector().InspectQuery(clientIP(r), "auth:verify"); report.IsAbusive {
+		writeJSON(w, 429, map[string]string{"error": "too many authentication attempts", "code": "RATE_LIMITED"})
 		return
 	}
 	var body struct {
