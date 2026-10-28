@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -749,9 +750,26 @@ func requestIsHTTPS(r *http.Request) bool {
 	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
 }
 
-// clientIP returns the remote address without port, preferring a trusted
-// forwarded header only when present.
+// titleTermMatches counts how many query terms appear in the title.
+func titleTermMatches(title, query string) int {
+	q := strings.ToLower(strings.TrimSpace(query))
+	t := strings.ToLower(strings.TrimSpace(title))
+	if q == "" || t == "" {
+		return 0
+	}
+	count := 0
+	for _, term := range strings.Fields(q) {
+		if strings.Contains(t, term) {
+			count++
+		}
+	}
+	if count == 0 && strings.Contains(t, q) {
+		count = 1
+	}
+	return count
+}
 func clientIP(r *http.Request) string {
+
 	if xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); xff != "" {
 		parts := strings.Split(xff, ",")
 		if ip := strings.TrimSpace(parts[0]); ip != "" {
@@ -861,6 +879,39 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		result.Hits = filteredHits
+
+	// 2.5 Hybrid RRF fusion (Task 047): combine BM25 order with title-relevance order.
+	if len(result.Hits) > 1 {
+		bm25System := ranking.RankingSystem{Name: "bm25", Weight: 1.0, Hits: make([]ranking.RankedItem, 0, len(result.Hits))}
+		titleSystem := ranking.RankingSystem{Name: "title", Weight: 1.0, Hits: make([]ranking.RankedItem, 0, len(result.Hits))}
+		for _, h := range result.Hits {
+			bm25System.Hits = append(bm25System.Hits, ranking.RankedItem{DocumentID: h.DocumentID, Title: h.Title, URL: h.URL, Snippet: h.Description, Score: h.Score})
+		}
+		titleSorted := append([]search.Hit(nil), result.Hits...)
+		sort.SliceStable(titleSorted, func(i, j int) bool {
+			ti := titleTermMatches(titleSorted[i].Title, normalizedQ)
+			tj := titleTermMatches(titleSorted[j].Title, normalizedQ)
+			if ti != tj {
+				return ti > tj
+			}
+			return titleSorted[i].Score > titleSorted[j].Score
+		})
+		for _, h := range titleSorted {
+			titleSystem.Hits = append(titleSystem.Hits, ranking.RankedItem{DocumentID: h.DocumentID, Title: h.Title, URL: h.URL, Snippet: h.Description, Score: h.Score})
+		}
+		fused := ranking.ReciprocalRankFusion([]ranking.RankingSystem{bm25System, titleSystem}, ranking.DefaultRRFConfig())
+		original := make(map[string]search.Hit, len(result.Hits))
+		for _, h := range result.Hits {
+			original[h.DocumentID] = h
+		}
+		fusedHits := make([]search.Hit, 0, len(fused))
+		for _, f := range fused {
+			h := original[f.DocumentID]
+			h.Score = f.RRFScore
+			fusedHits = append(fusedHits, h)
+		}
+		result.Hits = fusedHits
+	}
 
 		// 3. Second-Pass Quality, Freshness & Spam Reranking (Task 043)
 		if len(result.Hits) > 0 {
