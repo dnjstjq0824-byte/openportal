@@ -34,6 +34,7 @@ type app struct {
 	corsOrigin    string
 	abuseDetector *ranking.AbuseDetector
 	reranker      *ranking.Reranker
+	intentClassifier *ranking.IntentClassifier
 	safeSearch    *ranking.SafeSearchClassifier
 	moderationMgr *ranking.ModerationWorkflowManager
 	poiMgr        *vertical.POIManager
@@ -107,6 +108,15 @@ func (a *app) ensureReranker() *ranking.Reranker {
 		a.reranker = ranking.NewReranker(ranking.DefaultRerankerConfig())
 	}
 	return a.reranker
+}
+
+func (a *app) ensureIntentClassifier() *ranking.IntentClassifier {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
+	if a.intentClassifier == nil {
+		a.intentClassifier = ranking.NewIntentClassifier()
+	}
+	return a.intentClassifier
 }
 
 func (a *app) ensureSafeSearch() *ranking.SafeSearchClassifier {
@@ -801,6 +811,8 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 	traceID := w.Header().Get("X-Request-Id")
 	result.RequestID = traceID
 	result.CorrectedQuery = search.SuggestCorrection(normalizedQ)
+	intent := a.ensureIntentClassifier().Classify(normalizedQ, lang, "")
+	result.Intent = string(intent.Intent)
 	if safeSearch != "" {
 		result.SafeSearch = safeSearch
 	}

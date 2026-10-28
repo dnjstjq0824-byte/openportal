@@ -34,6 +34,7 @@ type Response struct {
 	CorrectedQuery string `json:"corrected_query,omitempty"`
 	SafeSearch     string `json:"safe_search,omitempty"`
 	Vertical       string `json:"vertical,omitempty"`
+	Intent         string `json:"intent,omitempty"`
 	NextPageToken  string `json:"next_page_token,omitempty"`
 }
 type osResponse struct {
