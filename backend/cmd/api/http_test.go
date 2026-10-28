@@ -21,7 +21,7 @@ func TestHTTPBoundary(t *testing.T) {
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
 	}))
 	defer upstream.Close()
-	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStoreWithVerifier(fixtureVerifier{}), corsOrigin: "http://127.0.0.1:5173"}
 	for _, tc := range []struct {
 		method, path string
 		status       int
@@ -77,7 +77,7 @@ func TestGatewayAuthMFARecoveryAndBOLAEndpoints(t *testing.T) {
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":1},"hits":[{"_id":"fixture-001","_score":2.0,"_source":{"document_id":"fixture-001","title":"오픈포털 검색엔진 프로젝트","url":"https://example.org/intro","description":"예시","language":"ko"}}]}}`))
 	}))
 	defer upstream.Close()
-	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStoreWithVerifier(fixtureVerifier{}), corsOrigin: "http://127.0.0.1:5173"}
 	h := a.routes()
 
 	// 1. Separate console origin boundary check (Task 018)
@@ -287,7 +287,7 @@ func TestRankingAbuseAndModerationEndpoints(t *testing.T) {
 
 	a := &app{
 		c:          search.New(upstream.URL, "documents_v1", "", ""),
-		idStore:    identity.NewStore(),
+		idStore:    identity.NewStoreWithVerifier(fixtureVerifier{}),
 		corsOrigin: "http://127.0.0.1:5173",
 	}
 	h := a.routes()
@@ -375,7 +375,7 @@ func TestPhase5VerticalGateAndEndpoints(t *testing.T) {
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
 	}))
 	defer upstream.Close()
-	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStoreWithVerifier(fixtureVerifier{}), corsOrigin: "http://127.0.0.1:5173"}
 	h := a.routes()
 
 	// 1. Vertical gate status endpoint
@@ -446,7 +446,7 @@ func TestPhase6AIEndpoints(t *testing.T) {
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
 	}))
 	defer upstream.Close()
-	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStoreWithVerifier(fixtureVerifier{}), corsOrigin: "http://127.0.0.1:5173"}
 	h := a.routes()
 
 	// 1. AI Gate Status
@@ -518,7 +518,7 @@ func TestPhase7AdsAndWebmasterEndpoints(t *testing.T) {
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
 	}))
 	defer upstream.Close()
-	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStoreWithVerifier(fixtureVerifier{}), corsOrigin: "http://127.0.0.1:5173"}
 	h := a.routes()
 
 	// 1. Ads Gate Status
@@ -621,7 +621,7 @@ func TestPhase8OpsEndpoints(t *testing.T) {
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
 	}))
 	defer upstream.Close()
-	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStoreWithVerifier(fixtureVerifier{}), corsOrigin: "http://127.0.0.1:5173"}
 	h := a.routes()
 
 	// 1. Ops gate status
@@ -727,7 +727,7 @@ func TestPhase9LaunchEndpoints(t *testing.T) {
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
 	}))
 	defer upstream.Close()
-	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStoreWithVerifier(fixtureVerifier{}), corsOrigin: "http://127.0.0.1:5173"}
 	h := a.routes()
 
 	// 1. Launch Gate Status (Master 10-phase report)

@@ -9,6 +9,7 @@ const errLog = fs.openSync('work/os-stderr.log', 'a');
 console.log('Spawning OpenSearch 2.19.0...');
 const child = spawn(osBin, [], {
   detached: true,
+  windowsHide: true,
   stdio: ['ignore', outLog, errLog],
   env: { ...process.env, OPENSEARCH_JAVA_OPTS: '-Xms512m -Xmx512m' },
   shell: true

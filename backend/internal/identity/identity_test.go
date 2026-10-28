@@ -7,7 +7,7 @@ import (
 )
 
 func TestPasskeyMFARecoveryAndBOLADefense(t *testing.T) {
-	store := NewStore()
+	store := NewStoreWithVerifier(fixtureVerifier{})
 
 	// 1. Passkey / OIDC Challenge Registration for Alice
 	chAlice, err := store.CreateChallenge("passkey_register", "alice@example.org", "localhost")
@@ -146,4 +146,3 @@ func TestPasskeyMFARecoveryAndBOLADefense(t *testing.T) {
 		t.Fatal("consumed recovery code must not be reusable")
 	}
 }
-

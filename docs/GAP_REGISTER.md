@@ -32,6 +32,9 @@
 
 ## 실행 환경 장애
 
+- G024 / P1 / 수정·로컬 검증 (2026-10-28): Go API의 동시 첫 요청이 서로 다른 identity/abuse/safety 객체를 받는 결함. `go test ./cmd/api -run TestConcurrentServiceInitialization -count=20`으로 수정 전 실패 재현, 초기화 mutex 적용 후 PASS. 전체 Go 테스트 PASS. CGO race 검증은 G012 차단 유지. 상세: [진행 보고서](PHASE_PROGRESS_2026_10_28.md).
+- G021 정정 (2026-10-28): 실행 진입점 productionRoutes는 moderation을 포함한 변경 API를 404로 차단한다. 내부 routes의 익명 프로토타입은 운영 인가 구현이 아니며 공개하면 안 된다.
+
 - 2026-10-20 Go1.27.2 업데이트 명령은 자동 승인 검토 사용량 제한으로 미실행됐다. 2026-10-21 Go1.27.3으로 수정 완료.
 - 2026-10-24 OpenSearch 2.19.0 실행 시 JVM 힙 옵션 `-Xms512m -Xmx512m` 누락 시 메모리 할당 지연 발생. Node 백그라운드 헬스체크 및 데몬 스크립트로 자동화하여 해결.
 - 2026-10-24 Nuxt 3/4 설치 시도 시 `node-forge` (CVE-2023-52078) 및 `simple-git` 고위험 취약점이 검출되어 즉시 롤백하고 무결점 Vite 기반 유지.

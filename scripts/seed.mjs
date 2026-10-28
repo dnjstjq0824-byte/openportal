@@ -7,19 +7,19 @@ const root = path.resolve(__dirname, '..');
 const base = (process.env.OPENSEARCH_URL || 'http://127.0.0.1:9200').replace(/\/$/, '');
 const index = process.env.OPENSEARCH_INDEX || 'documents_v1';
 
-async function main() {
+export async function seed({ baseURL = base, indexName = index } = {}) {
   const mapping = JSON.parse(fs.readFileSync(path.join(root, 'infra/opensearch/documents_v1.json'), 'utf-8'));
   
   // Create index if not exists
-  const putRes = await fetch(`${base}/${index}`, {
+  const putRes = await fetch(`${baseURL}/${indexName}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(mapping),
   });
-  if (!putRes.ok && putRes.status !== 400) {
-    const txt = await putRes.text();
-    if (!txt.includes('resource_already_exists_exception')) {
-      throw new Error(`Failed to create index: ${putRes.status} ${txt}`);
+  if (!putRes.ok) {
+    const body = await putRes.json();
+    if (putRes.status !== 400 || body.error?.type !== 'resource_already_exists_exception') {
+      throw new Error(`Failed to create index: ${putRes.status}`);
     }
   }
 
@@ -31,11 +31,11 @@ async function main() {
 
   let bulkBody = '';
   for (let i = 0; i < fixtures.length; i++) {
-    bulkBody += JSON.stringify({ index: { _index: index, _id: `fixture-${String(i + 1).padStart(3, '0')}` } }) + '\n';
+    bulkBody += JSON.stringify({ index: { _index: indexName, _id: `fixture-${String(i + 1).padStart(3, '0')}` } }) + '\n';
     bulkBody += JSON.stringify(fixtures[i]) + '\n';
   }
 
-  const bulkRes = await fetch(`${base}/_bulk?refresh=true`, {
+  const bulkRes = await fetch(`${baseURL}/_bulk?refresh=true`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-ndjson' },
     body: bulkBody,
@@ -46,14 +46,15 @@ async function main() {
   }
 
   const resJson = await bulkRes.json();
-  if (resJson.errors) {
+  if (resJson.errors !== false || !Array.isArray(resJson.items) || resJson.items.length !== fixtures.length ||
+      resJson.items.some(item => !item.index || !Number.isInteger(item.index.status) || item.index.status < 200 || item.index.status >= 300 || item.index.error)) {
     throw new Error(`Bulk indexing had errors: ${JSON.stringify(resJson)}`);
   }
 
-  console.log(`Seeded ${fixtures.length} synthetic fixtures into ${index}.`);
+  console.log(`Seeded ${fixtures.length} synthetic fixtures into ${indexName}.`);
 }
 
-main().catch(err => {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) seed().catch(err => {
   console.error(err);
   process.exit(1);
 });

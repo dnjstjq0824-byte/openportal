@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"example.com/openportal-search/backend/internal/ads"
@@ -26,29 +27,25 @@ import (
 )
 
 type app struct {
-	c                *search.Client
-	idStore          *identity.Store
-	corsOrigin       string
-	intentClassifier *ranking.IntentClassifier
-	abuseDetector    *ranking.AbuseDetector
-	reranker         *ranking.Reranker
-	safeSearch       *ranking.SafeSearchClassifier
-	moderationMgr    *ranking.ModerationWorkflowManager
-	expPlatform      *ranking.ExperimentPlatform
-	verticalCoord    *vertical.VerticalFederationCoordinator
-	newsLifecycle    *vertical.NewsLifecycleManager
-	poiMgr           *vertical.POIManager
-	shopMgr          *vertical.ShoppingFeedManager
-	aiTracker        *ai.AITelemetryTracker
-	wmMgr            *ads.WebmasterManager
-	ledger           *ads.AdBillingLedger
-	pamMgr           *ops.PAMManager
-	dsarMgr          *ops.DSARManager
-	dualMgr          *ops.DualCustodyManager
-	benchProfiler    *launch.LatencyProfile
-	drMgr            *launch.DRManager
-	sloTracker       *launch.SLOTracker
-	defectReg        *launch.DefectRegister
+	initMu        sync.Mutex
+	c             *search.Client
+	idStore       *identity.Store
+	corsOrigin    string
+	abuseDetector *ranking.AbuseDetector
+	reranker      *ranking.Reranker
+	safeSearch    *ranking.SafeSearchClassifier
+	moderationMgr *ranking.ModerationWorkflowManager
+	poiMgr        *vertical.POIManager
+	shopMgr       *vertical.ShoppingFeedManager
+	aiTracker     *ai.AITelemetryTracker
+	wmMgr         *ads.WebmasterManager
+	pamMgr        *ops.PAMManager
+	dsarMgr       *ops.DSARManager
+	dualMgr       *ops.DualCustodyManager
+	benchProfiler *launch.LatencyProfile
+	drMgr         *launch.DRManager
+	sloTracker    *launch.SLOTracker
+	defectReg     *launch.DefectRegister
 }
 
 var validTraceID = regexp.MustCompile(`^[A-Za-z0-9._-]{8,64}$`)
@@ -78,20 +75,17 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func (a *app) ensureStore() *identity.Store {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.idStore == nil {
 		a.idStore = identity.NewStore()
 	}
 	return a.idStore
 }
 
-func (a *app) ensureIntent() *ranking.IntentClassifier {
-	if a.intentClassifier == nil {
-		a.intentClassifier = ranking.NewIntentClassifier()
-	}
-	return a.intentClassifier
-}
-
 func (a *app) ensureAbuseDetector() *ranking.AbuseDetector {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.abuseDetector == nil {
 		a.abuseDetector = ranking.NewAbuseDetector(10*time.Second, 200, 50)
 	}
@@ -99,6 +93,8 @@ func (a *app) ensureAbuseDetector() *ranking.AbuseDetector {
 }
 
 func (a *app) ensureReranker() *ranking.Reranker {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.reranker == nil {
 		a.reranker = ranking.NewReranker(ranking.DefaultRerankerConfig())
 	}
@@ -106,6 +102,8 @@ func (a *app) ensureReranker() *ranking.Reranker {
 }
 
 func (a *app) ensureSafeSearch() *ranking.SafeSearchClassifier {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.safeSearch == nil {
 		a.safeSearch = ranking.NewSafeSearchClassifier()
 	}
@@ -113,34 +111,17 @@ func (a *app) ensureSafeSearch() *ranking.SafeSearchClassifier {
 }
 
 func (a *app) ensureModeration() *ranking.ModerationWorkflowManager {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.moderationMgr == nil {
 		a.moderationMgr = ranking.NewModerationWorkflowManager()
 	}
 	return a.moderationMgr
 }
 
-func (a *app) ensureExpPlatform() *ranking.ExperimentPlatform {
-	if a.expPlatform == nil {
-		a.expPlatform = ranking.NewExperimentPlatform()
-	}
-	return a.expPlatform
-}
-
-func (a *app) ensureVerticalCoord() *vertical.VerticalFederationCoordinator {
-	if a.verticalCoord == nil {
-		a.verticalCoord = vertical.NewVerticalFederationCoordinator(5*time.Minute, 200*time.Millisecond)
-	}
-	return a.verticalCoord
-}
-
-func (a *app) ensureNewsLifecycle() *vertical.NewsLifecycleManager {
-	if a.newsLifecycle == nil {
-		a.newsLifecycle = vertical.NewNewsLifecycleManager(365)
-	}
-	return a.newsLifecycle
-}
-
 func (a *app) ensurePOIManager() *vertical.POIManager {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.poiMgr == nil {
 		a.poiMgr = vertical.NewPOIManager()
 	}
@@ -148,6 +129,8 @@ func (a *app) ensurePOIManager() *vertical.POIManager {
 }
 
 func (a *app) ensureShoppingManager() *vertical.ShoppingFeedManager {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.shopMgr == nil {
 		a.shopMgr = vertical.NewShoppingFeedManager(24 * time.Hour)
 	}
@@ -221,6 +204,8 @@ func (a *app) handleShoppingDiscrepancyReport(w http.ResponseWriter, r *http.Req
 }
 
 func (a *app) ensureAITracker() *ai.AITelemetryTracker {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.aiTracker == nil {
 		a.aiTracker = ai.NewAITelemetryTracker(100.0)
 	}
@@ -287,17 +272,12 @@ func (a *app) handleAIFeedback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) ensureWebmaster() *ads.WebmasterManager {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.wmMgr == nil {
 		a.wmMgr = ads.NewWebmasterManager()
 	}
 	return a.wmMgr
-}
-
-func (a *app) ensureAdLedger() *ads.AdBillingLedger {
-	if a.ledger == nil {
-		a.ledger = ads.NewAdBillingLedger()
-	}
-	return a.ledger
 }
 
 func (a *app) handleAdsGateStatus(w http.ResponseWriter, r *http.Request) {
@@ -395,6 +375,8 @@ func (a *app) handleAdsAuction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) ensurePAM() *ops.PAMManager {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.pamMgr == nil {
 		a.pamMgr = ops.NewPAMManager(1 * time.Hour)
 	}
@@ -402,6 +384,8 @@ func (a *app) ensurePAM() *ops.PAMManager {
 }
 
 func (a *app) ensureDSAR() *ops.DSARManager {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.dsarMgr == nil {
 		a.dsarMgr = ops.NewDSARManager()
 	}
@@ -409,6 +393,8 @@ func (a *app) ensureDSAR() *ops.DSARManager {
 }
 
 func (a *app) ensureDualCustody() *ops.DualCustodyManager {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.dualMgr == nil {
 		a.dualMgr = ops.NewDualCustodyManager()
 	}
@@ -512,6 +498,8 @@ func (a *app) handleDualApproval(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) ensureBenchProfiler() *launch.LatencyProfile {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.benchProfiler == nil {
 		a.benchProfiler = launch.NewLatencyProfile()
 	}
@@ -519,6 +507,8 @@ func (a *app) ensureBenchProfiler() *launch.LatencyProfile {
 }
 
 func (a *app) ensureDRManager() *launch.DRManager {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.drMgr == nil {
 		a.drMgr = launch.NewDRManager()
 	}
@@ -526,6 +516,8 @@ func (a *app) ensureDRManager() *launch.DRManager {
 }
 
 func (a *app) ensureSLOTracker() *launch.SLOTracker {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.sloTracker == nil {
 		a.sloTracker = launch.NewSLOTracker()
 	}
@@ -533,6 +525,8 @@ func (a *app) ensureSLOTracker() *launch.SLOTracker {
 }
 
 func (a *app) ensureDefectRegister() *launch.DefectRegister {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
 	if a.defectReg == nil {
 		a.defectReg = launch.NewDefectRegister()
 	}
@@ -784,9 +778,10 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 	// 2. SafeSearch Content Filtering (Task 044)
 	if len(result.Hits) > 0 {
 		safeLevel := ranking.SafeSearchModerate
-		if safeSearch == "strict" {
+		switch safeSearch {
+		case "strict":
 			safeLevel = ranking.SafeSearchStrict
-		} else if safeSearch == "off" {
+		case "off":
 			safeLevel = ranking.SafeSearchOff
 		}
 
@@ -960,7 +955,7 @@ func (a *app) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	token, sess, acc, codes, err := a.ensureStore().CompleteChallenge(body.ChallengeID, body.ChallengeResponse, body.DisplayName)
+	token, sess, acc, codes, err := a.ensureStore().CompleteChallengeContext(r.Context(), body.ChallengeID, body.ChallengeResponse, body.DisplayName)
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": err.Error()})
 		return

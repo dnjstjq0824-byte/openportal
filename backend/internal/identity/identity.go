@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -85,6 +86,8 @@ type Challenge struct {
 }
 
 type Store struct {
+	verifier       ChallengeVerifier
+	byPrincipal    map[string]string
 	mu             sync.RWMutex
 	accounts       map[string]*Account
 	byEmail        map[string]string
@@ -93,6 +96,7 @@ type Store struct {
 	prefs          map[string]*Preferences
 	mfaSecrets     map[string]string   // accountID -> base32 secret
 	mfaPending     map[string]string   // accountID -> pending base32 secret
+	mfaLastStep    map[string]int64    // accountID -> last successfully used TOTP step
 	recoveryCodes  map[string][]string // accountID -> list of sha256(code)
 	recentSearches map[string][]string // accountID -> recent queries (only when RecentSearchesOptIn=true)
 	challenges     map[string]*Challenge
@@ -103,6 +107,7 @@ type Store struct {
 
 func NewStore() *Store {
 	s := &Store{
+		byPrincipal:    make(map[string]string),
 		accounts:       make(map[string]*Account),
 		byEmail:        make(map[string]string),
 		sessions:       make(map[string]*Session),
@@ -110,6 +115,7 @@ func NewStore() *Store {
 		prefs:          make(map[string]*Preferences),
 		mfaSecrets:     make(map[string]string),
 		mfaPending:     make(map[string]string),
+		mfaLastStep:    make(map[string]int64),
 		recoveryCodes:  make(map[string][]string),
 		recentSearches: make(map[string][]string),
 		challenges:     make(map[string]*Challenge),
@@ -156,24 +162,43 @@ func (s *Store) CreateChallenge(challengeType, email, rpID string) (*Challenge, 
 		ExpiresAt:     s.nowFunc().UTC().Add(5 * time.Minute),
 	}
 	s.challenges[ch.ID] = ch
-	return ch, nil
+	copy := *ch
+	return &copy, nil
 }
 
 // CompleteChallenge verifies a challenge and authenticates or registers the account, issuing a session token and one-time recovery codes on registration.
 func (s *Store) CompleteChallenge(challengeID, challengeResponse, displayName string) (rawToken string, session *Session, account *Account, recoveryCodes []string, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	return s.CompleteChallengeContext(context.Background(), challengeID, challengeResponse, displayName)
+}
+
+func (s *Store) CompleteChallengeContext(ctx context.Context, challengeID, challengeResponse, displayName string) (rawToken string, session *Session, account *Account, recoveryCodes []string, err error) {
+	// Network/signature verification must not hold the store mutex.
+	s.mu.RLock()
 	ch, ok := s.challenges[challengeID]
-	if !ok || ch.Consumed || s.nowFunc().UTC().After(ch.ExpiresAt) {
+	if !ok || ch.Consumed || !s.nowFunc().UTC().Before(ch.ExpiresAt) || s.verifier == nil {
+		s.mu.RUnlock()
 		return "", nil, nil, nil, ErrInvalidChallenge
 	}
-	expected := "signed:" + ch.ChallengeText
-	if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(challengeResponse)), []byte(expected)) != 1 {
+	challenge := *ch
+	s.mu.RUnlock()
+	principal, verifyErr := s.verifier.Verify(ctx, challenge, challengeResponse)
+	if verifyErr != nil || principal.Issuer == "" || principal.Subject == "" || !strings.EqualFold(principal.Email, challenge.Email) {
+		return "", nil, nil, nil, ErrInvalidChallenge
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ch, ok = s.challenges[challengeID]
+	if !ok || ch.Consumed || !s.nowFunc().UTC().Before(ch.ExpiresAt) {
 		return "", nil, nil, nil, ErrInvalidChallenge
 	}
 	ch.Consumed = true
 
-	accID, exists := s.byEmail[ch.Email]
+	principalKey := fmt.Sprintf("%d:%s%s", len(principal.Issuer), principal.Issuer, principal.Subject)
+	accID, exists := s.byPrincipal[principalKey]
+	// Email collisions require a separate authenticated linking flow.
+	if !exists && s.byEmail[ch.Email] != "" {
+		return "", nil, nil, nil, ErrForbidden
+	}
 	if !exists {
 		accID = "acc-" + randomHex(8)
 		if strings.TrimSpace(displayName) == "" {
@@ -190,6 +215,7 @@ func (s *Store) CompleteChallenge(challengeID, challengeResponse, displayName st
 		}
 		s.accounts[accID] = acc
 		s.byEmail[ch.Email] = accID
+		s.byPrincipal[principalKey] = accID
 		s.prefs[accID] = &Preferences{
 			AccountID:             accID,
 			SafeSearch:            "moderate",
@@ -213,6 +239,9 @@ func (s *Store) CompleteChallenge(challengeID, challengeResponse, displayName st
 	}
 
 	acc := s.accounts[accID]
+	if acc.Status != "active" {
+		return "", nil, nil, nil, ErrUnauthorized
+	}
 	rawToken = "ops_" + randomHex(24)
 	sess := &Session{
 		ID:          "sess-" + randomHex(8),
@@ -237,7 +266,7 @@ func (s *Store) VerifySession(rawToken string) (*Session, *Account, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	sess, ok := s.sessions[h]
-	if !ok || sess.RevokedAt != nil || s.nowFunc().UTC().After(sess.ExpiresAt) {
+	if !ok || sess.RevokedAt != nil || !s.nowFunc().UTC().Before(sess.ExpiresAt) {
 		return nil, nil, ErrUnauthorized
 	}
 	acc, ok := s.accounts[sess.AccountID]
@@ -284,8 +313,12 @@ func (s *Store) EnrollMFA(accountID string) (secret string, otpauthURI string, e
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	acc, ok := s.accounts[accountID]
-	if !ok {
+	if !ok || acc.Status != "active" {
 		return "", "", ErrUnauthorized
+	}
+	// Replacing an existing factor needs a separate authenticated recovery flow.
+	if acc.MFAEnrolled {
+		return "", "", ErrMFARequired
 	}
 	raw := make([]byte, 20)
 	_, _ = rand.Read(raw)
@@ -323,11 +356,11 @@ func (s *Store) VerifyAndActivateMFA(rawToken, code string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sess, ok := s.sessions[h]
-	if !ok || sess.RevokedAt != nil || s.nowFunc().UTC().After(sess.ExpiresAt) {
+	if !ok || sess.RevokedAt != nil || !s.nowFunc().UTC().Before(sess.ExpiresAt) {
 		return ErrUnauthorized
 	}
 	acc, ok := s.accounts[sess.AccountID]
-	if !ok {
+	if !ok || acc.Status != "active" {
 		return ErrUnauthorized
 	}
 	secret := s.mfaSecrets[acc.ID]
@@ -341,16 +374,23 @@ func (s *Store) VerifyAndActivateMFA(rawToken, code string) error {
 	}
 	now := s.nowFunc().UTC()
 	valid := false
+	var matchedStep int64
 	for _, offset := range []time.Duration{-30 * time.Second, 0, 30 * time.Second} {
+		step := now.Add(offset).Unix() / 30
+		if last, used := s.mfaLastStep[acc.ID]; used && step <= last {
+			continue
+		}
 		expected, err := GenerateTOTP(secret, now.Add(offset))
 		if err == nil && subtle.ConstantTimeCompare([]byte(strings.TrimSpace(code)), []byte(expected)) == 1 {
 			valid = true
+			matchedStep = step
 			break
 		}
 	}
 	if !valid {
 		return ErrInvalidMFA
 	}
+	s.mfaLastStep[acc.ID] = matchedStep
 	if isPending {
 		s.mfaSecrets[acc.ID] = secret
 		delete(s.mfaPending, acc.ID)
@@ -564,4 +604,3 @@ func (s *Store) GetOrganizationSite(actorAccountID, orgID, siteID string) (*Site
 	cp := *site
 	return &cp, nil
 }
-
