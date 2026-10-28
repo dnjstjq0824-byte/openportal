@@ -50,6 +50,15 @@ type app struct {
 	defectReg     *launch.DefectRegister
 }
 
+type devFixtureVerifier struct{}
+
+func (devFixtureVerifier) Verify(_ context.Context, ch identity.Challenge, response string) (identity.Principal, error) {
+	if response != "signed:"+ch.ChallengeText {
+		return identity.Principal{}, identity.ErrInvalidChallenge
+	}
+	return identity.Principal{Issuer: "dev-fixture", Subject: ch.Email, Email: ch.Email}, nil
+}
+
 var validTraceID = regexp.MustCompile(`^[A-Za-z0-9._-]{8,64}$`)
 
 type contextKey string
@@ -1475,7 +1484,9 @@ func (a *app) productionRoutes() http.Handler {
 func main() {
 	cfg := config.Load()
 	var idStore *identity.Store
-	if cfg.OIDCIssuer != "" && cfg.OIDCClientID != "" {
+	if cfg.AuthDevMode {
+		idStore = identity.NewStoreWithVerifier(devFixtureVerifier{})
+	} else if cfg.OIDCIssuer != "" && cfg.OIDCClientID != "" {
 		verifier, err := identity.NewOIDCVerifier(context.Background(), cfg.OIDCIssuer, cfg.OIDCClientID)
 		if err != nil {
 			log.Printf("oidc verifier initialization failed: %v (auth endpoints fail-closed)", err)
