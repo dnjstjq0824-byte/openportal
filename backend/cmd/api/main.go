@@ -721,6 +721,15 @@ func extractBearerToken(r *http.Request) string {
 	return ""
 }
 
+// requestIsHTTPS reports whether the incoming request used HTTPS, including
+// proxies that set X-Forwarded-Proto.
+func requestIsHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
+}
+
 // clientIP returns the remote address without port, preferring a trusted
 // forwarded header only when present.
 func clientIP(r *http.Request) string {
@@ -1005,6 +1014,7 @@ func (a *app) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   12 * 3600,
 	})
@@ -1053,6 +1063,7 @@ func (a *app) handleAuthRevoke(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
 		MaxAge:   -1,
 	})
 	writeJSON(w, 200, map[string]string{"status": "revoked"})
