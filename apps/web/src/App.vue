@@ -803,6 +803,42 @@ async function runSearch(nextPage = 1, overrideQuery?: string, updateHistory = t
   }
 }
 
+async function loginAuth() {
+  if (!authEmail.value) return;
+  authStatus.value = '인증 챌린지 요청 중…';
+  try {
+    const chRes = await fetch('/api/v1/auth/challenge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge_type: 'passkey_register', email: authEmail.value }),
+    });
+    if (!chRes.ok) throw new Error(`챌린지 실패 (${chRes.status})`);
+    const ch = (await chRes.json()) as { challenge_id: string; challenge: string };
+    const vRes = await fetch('/api/v1/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        challenge_id: ch.challenge_id,
+        challenge_response: `signed:${ch.challenge}`,
+        display_name: authEmail.value.split('@')[0],
+      }),
+    });
+    if (!vRes.ok) throw new Error(`인증 실패 (${vRes.status})`);
+    const data = (await vRes.json()) as {
+      session_token: string;
+      account: { id: string; email: string; mfa_enrolled: boolean };
+    };
+    sessionToken.value = data.session_token;
+    accountId.value = data.account.id;
+    accountEmail.value = data.account.email;
+    mfaEnrolled.value = data.account.mfa_enrolled;
+    authStatus.value = '인증 성공';
+  } catch (e) {
+    authStatus.value = e instanceof Error ? e.message : '인증 실패';
+  }
+}
+
+
 async function revokeCurrentSession() {
   if (!sessionToken.value) return;
   try {
@@ -1193,11 +1229,24 @@ onMounted(async () => {
     >
       <div class="auth-modal-card">
         <div class="auth-modal-header">
-          <h2 class="auth-modal-title">계정 인증 준비 중</h2>
+          <h2 class="auth-modal-title">계정 인증</h2>
           <p class="auth-modal-subtitle" role="status">
-            로그인, 계정 생성, 비밀번호 복구는 현재 사용할 수 없습니다. 인증 서비스와 보안 검증이 완료되면 제공됩니다.
+            이메일로 인증 챌린지를 요청하고, 개발 모드에서는 자동 서명으로 세션을 발급합니다.
           </p>
         </div>
+         <div class="auth-form">
+           <input v-model="authEmail" type="email" placeholder="이메일" class="auth-input" />
+           <button type="button" class="auth-primary-btn" @click="loginAuth" :disabled="!authEmail">로그인 / 등록</button>
+           <button type="button" class="auth-secondary-btn" @click="revokeCurrentSession" :disabled="!sessionToken">로그아웃</button>
+         </div>
+         <div v-if="authStatus" class="auth-status">{{ authStatus }}</div>
+         <div v-if="sessionToken" class="auth-session-info">
+           <span>세션: {{ sessionToken.slice(0, 12) }}…</span>
+           <span v-if="accountId">계정: {{ accountEmail }}</span>
+           <button type="button" class="auth-secondary-btn" @click="enrollMFA" :disabled="mfaEnrolled">MFA 등록</button>
+         </div>
+
+
         <div class="auth-action-buttons">
           <button type="button" class="auth-secondary-btn" @click="closeAuthModal">닫기</button>
         </div>
