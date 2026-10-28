@@ -264,6 +264,27 @@ func (s *Store) VerifierConfigured() bool {
 	defer s.mu.RUnlock()
 	return s.verifier != nil
 }
+// PromoteAccountRole adds a role to an account. Used for controlled admin provisioning and tests.
+func (s *Store) PromoteAccountRole(accountID, role string) error {
+	if strings.TrimSpace(accountID) == "" || strings.TrimSpace(role) == "" {
+		return ErrInvalidInput
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	acc, ok := s.accounts[accountID]
+	if !ok || acc.Status != "active" {
+		return ErrNotFound
+	}
+	for _, r := range acc.Roles {
+		if r == role {
+			return nil
+		}
+	}
+	acc.Roles = append(acc.Roles, role)
+	return nil
+}
+
+
 func (s *Store) VerifySession(rawToken string) (*Session, *Account, error) {
 	if strings.TrimSpace(rawToken) == "" {
 		return nil, nil, ErrUnauthorized

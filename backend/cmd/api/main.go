@@ -1321,22 +1321,36 @@ func (a *app) handleModerationAppeal(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	if body.CaseID == "" || body.Reason == "" {
-		writeJSON(w, 400, map[string]string{"error": "case_id and reason are required"})
-		return
-	}
-	appellant := body.Appellant
-	if appellant == "" {
-		appellant = resolveClientIP(r)
-	}
-	appealRec, err := a.ensureModeration().SubmitAppeal(body.CaseID, appellant, body.Reason)
+	appeal, err := a.ensureModeration().SubmitAppeal(body.CaseID, body.Appellant, body.Reason)
 	if err != nil {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, 200, appealRec)
+	writeJSON(w, 200, appeal)
 }
 
+
+func (a *app) handleModerationReview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		CaseID  string `json:"case_id"`
+		Action  string `json:"action"`
+		Dismiss bool   `json:"dismiss"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	c, err := a.ensureModeration().ReviewCase(body.CaseID, body.Action, body.Dismiss)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, c)
+}
 // requireAuth wraps a handler with session authentication. Unauthenticated
 // requests receive 401. The authenticated account is stored in the request
 // context under the actorAccountIDKey for downstream BOLA checks.
@@ -1364,6 +1378,23 @@ func (a *app) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 // disabled until operator review (G021).
 func (a *app) moderationAuth(next http.HandlerFunc) http.HandlerFunc {
 	return a.requireAuth(next)
+}
+
+func (a *app) requireRole(role string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := r.Context().Value(actorAccountKey).(identity.Account)
+		if !ok {
+			writeJSON(w, 401, map[string]string{"error": "unauthenticated", "code": "AUTH_REQUIRED"})
+			return
+		}
+		for _, rr := range actor.Roles {
+			if rr == role {
+				next(w, r)
+				return
+			}
+		}
+		writeJSON(w, 403, map[string]string{"error": "forbidden: insufficient role", "code": "ROLE_REQUIRED"})
+	}
 }
 
 func (a *app) routes() http.Handler {
@@ -1399,6 +1430,7 @@ func (a *app) routes() http.Handler {
 	// Moderation write paths — require authentication (G021: no anonymous access).
 	mux.HandleFunc("/api/v1/control/moderation/report", a.cors(a.moderationAuth(a.handleModerationReport)))
 	mux.HandleFunc("/api/v1/control/moderation/appeal", a.cors(a.moderationAuth(a.handleModerationAppeal)))
+	mux.HandleFunc("/api/v1/control/moderation/review", a.cors(a.requireAuth(a.requireRole("admin", a.handleModerationReview))))
 	// Operational / admin / partner / vertical / ads / privacy / launch paths
 	// remain behind productionRoutes allowlist until respective phase gates pass.
 	mux.HandleFunc("/api/v1/vertical/gate-status", a.cors(a.handleVerticalGateStatus))
