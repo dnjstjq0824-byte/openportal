@@ -14,6 +14,37 @@ import (
 	"example.com/openportal-search/backend/internal/vertical"
 )
 
+// registerTestUser performs the OIDC challenge/verify flow and returns a session
+// token for the given email/display name. Used by tests that need an authenticated
+// session (e.g. moderation endpoints which now require auth per G021).
+func registerTestUser(t *testing.T, h http.Handler, email, name string) string {
+	t.Helper()
+	chBody := bytes.NewBufferString(`{"challenge_type":"passkey_register","email":"` + email + `"}`)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("POST", "/api/v1/auth/challenge", chBody))
+	if w.Code != 200 {
+		t.Fatalf("challenge failed: %d %s", w.Code, w.Body.String())
+	}
+	var ch identity.Challenge
+	if err := json.Unmarshal(w.Body.Bytes(), &ch); err != nil {
+		t.Fatalf("decode challenge: %v", err)
+	}
+
+	vBody := bytes.NewBufferString(`{"challenge_id":"` + ch.ID + `","challenge_response":"signed:` + ch.ChallengeText + `","display_name":"` + name + `"}`)
+	w2 := httptest.NewRecorder()
+	h.ServeHTTP(w2, httptest.NewRequest("POST", "/api/v1/auth/verify", vBody))
+	if w2.Code != 200 {
+		t.Fatalf("verify failed: %d %s", w2.Code, w2.Body.String())
+	}
+	var out struct {
+		SessionToken string `json:"session_token"`
+	}
+	if err := json.Unmarshal(w2.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode verify response: %v", err)
+	}
+	return out.SessionToken
+}
+
 func TestHTTPBoundary(t *testing.T) {
 	calls := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -329,11 +360,15 @@ func TestRankingAbuseAndModerationEndpoints(t *testing.T) {
 		}
 	}
 
-	// 3. Moderation Case Report (Task 044)
+	// 3. Moderation Case Report (Task 044) — requires authenticated session (G021)
 	var caseID string
+	var tokMod string
 	{
-		body := `{"document_id":"doc-malware-01","reporter":"victim@example.org","category":"malware","details":"다운로드 시 랜섬웨어 감염"}`
+		// Authenticate as moderator first; anonymous moderation access is disabled.
+		tokMod = registerTestUser(t, h, "moderator@example.org", "Moderator")
+		body := `{"document_id":"doc-malware-01","reporter":"moderator@example.org","category":"malware","details":"다운로드 시 랜섬웨어 감염"}`
 		req := httptest.NewRequest("POST", "/api/v1/control/moderation/report", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+tokMod)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		if w.Code != 200 {
@@ -350,10 +385,11 @@ func TestRankingAbuseAndModerationEndpoints(t *testing.T) {
 		caseID = cOut.ID
 	}
 
-	// 4. Moderation Case Appeal (Task 044)
+	// 4. Moderation Case Appeal (Task 044) — requires authenticated session (G021)
 	{
-		body := `{"case_id":"` + caseID + `","appellant":"owner@example.org","reason":"보안 분석용 샘플 코드로 확인되었습니다"}`
+		body := `{"case_id":"` + caseID + `","appellant":"moderator@example.org","reason":"보안 분석용 샘플 코드로 확인되었습니다"}`
 		req := httptest.NewRequest("POST", "/api/v1/control/moderation/appeal", bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+tokMod)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		if w.Code != 200 {

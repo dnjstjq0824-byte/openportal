@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -49,6 +50,13 @@ type app struct {
 }
 
 var validTraceID = regexp.MustCompile(`^[A-Za-z0-9._-]{8,64}$`)
+
+type contextKey string
+
+const (
+	actorAccountIDKey contextKey = "actor_account_id"
+	actorAccountKey   contextKey = "actor_account"
+)
 
 func newTraceID() string {
 	b := make([]byte, 12)
@@ -901,8 +909,8 @@ func (a *app) portalConfig(w http.ResponseWriter, r *http.Request) {
 		"features": map[string]bool{
 			"recent_searches_opt_in": true,
 			"query_correction":       true,
-			"passkey_oidc_auth":      false,
-			"totp_mfa":               false,
+			"passkey_oidc_auth":      a.ensureStore().VerifierConfigured(),
+			"totp_mfa":               a.ensureStore().VerifierConfigured(),
 		},
 		"consoles": map[string]string{
 			"admin":   "denied_by_default",
@@ -922,6 +930,10 @@ func decodeJSONBody(r *http.Request, dst any) error {
 func (a *app) handleAuthChallenge(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	if !a.ensureStore().VerifierConfigured() {
+		writeJSON(w, 503, map[string]string{"error": "authentication provider not configured", "code": "AUTH_NOT_CONFIGURED"})
 		return
 	}
 	var body struct {
@@ -944,6 +956,10 @@ func (a *app) handleAuthChallenge(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	if !a.ensureStore().VerifierConfigured() {
+		writeJSON(w, 503, map[string]string{"error": "authentication provider not configured", "code": "AUTH_NOT_CONFIGURED"})
 		return
 	}
 	var body struct {
@@ -1274,6 +1290,35 @@ func (a *app) handleModerationAppeal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, appealRec)
 }
 
+// requireAuth wraps a handler with session authentication. Unauthenticated
+// requests receive 401. The authenticated account is stored in the request
+// context under the actorAccountIDKey for downstream BOLA checks.
+func (a *app) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tok := extractBearerToken(r)
+		if tok == "" {
+			writeJSON(w, 401, map[string]string{"error": "unauthenticated", "code": "AUTH_REQUIRED"})
+			return
+		}
+		_, acc, err := a.ensureStore().VerifySession(tok)
+		if err != nil {
+			writeJSON(w, 401, map[string]string{"error": "unauthenticated", "code": "SESSION_INVALID"})
+			return
+		}
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, actorAccountIDKey, acc.ID)
+		ctx = context.WithValue(ctx, actorAccountKey, acc)
+		next(w, r.WithContext(ctx))
+	}
+}
+
+// moderationAuth wraps moderation mutation endpoints. It requires an
+// authenticated session. Anonymous reporting/appeal is intentionally
+// disabled until operator review (G021).
+func (a *app) moderationAuth(next http.HandlerFunc) http.HandlerFunc {
+	return a.requireAuth(next)
+}
+
 func (a *app) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
@@ -1288,20 +1333,27 @@ func (a *app) routes() http.Handler {
 		}
 		writeJSON(w, 200, map[string]string{"status": "ready"})
 	})
+	// Public read paths — no authentication required.
 	mux.HandleFunc("/api/v1/search", a.cors(a.search))
 	mux.HandleFunc("/api/v1/suggest", a.cors(a.suggest))
 	mux.HandleFunc("/api/v1/portal/config", a.cors(a.portalConfig))
-	mux.HandleFunc("/api/v1/control/moderation/report", a.cors(a.handleModerationReport))
-	mux.HandleFunc("/api/v1/control/moderation/appeal", a.cors(a.handleModerationAppeal))
+	// Authentication paths — challenge/verify are public entry points;
+	// session/revoke/MFA/recover require a valid session.
 	mux.HandleFunc("/api/v1/auth/challenge", a.cors(a.handleAuthChallenge))
 	mux.HandleFunc("/api/v1/auth/verify", a.cors(a.handleAuthVerify))
-	mux.HandleFunc("/api/v1/auth/session", a.cors(a.handleAuthSession))
-	mux.HandleFunc("/api/v1/auth/revoke", a.cors(a.handleAuthRevoke))
-	mux.HandleFunc("/api/v1/auth/mfa/enroll", a.cors(a.handleMFAEnroll))
-	mux.HandleFunc("/api/v1/auth/mfa/verify", a.cors(a.handleMFAVerify))
+	mux.HandleFunc("/api/v1/auth/session", a.cors(a.requireAuth(a.handleAuthSession)))
+	mux.HandleFunc("/api/v1/auth/revoke", a.cors(a.requireAuth(a.handleAuthRevoke)))
+	mux.HandleFunc("/api/v1/auth/mfa/enroll", a.cors(a.requireAuth(a.handleMFAEnroll)))
+	mux.HandleFunc("/api/v1/auth/mfa/verify", a.cors(a.requireAuth(a.handleMFAVerify)))
 	mux.HandleFunc("/api/v1/auth/recover", a.cors(a.handleAuthRecover))
-	mux.HandleFunc("/api/v1/accounts/", a.cors(a.handleAccountSubroutes))
-	mux.HandleFunc("/api/v1/organizations/", a.cors(a.handleOrgSubroutes))
+	// Account & organization subroutes — BOLA enforced inside handlers.
+	mux.HandleFunc("/api/v1/accounts/", a.cors(a.requireAuth(a.handleAccountSubroutes)))
+	mux.HandleFunc("/api/v1/organizations/", a.cors(a.requireAuth(a.handleOrgSubroutes)))
+	// Moderation write paths — require authentication (G021: no anonymous access).
+	mux.HandleFunc("/api/v1/control/moderation/report", a.cors(a.moderationAuth(a.handleModerationReport)))
+	mux.HandleFunc("/api/v1/control/moderation/appeal", a.cors(a.moderationAuth(a.handleModerationAppeal)))
+	// Operational / admin / partner / vertical / ads / privacy / launch paths
+	// remain behind productionRoutes allowlist until respective phase gates pass.
 	mux.HandleFunc("/api/v1/vertical/gate-status", a.cors(a.handleVerticalGateStatus))
 	mux.HandleFunc("/api/v1/vertical/poi/correct", a.cors(a.handlePOICorrection))
 	mux.HandleFunc("/api/v1/vertical/shopping/report", a.cors(a.handleShoppingDiscrepancyReport))
@@ -1323,25 +1375,42 @@ func (a *app) routes() http.Handler {
 	return a.withGatewayHeaders(mux)
 }
 
-// productionRoutes exposes only implemented public read paths. The in-memory
-// identity prototype does not verify WebAuthn signatures and must not be exposed.
+// productionRoutes exposes only implemented public read paths plus authenticated
+// session/account/moderation paths. All other endpoints return 404 until the
+// corresponding phase gate and independent review are completed.
 func (a *app) productionRoutes() http.Handler {
 	internal := a.routes()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config":
+		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config",
+			"/api/v1/auth/challenge", "/api/v1/auth/verify", "/api/v1/auth/session",
+			"/api/v1/auth/revoke", "/api/v1/auth/mfa/enroll", "/api/v1/auth/mfa/verify",
+			"/api/v1/auth/recover":
 			internal.ServeHTTP(w, r)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint unavailable", "code": "ENDPOINT_UNAVAILABLE"})
 		}
 	})
 }
+
 func main() {
 	cfg := config.Load()
+	var idStore *identity.Store
+	if cfg.OIDCIssuer != "" && cfg.OIDCClientID != "" {
+		verifier, err := identity.NewOIDCVerifier(context.Background(), cfg.OIDCIssuer, cfg.OIDCClientID)
+		if err != nil {
+			log.Printf("oidc verifier initialization failed: %v (auth endpoints fail-closed)", err)
+		} else {
+			idStore = identity.NewStoreWithVerifier(verifier)
+		}
+	}
+	if idStore == nil {
+		idStore = identity.NewStore()
+	}
 	a := &app{
-		c:          search.New(cfg.OpenSearchURL, cfg.OpenSearchIndex, cfg.OpenSearchUsername, cfg.OpenSearchPassword),
-		idStore:    identity.NewStore(),
-		corsOrigin: cfg.CORSOrigin,
+		c:           search.New(cfg.OpenSearchURL, cfg.OpenSearchIndex, cfg.OpenSearchUsername, cfg.OpenSearchPassword),
+		idStore:     idStore,
+		corsOrigin:  cfg.CORSOrigin,
 	}
 	srv := &http.Server{Addr: net.JoinHostPort(cfg.ListenHost, cfg.Port), Handler: a.productionRoutes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	log.Printf("openportal search api listening port=%s", cfg.Port)

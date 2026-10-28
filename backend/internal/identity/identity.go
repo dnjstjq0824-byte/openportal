@@ -257,7 +257,13 @@ func (s *Store) CompleteChallengeContext(ctx context.Context, challengeID, chall
 	return rawToken, sess, &accCopy, recoveryCodes, nil
 }
 
-// VerifySession validates a bearer/cookie token and returns the active session and account.
+// VerifierConfigured reports whether a trusted challenge verifier is installed.
+// Without one, authentication endpoints fail closed.
+func (s *Store) VerifierConfigured() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.verifier != nil
+}
 func (s *Store) VerifySession(rawToken string) (*Session, *Account, error) {
 	if strings.TrimSpace(rawToken) == "" {
 		return nil, nil, ErrUnauthorized
