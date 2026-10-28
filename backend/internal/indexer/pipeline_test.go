@@ -2,10 +2,58 @@ package indexer
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestPipelineRetryAfterIndexFailure(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+	svc := NewIndexingService(server.URL, "documents", server.Client())
+	html := []byte("<html><head><title>Retry</title></head><body><p>Index this document after a temporary service failure.</p></body></html>")
+	if _, _, err := svc.IngestCrawlResult(context.Background(), "retry", "https://example.org/retry", html, time.Now()); err == nil {
+		t.Fatal("expected initial index failure")
+	}
+	_, indexed, err := svc.IngestCrawlResult(context.Background(), "retry", "https://example.org/retry", html, time.Now())
+	if err != nil || !indexed || attempts != 2 {
+		t.Fatalf("retry: indexed=%v attempts=%d err=%v", indexed, attempts, err)
+	}
+}
+
+func TestPipelineVersionsAndSelfDeduplication(t *testing.T) {
+	svc := NewIndexingService("", "", nil)
+	for version := 1; version <= 3; version++ {
+		html := fmt.Appendf(nil, "<html><head><title>Revision %d</title></head><body><p>This document describes a stable search architecture and its indexing pipeline.</p></body></html>", version)
+		if _, indexed, err := svc.IngestCrawlResult(context.Background(), "same", "https://example.org/same", html, time.Now()); err != nil || !indexed {
+			t.Fatalf("revision %d: indexed=%v err=%v", version, indexed, err)
+		}
+		events, err := svc.Outbox().LeaseBatch(context.Background(), 1)
+		if err != nil || len(events) != 1 {
+			t.Fatalf("lease: events=%v err=%v", events, err)
+		}
+		if events[0].PayloadVersion != version {
+			t.Errorf("version=%d want=%d", events[0].PayloadVersion, version)
+		}
+		if events[0].Payload["is_representative"] != true {
+			t.Error("document incorrectly treated as its own duplicate")
+		}
+		if err := svc.Outbox().Ack(events[0].ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 
 func TestIndexingPipelineEndToEnd(t *testing.T) {
 	ctx := context.Background()
@@ -81,4 +129,3 @@ func TestIndexingPipelineEndToEnd(t *testing.T) {
 		t.Errorf("expected 1 tombstone applied, got %d", snapAfterTombstone.TombstonesApplied)
 	}
 }
-

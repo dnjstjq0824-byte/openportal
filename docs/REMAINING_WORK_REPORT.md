@@ -3,6 +3,16 @@
 생성일: 2026-10-28
 기준: `docs/PHASES_0_TO_9.md` 100개 작업, `docs/IMPLEMENTATION_STATUS.md`, `docs/GAP_REGISTER.md`
 
+## 2026-10-28 재검증: 색인 실패 복구
+
+- 소스 수정: 기존 미커밋 `pipeline.go`의 함수 중첩 문법 오류를 복구했다. 기존 랭킹 필드 변경은 보존했다. 문서 변경감지 상태는 OpenSearch 전송 성공 뒤 갱신하고, 버전 번호를 누적하며 자기 문서를 유사중복 비교에서 제외한다. 동시 ingest의 공유 상태 접근은 mutex로 직렬화한다.
+- 회귀 증거: `cd backend; go test ./internal/indexer -run 'TestPipeline' -count=1`은 수정 전 종료 코드 1로 재시도 누락, 자기중복, 세 번째 버전의 번호 오류를 재현했다. 수정 후 `cd backend; go test ./...` 종료 코드 0. HTTP 장애 검증은 로컬 httptest이며 실제 OpenSearch E2E가 아니다.
+- 정적 분석: `cd backend; go vet ./...` 진단 없음. `go test -race ./internal/indexer`는 CGO 필요 오류로 실행 차단. `gitleaks dir . --redact --no-banner --exit-code 1` 종료 코드 0, 검출 없음.
+- 잔여 결함: outbox는 메모리 기반이며 실패 이벤트의 자동 재처리 및 중복 이벤트 정리가 완결되지 않았다. 도메인권위 휴리스틱, 상수 term density, 수집 시각의 발행일 대입은 실제 품질 신호 검증을 대체하지 못한다. G019와 Task 034는 완료가 아니다.
+- 감사 범위: Git 추적 파일 298개를 집계했으나 전수 내용 감사는 미완료다. 이번 검토는 지침·주요 설계 문서·색인 파이프라인·변경감지·outbox·관련 테스트·CI 설정 중심이다.
+- SQL: 86테이블 기본 스키마 수정 및 이번 실행의 PostgreSQL 검증 없음. 100개 작업 계획과 Phase 체크박스 변경 없음. 전체 Phase와 상용 출시는 NO-GO 유지.
+- Git: 시작 SHA `a2468a714a0678d759e831365f3ae4ef0f82c368`, 브랜치 `main`. 기존 origin은 첨부 지시서의 대상 저장소와 다르다. 지정 대상 `https://github.com/dnjstjqppk-dev/searchengine.git`은 조회 시 ref를 반환하지 않았다. Push 완료 여부는 별도 원격 SHA 확인이 필요하다.
+
 ## 1. 요약
 
 - 전체 100개 작업 중 **검증완료(로컬 단위 범위)** 다수, **부분검증/차단** 항목 다수.

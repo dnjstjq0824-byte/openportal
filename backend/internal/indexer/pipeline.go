@@ -7,12 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
+	"sync"
 	"time"
 )
 
 // IndexingService integrates HTML boilerplate extraction, SimHash deduplication,
 // transactional outbox events, and OpenSearch ingestion with deletion tombstone propagation.
 type IndexingService struct {
+	mu          sync.Mutex
 	remover     *BoilerplateRemover
 	outbox      *OutboxQueue
 	tombstones  *TombstoneManager
@@ -49,6 +53,8 @@ func NewIndexingService(baseURL, indexName string, client *http.Client) *Indexin
 // IngestCrawlResult processes freshly fetched HTML: strips boilerplate, checks SimHash near-duplicate,
 // detects content modification, enqueues an outbox upsert event, and dispatches to OpenSearch.
 func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL string, rawHTML []byte, crawledAt time.Time) (*ExtractedDoc, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	extracted, err := s.remover.Extract(rawHTML, rawURL)
 	if err != nil {
 		return nil, false, fmt.Errorf("boilerplate extraction error: %w", err)
@@ -59,14 +65,13 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 
 	// 2. Check for near-duplicates among known documents
 	isNearDup := false
-	for knownHash := range s.knownHashes {
-		if IsNearDuplicate(extracted.SimHash, knownHash, 4) {
+	for knownHash, knownID := range s.knownHashes {
+		if knownID != docID && IsNearDuplicate(extracted.SimHash, knownHash, 4) {
 			isNearDup = true
 			s.metrics.RecordNearDuplicate()
 			break
 		}
 	}
-	s.knownHashes[extracted.SimHash] = docID
 
 	// 3. Detect change vs previous stored version
 	prev := s.docVersions[docID]
@@ -81,9 +86,10 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 	// 4. Update stored version
 	versionNum := 1
 	if prev != nil {
-		versionNum++
+		versionNum = prev.Version + 1
 	}
-	s.docVersions[docID] = &DocumentVersion{
+	nextVersion := &DocumentVersion{
+		Version:     versionNum,
 		DocumentID:  docID,
 		ContentHash: contentHash,
 		SimHash:     extracted.SimHash,
@@ -92,19 +98,22 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 
 	// 5. Enqueue outbox upsert event
 	docPayload := map[string]interface{}{
-		"document_id":       docID,
-		"url":               rawURL,
-		"title":             extracted.Title,
-		"description":       extracted.Description,
-		"body":              extracted.Body,
-		"headings":          extracted.Headings,
-		"anchor_texts":      extracted.AnchorTexts,
-		"language":          extracted.Language,
-		"simhash":           FormatSimHash(extracted.SimHash),
-		"indexable":         true,
-		"is_representative": !isNearDup,
-		"is_tombstone":      false,
-		"last_crawled_at":   crawledAt.Format(time.RFC3339),
+		"document_id":            docID,
+		"url":                    rawURL,
+		"title":                  extracted.Title,
+		"description":            extracted.Description,
+		"body":                   extracted.Body,
+		"headings":               extracted.Headings,
+		"anchor_texts":           extracted.AnchorTexts,
+		"language":               extracted.Language,
+		"simhash":                FormatSimHash(extracted.SimHash),
+		"indexable":              true,
+		"is_representative":      !isNearDup,
+		"is_tombstone":           false,
+		"last_crawled_at":        crawledAt.Format(time.RFC3339),
+		"domain_authority":       domainAuthorityScore(rawURL),
+		"published_at":           crawledAt.Format(time.RFC3339),
+		"term_frequency_density": 0.05,
 	}
 
 	ev, err := s.outbox.Enqueue(docID, OpUpsert, versionNum, docPayload)
@@ -122,6 +131,15 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 		s.metrics.RecordIndexed(crawledAt, crawledAt)
 	}
 
+	// Commit change-detection state only after the configured destination accepts
+	// the document, so a failed HTTP dispatch cannot suppress a subsequent retry.
+	s.docVersions[docID] = nextVersion
+	for hash, knownID := range s.knownHashes {
+		if knownID == docID {
+			delete(s.knownHashes, hash)
+		}
+	}
+	s.knownHashes[extracted.SimHash] = docID
 	return extracted, true, nil
 }
 
@@ -172,3 +190,28 @@ func (s *IndexingService) dispatchToOpenSearch(ctx context.Context, docID string
 	return nil
 }
 
+// domainAuthorityScore is a lightweight heuristic for ranking signals.
+// It prefers HTTPS and shorter, stable domains. Real authority should come from
+// a link-graph/quality pipeline in production.
+func domainAuthorityScore(rawURL string) float64 {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return 0.3
+	}
+	score := 0.4
+	if u.Scheme == "https" {
+		score += 0.2
+	}
+	host := strings.ToLower(u.Host)
+	host = strings.TrimPrefix(host, "www.")
+	if len(host) <= 20 {
+		score += 0.1
+	}
+	if strings.Contains(host, ".go.kr") || strings.Contains(host, ".ac.kr") || strings.Contains(host, ".or.kr") {
+		score += 0.1
+	}
+	if score > 1.0 {
+		score = 1.0
+	}
+	return score
+}

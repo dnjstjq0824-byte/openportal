@@ -7,6 +7,7 @@ import (
 
 // DocumentVersion represents a stored version of a document.
 type DocumentVersion struct {
+	Version     int
 	DocumentID  string
 	ContentHash string
 	SimHash     uint64
@@ -38,4 +39,3 @@ func DetectChange(prev *DocumentVersion, newBody string, newSimHash uint64) (Cha
 
 	return DecisionModified, newHash
 }
-
