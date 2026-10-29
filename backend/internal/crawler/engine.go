@@ -16,6 +16,7 @@ var (
 
 // CrawlRecord represents the full processed audit record of a crawled URL.
 type CrawlRecord struct {
+	HTMLBody         []byte             `json:"-"` // Returned only for indexable HTML; never retained in audit records.
 	URL              string             `json:"url"`
 	CanonicalURL     string             `json:"canonical_url"`
 	URLHash          string             `json:"url_hash"`
@@ -84,6 +85,10 @@ func NewBoundedCrawler(frontier *Frontier, fetcher *SafeFetcher, politeness *Pol
 
 // CrawlURL executes the compliance-checked, bounded crawl pipeline for a single target URL.
 func (c *BoundedCrawler) CrawlURL(ctx context.Context, rawURL string) (*CrawlRecord, error) {
+	opts := DefaultFetchOptions()
+	// Redirect targets require their own authorization and robots checks.
+	// Until that traversal is implemented, do not request them automatically.
+	opts.RejectRedirects = true
 	cu, err := Canonicalize(rawURL)
 	if err != nil {
 		return nil, err
@@ -101,7 +106,7 @@ func (c *BoundedCrawler) CrawlURL(ctx context.Context, rawURL string) (*CrawlRec
 		robotsURL, rErr := RobotsURL(cu.Canonical)
 		if rErr == nil {
 			// Fetch robots.txt with safe fetcher
-			rRes, fErr := c.fetcher.Fetch(ctx, robotsURL, DefaultFetchOptions())
+			rRes, fErr := c.fetcher.Fetch(ctx, robotsURL, opts)
 			if fErr == nil {
 				robotsPolicy = ParseRobotsTXT(string(rRes.DecompressedBody), rRes.StatusCode)
 			} else {
@@ -112,7 +117,11 @@ func (c *BoundedCrawler) CrawlURL(ctx context.Context, rawURL string) (*CrawlRec
 		}
 	}
 
-	if robotsPolicy != nil && !robotsPolicy.IsAllowed(cu.Path, c.userAgents) {
+	robotsPath := cu.Path
+	if cu.Query != "" {
+		robotsPath += "?" + cu.Query
+	}
+	if robotsPolicy == nil || !robotsPolicy.IsAllowed(robotsPath, c.userAgents) {
 		c.mu.Lock()
 		c.report.RobotsBlockedCount++
 		c.mu.Unlock()
@@ -139,7 +148,7 @@ func (c *BoundedCrawler) CrawlURL(ctx context.Context, rawURL string) (*CrawlRec
 	}
 
 	// 4. Task 025 & Task 027 Safe Fetch
-	fetchRes, fetchErr := c.fetcher.Fetch(ctx, cu.Canonical, DefaultFetchOptions())
+	fetchRes, fetchErr := c.fetcher.Fetch(ctx, cu.Canonical, opts)
 	statusCode := 0
 	if fetchRes != nil {
 		statusCode = fetchRes.StatusCode
@@ -177,8 +186,10 @@ func (c *BoundedCrawler) CrawlURL(ctx context.Context, rawURL string) (*CrawlRec
 	directives, discoveredLinks, _ := ParseHTMLDirectives(fetchRes.DecompressedBody, cu.Canonical, headerDirectives)
 
 	isIndexable := true
-	if directives.NoIndex || fetchRes.StatusCode != 200 {
+	if directives.NoIndex || fetchRes.StatusCode != 200 || (fetchRes.ContentType != "text/html" && fetchRes.ContentType != "application/xhtml+xml") {
 		isIndexable = false
+	}
+	if directives.NoIndex {
 		c.mu.Lock()
 		c.report.NoIndexCount++
 		c.mu.Unlock()
@@ -216,6 +227,12 @@ func (c *BoundedCrawler) CrawlURL(ctx context.Context, rawURL string) (*CrawlRec
 	c.records[cu.URLHash] = record
 	c.mu.Unlock()
 
+	if isIndexable {
+		// Return the fetched bytes without retaining page content in the audit map.
+		result := *record
+		result.HTMLBody = fetchRes.DecompressedBody
+		return &result, nil
+	}
 	return record, nil
 }
 

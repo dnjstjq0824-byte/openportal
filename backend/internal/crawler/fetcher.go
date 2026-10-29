@@ -33,6 +33,7 @@ var allowedContentTypes = map[string]bool{
 
 // FetchOptions controls limits and headers for a web fetch request.
 type FetchOptions struct {
+	RejectRedirects      bool          // Bounded callers must recheck policy before following a new URL.
 	MaxBodyBytes         int64         // e.g. 2 MiB (2,097,152 bytes)
 	MaxDecompressedBytes int64         // e.g. 5 MiB (5,242,880 bytes)
 	Timeout              time.Duration // e.g. 10s
@@ -110,7 +111,11 @@ func (f *SafeFetcher) Fetch(ctx context.Context, targetURL string, opts FetchOpt
 	}
 
 	start := time.Now()
-	resp, err := f.client.Do(req)
+	client := *f.client
+	if opts.RejectRedirects {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch request failed: %w", err)
 	}
