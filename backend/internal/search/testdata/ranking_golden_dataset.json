@@ -5,7 +5,8 @@
     "expected_top_url": "https://example.org/intro",
     "relevance_rankings": [
       {"url": "https://example.org/intro", "min_score": 1.0, "expected_rank": 1},
-      {"url": "https://example.org/search", "min_score": 0.5, "expected_rank": 2}
+      {"url": "https://example.org/search", "min_score": 0.5, "expected_rank": 2},
+      {"url": "http://spam.example.org/junk", "min_score": 0.1, "expected_rank": 3}
     ]
   },
   {
@@ -13,7 +14,8 @@
     "language": "en",
     "expected_top_url": "https://example.org/docs",
     "relevance_rankings": [
-      {"url": "https://example.org/docs", "min_score": 1.0, "expected_rank": 1}
+      {"url": "https://example.org/docs", "min_score": 1.0, "expected_rank": 1},
+      {"url": "https://example.org/quickstart", "min_score": 0.6, "expected_rank": 2}
     ]
   },
   {
@@ -21,8 +23,44 @@
     "language": "ko",
     "expected_top_url": "https://example.org/search",
     "relevance_rankings": [
-      {"url": "https://example.org/search", "min_score": 1.0, "expected_rank": 1}
+      {"url": "https://example.org/search", "min_score": 1.0, "expected_rank": 1},
+      {"url": "https://example.org/pipeline", "min_score": 0.5, "expected_rank": 2}
+    ]
+  },
+  {
+    "query": "분산 크롤러 아키텍처",
+    "language": "ko",
+    "expected_top_url": "https://example.org/crawler",
+    "relevance_rankings": [
+      {"url": "https://example.org/crawler", "min_score": 1.0, "expected_rank": 1},
+      {"url": "https://example.org/robots-policy", "min_score": 0.5, "expected_rank": 2}
+    ]
+  },
+  {
+    "query": "SafeSearch 유해 콘텐츠 필터링",
+    "language": "ko",
+    "expected_top_url": "https://example.org/safety",
+    "relevance_rankings": [
+      {"url": "https://example.org/safety", "min_score": 1.0, "expected_rank": 1},
+      {"url": "https://example.org/policy", "min_score": 0.4, "expected_rank": 2}
+    ]
+  },
+  {
+    "query": "OpenSearch 한국어 Nori 형태소 분석",
+    "language": "ko",
+    "expected_top_url": "https://example.org/nori",
+    "relevance_rankings": [
+      {"url": "https://example.org/nori", "min_score": 1.0, "expected_rank": 1},
+      {"url": "https://example.org/analyzer", "min_score": 0.7, "expected_rank": 2}
+    ]
+  },
+  {
+    "query": "개인정보 보호 DSAR 및 삭제 권리",
+    "language": "ko",
+    "expected_top_url": "https://example.org/privacy",
+    "relevance_rankings": [
+      {"url": "https://example.org/privacy", "min_score": 1.0, "expected_rank": 1},
+      {"url": "https://example.org/terms", "min_score": 0.3, "expected_rank": 2}
     ]
   }
 ]
-

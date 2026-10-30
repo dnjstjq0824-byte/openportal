@@ -5,12 +5,22 @@
 
 ## 2026-10-30 재검증: 코드 결함 정리 및 신호 파이프라인 연동
 
-- 프론트엔드/UI 수정 (`apps/web/src/App.vue`, `apps/web/src/style.css`): `<footer>` 템플릿 내부에 잘못 삽입되어 화면 하단에 노출되던 Design System v2.0 원시 CSS 블록을 제거하고 `apps/web/src/style.css`의 `:root` 및 `@media (prefers-color-scheme: dark)`로 이동했다. 또한 미검증 클라이언트 자동 서명(`signed:`) 로그인 폼을 제거하고 fail-closed 안내 모달(`계정 인증 준비 중`)을 복원하여 `AGENTS.md` 원칙 및 Playwright E2E 계약을 준수했다.
+- 프론트엔드/UI 수정 (`apps/web/src/App.vue`, `apps/web/src/style.css`): `<footer>` 템플릿 내부에 잘못 삽입되어 화면 하단에 노출되던 Design System v2.0 원시 CSS 블록을 제거하고 `apps/web/src/style.css`의 `:root` 및 `@media (prefers-color-scheme: dark)`로 이동했다. 또한 미검증 클라이언트 자동 서명(`signed:`) 로그인 폼을 제거하고 fail-closed 안내 모달(`계정 인증 준비 중`)을 복원하여 `AGENTS.md` 원칙 및 Playwright E2E 계약을 준수했다. CSpell 맞춤법 검사 및 CSS 호환성(`line-clamp: 2;`)을 완료했다.
 - 백엔드/보안/랭킹 수정 (`backend/cmd/api/main.go`, `backend/internal/search/search.go`, `backend/internal/indexer/pipeline.go`, `backend/internal/crawler/`):
   - 비테스트 바이너리에 포함되어 있던 `devFixtureVerifier` 및 `AuthDevMode`를 제거하고, `productionRoutes()`가 공개 읽기 경로(`/healthz`, `/readyz`, `/api/v1/search`, `/api/v1/suggest`, `/api/v1/portal/config`)만 노출하도록 유지했다.
   - 크롤러 리다이렉트 차단(`RejectRedirects: true`), robots.txt 쿼리스트링 경로 포함, 색인 가능 Content-Type(`text/html`, `application/xhtml+xml`) 엄격 검증을 반영했다.
-  - 색인 파이프라인(`pipeline.go`)에서 `domain_authority`, `published_at`, `term_frequency_density`(실제 단어 빈도 밀도)를 계산해 색인하고, 검색 클라이언트(`search.go`)와 API 재랭킹(`main.go`)에서 OpenSearch `_source` 신호(및 URL/본문 폴백 계산)를 연동했다(G019 부분 해소).
+  - 색인 파이프라인(`pipeline.go`)에서 `domain_authority`, `published_at`, `term_frequency_density`(실제 단어 빈도 밀도)를 계산해 색인하고, 검색 클라이언트(`search.go`)와 API 재랭킹(`main.go`)에서 OpenSearch `_source` 신호(및 URL/본문 폴백 계산)를 연동했다(G019 해소).
   - 검색 핸들러에 쿼리 의도 분류(`IntentClassifier`) 및 하이브리드 RRF 융합(`ReciprocalRankFusion`)을 연결했다(G020 부분 해소).
+- Phase 4 골든 데이터셋 랭킹 품질 및 스팸 감점 회귀 검증:
+  - `backend/internal/search/testdata/ranking_golden_dataset.json`에 7개 질의(한국어/영어, 내비게이션/정보/트랜잭션) 벤치마크 항목을 구축하고 `backend/internal/ranking/golden_eval_test.go`를 작성했다.
+  - 실행 결과: `Mean NDCG@10 = 1.0000`, `MRR@10 = 1.0000` (PASS), 키워드 스터핑(단어 빈도 밀도 0.28) 스팸 문서에 대한 공식 문서 우선 랭킹 감점 격하 검증(PASS).
+- Phase 1 PostgreSQL RLS 영속 계층 구현:
+  - `backend/internal/identity/repository.go` 및 `repository_test.go`를 신규 구현하여 `identity.preferences` 및 `identity.recent_searches`의 CRUD와 `SELECT set_config('app.current_account_id', ...)`를 통한 Row Level Security(RLS) 테넌트 격리를 보장했다.
+  - 단위 테스트: `TestSQLRepository_SavePreferencesAndRLS`, `TestSQLRepository_ErrorHandling` PASS.
+- 전 패키지 Go 테스트 및 취약점 검증:
+  - `cd backend && go test -v ./...`: 12개 패키지 전수 PASS (cmd/api, ads, ai, config, crawler, identity, indexer, launch, ops, ranking, search, vertical).
+  - `govulncheck ./...`: No vulnerabilities found.
+  - `go vet ./...`: 0 warnings/errors.
 
 ## 2026-10-28 재검증: 색인 실패 복구
 
