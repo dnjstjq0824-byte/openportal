@@ -727,8 +727,8 @@ function submitAdvancedSearch() {
     parts.push(advAnyWords.value.trim());
   }
   if (advNoneWords.value.trim()) {
-    const negs = advNoneWords.value.trim().split(/\s+/).map(w => `-${w}`);
-    parts.push(negs.join(' '));
+    const negatedTerms = advNoneWords.value.trim().split(/\s+/).map(w => `-${w}`);
+    parts.push(negatedTerms.join(' '));
   }
   if (advSite.value.trim()) {
     parts.push(`site:${advSite.value.trim()}`);
