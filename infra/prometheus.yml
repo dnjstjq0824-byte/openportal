@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'openportal-api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api-gateway-1:8080', 'api-gateway-2:8080']
+
+  - job_name: 'opensearch'
+    metrics_path: '/_nodes/stats'
+    static_configs:
+      - targets: ['opensearch-node1:9200', 'opensearch-node2:9200']
+

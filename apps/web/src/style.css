@@ -3340,4 +3340,192 @@ main {
   background: rgba(0, 0, 0, 0.05);
 }
 
+/* Phase 6: Grounded AI Overview Card */
+.ai-overview-card {
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  border-radius: 16px;
+  border: 1px solid rgba(11, 87, 208, 0.25);
+  background: linear-gradient(135deg, rgba(11, 87, 208, 0.04) 0%, rgba(124, 58, 237, 0.04) 100%);
+  box-shadow: 0 4px 16px rgba(11, 87, 208, 0.06);
+}
+
+.ai-overview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ai-overview-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-sparkle-icon {
+  font-size: 18px;
+}
+
+.ai-overview-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ai-faith-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(11, 87, 208, 0.12);
+  color: var(--accent);
+}
+
+.ai-feedback-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-feedback-btn {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ai-feedback-btn:hover,
+.ai-feedback-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(11, 87, 208, 0.08);
+  font-weight: 600;
+}
+
+.ai-overview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-summary-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.ai-disclaimer-box {
+  font-size: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: var(--text);
+}
+
+.ai-citations-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ai-citation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  font-size: 12px;
+  color: var(--text);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.ai-citation-chip:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.citation-idx {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.citation-title {
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Phase 7: Sponsored Ads Slot */
+.sponsored-ads-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.sponsored-ad-card {
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ad-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.ad-tag {
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.ad-display-url {
+  color: var(--muted);
+}
+
+.ad-headline {
+  display: inline-block;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--link);
+  text-decoration: none;
+  margin-bottom: 6px;
+}
+
+.ad-headline:hover {
+  text-decoration: underline;
+}
+
+.ad-description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+
 

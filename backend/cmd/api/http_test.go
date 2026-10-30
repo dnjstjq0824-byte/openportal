@@ -859,3 +859,85 @@ func TestPhase9LaunchEndpoints(t *testing.T) {
 		}
 	}
 }
+
+func TestVerticalFederatedSearchAndAdsClickEndpoints(t *testing.T) {
+	a := &app{}
+	prodHandler := a.productionRoutes()
+
+	// 1. Image vertical search via productionRoutes
+	{
+		req := httptest.NewRequest("GET", "/api/v1/vertical/search?vertical=image&q=검색엔진", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("expected 200 for vertical image search, got %d %s", w.Code, w.Body.String())
+		}
+		var resp vertical.VerticalResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to decode vertical image response: %v", err)
+		}
+		if resp.TotalHits == 0 || resp.Attribution == "" {
+			t.Fatalf("expected image hits and legal attribution, got %+v", resp)
+		}
+	}
+
+	// 2. Video vertical search
+	{
+		req := httptest.NewRequest("GET", "/api/v1/vertical/search?vertical=video&q=트래픽", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("expected 200 for vertical video search, got %d", w.Code)
+		}
+	}
+
+	// 3. News vertical search
+	{
+		req := httptest.NewRequest("GET", "/api/v1/vertical/search?vertical=news&q=Phase", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("expected 200 for vertical news search, got %d", w.Code)
+		}
+	}
+
+	// 4. Map vertical search
+	{
+		req := httptest.NewRequest("GET", "/api/v1/vertical/search?vertical=map&q=시청", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("expected 200 for vertical map search, got %d", w.Code)
+		}
+	}
+
+	// 5. Shopping vertical search
+	{
+		req := httptest.NewRequest("GET", "/api/v1/vertical/search?vertical=shopping&q=노트북", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("expected 200 for vertical shopping search, got %d", w.Code)
+		}
+	}
+
+	// 6. Ads click tracking and ledger charge via productionRoutes
+	{
+		body := `{"ad_id":"ad-cloud-001","cpc_krw":550}`
+		req := httptest.NewRequest("POST", "/api/v1/ads/click", bytes.NewBufferString(body))
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0")
+		req.Header.Set("X-Forwarded-For", "203.0.113.195")
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("expected 200 for ads click, got %d %s", w.Code, w.Body.String())
+		}
+		var clickOut struct {
+			IsValid        bool    `json:"is_valid"`
+			BillableAmount float64 `json:"billable_amount"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &clickOut); err != nil || !clickOut.IsValid {
+			t.Fatalf("expected valid click validation, got %+v", clickOut)
+		}
+	}
+}

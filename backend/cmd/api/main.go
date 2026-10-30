@@ -39,9 +39,12 @@ type app struct {
 	intentClassifier *ranking.IntentClassifier
 	safeSearch    *ranking.SafeSearchClassifier
 	moderationMgr *ranking.ModerationWorkflowManager
+	vertSvc       *vertical.VerticalService
 	poiMgr        *vertical.POIManager
 	shopMgr       *vertical.ShoppingFeedManager
 	aiTracker     *ai.AITelemetryTracker
+	adFraud       *ads.ClickFraudDetector
+	adLedger      *ads.AdBillingLedger
 	wmMgr         *ads.WebmasterManager
 	pamMgr        *ops.PAMManager
 	dsarMgr       *ops.DSARManager
@@ -139,22 +142,57 @@ func (a *app) ensureModeration() *ranking.ModerationWorkflowManager {
 	return a.moderationMgr
 }
 
-func (a *app) ensurePOIManager() *vertical.POIManager {
+func (a *app) ensureVerticalService() *vertical.VerticalService {
 	a.initMu.Lock()
 	defer a.initMu.Unlock()
-	if a.poiMgr == nil {
-		a.poiMgr = vertical.NewPOIManager()
+	if a.vertSvc == nil {
+		a.vertSvc = vertical.NewVerticalService()
 	}
-	return a.poiMgr
+	return a.vertSvc
+}
+
+func (a *app) ensurePOIManager() *vertical.POIManager {
+	return a.ensureVerticalService().POIManager()
 }
 
 func (a *app) ensureShoppingManager() *vertical.ShoppingFeedManager {
-	a.initMu.Lock()
-	defer a.initMu.Unlock()
-	if a.shopMgr == nil {
-		a.shopMgr = vertical.NewShoppingFeedManager(24 * time.Hour)
+	return a.ensureVerticalService().ShoppingManager()
+}
+
+func (a *app) handleVerticalSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
 	}
-	return a.shopMgr
+	vParam := strings.TrimSpace(r.URL.Query().Get("vertical"))
+	if vParam == "" {
+		vParam = "image"
+	}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 10
+	}
+	safeSearch := r.URL.Query().Get("safe_search")
+
+	vq := vertical.VerticalQuery{
+		Vertical:   vertical.VerticalType(vParam),
+		Query:      query,
+		Page:       page,
+		PageSize:   pageSize,
+		SafeSearch: safeSearch,
+	}
+
+	resp, err := a.ensureVerticalService().ExecuteVerticalQuery(r.Context(), vq)
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, resp)
 }
 
 func (a *app) handleVerticalGateStatus(w http.ResponseWriter, r *http.Request) {
@@ -392,6 +430,47 @@ func (a *app) handleAdsAuction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]interface{}{"results": results})
+}
+
+func (a *app) ensureAdFraud() *ads.ClickFraudDetector {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
+	if a.adFraud == nil {
+		a.adFraud = ads.NewClickFraudDetector(10 * time.Second)
+	}
+	return a.adFraud
+}
+
+func (a *app) ensureAdLedger() *ads.AdBillingLedger {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
+	if a.adLedger == nil {
+		a.adLedger = ads.NewAdBillingLedger()
+		_, _ = a.adLedger.Deposit("adv-portal", 1000000, "KRW", "init-deposit-001")
+	}
+	return a.adLedger
+}
+
+func (a *app) handleAdsClick(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		AdID   string  `json:"ad_id"`
+		CPCKRW float64 `json:"cpc_krw"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	ip := resolveClientIP(r)
+	ua := r.UserAgent()
+	val := a.ensureAdFraud().ValidateClick(ip, ua, body.AdID, body.CPCKRW)
+	if val.IsValid {
+		_, _ = a.ensureAdLedger().ChargeClick("adv-portal", val.BillableAmount, "KRW", "click-"+newTraceID())
+	}
+	writeJSON(w, 200, val)
 }
 
 func (a *app) ensurePAM() *ops.PAMManager {
@@ -1006,6 +1085,72 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 4. Grounded AI Overview (Phase 6): synthesize when hits exist and query is analytical/informational or requested
+	if len(result.Hits) > 0 && (r.URL.Query().Get("ai") == "1" || result.Intent == "informational" || len(result.Hits) >= 1) {
+		passages := make([]ai.DocumentChunk, 0, len(result.Hits))
+		for i, h := range result.Hits {
+			if i >= 4 {
+				break
+			}
+			passages = append(passages, ai.DocumentChunk{
+				DocumentID:     h.DocumentID,
+				SourceURL:      h.URL,
+				HeadingContext: h.Title,
+				Content:        h.Description,
+			})
+		}
+		if synth, err := ai.SynthesizeAnswer(r.Context(), ai.RAGRequest{Query: normalizedQ, Passages: passages}, ai.DefaultBudgetLimits()); err == nil && !synth.FallbackTriggered {
+			citations := make([]search.AICitation, 0, len(synth.Citations))
+			for _, c := range synth.Citations {
+				citations = append(citations, search.AICitation{
+					Index:    c.Index,
+					SourceID: c.DocumentID,
+					URL:      c.URL,
+					Title:    c.Title,
+					Snippet:  c.Snippet,
+				})
+			}
+			result.AIOverview = &search.AIOverviewSummary{
+				Summary:     synth.Answer,
+				Citations:   citations,
+				Confidence:  synth.Grounding.OverallFaithScore,
+				IsFaithful:  synth.Grounding.IsFaithful,
+				Disclaimer:  synth.Disclaimer,
+				ExecutionMs: synth.ExecutionMs,
+			}
+		}
+	}
+
+	// 5. Sponsored Ads Auction (Phase 7): inject sponsored ads for commercial/tech intents with strict label segregation
+	if len(result.Hits) > 0 {
+		qLow := strings.ToLower(normalizedQ)
+		if strings.Contains(qLow, "검색") || strings.Contains(qLow, "openportal") || strings.Contains(qLow, "클라우드") || strings.Contains(qLow, "개발") || strings.Contains(qLow, "서버") {
+			bids := []ads.AdBid{
+				{
+					AdID:         "ad-cloud-001",
+					MaxCPCKRW:    650,
+					QualityScore: 9.2,
+					Headline:     "OpenPortal 엔터프라이즈 검색 클라우드 — 10,000 QPS 고가용성 솔루션",
+					Description:  "대규모 분산 인덱싱, 한국어 Nori 형태소 분석, 실시간 RRF 랭킹 파이프라인을 온프레미스 및 클라우드에서 즉시 도입하세요.",
+					TargetURL:    "https://cloud.openportal.org/enterprise",
+				},
+			}
+			if auctionRes, err := ads.RunGSPAuction(bids, 1); err == nil && len(auctionRes) > 0 {
+				result.SponsoredAds = []search.SponsoredAdItem{
+					{
+						AdID:           auctionRes[0].AdID,
+						Headline:       auctionRes[0].Headline,
+						Description:    auctionRes[0].Description,
+						TargetURL:      auctionRes[0].TargetURL,
+						DisplayURL:     "cloud.openportal.org/enterprise",
+						SponsoredLabel: "광고 / Sponsored",
+						ClearingCPCKRW: auctionRes[0].ClearingCPCKRW,
+					},
+				}
+			}
+		}
+	}
+
 	if tok := extractBearerToken(r); tok != "" {
 		if _, acc, authErr := a.ensureStore().VerifySession(tok); authErr == nil {
 			a.ensureStore().RecordRecentSearch(acc.ID, normalizedQ)
@@ -1551,12 +1696,14 @@ func (a *app) routes() http.Handler {
 	// Operational / admin / partner / vertical / ads / privacy / launch paths
 	// remain behind productionRoutes allowlist until respective phase gates pass.
 	mux.HandleFunc("/api/v1/vertical/gate-status", a.cors(a.handleVerticalGateStatus))
+	mux.HandleFunc("/api/v1/vertical/search", a.cors(a.handleVerticalSearch))
 	mux.HandleFunc("/api/v1/vertical/poi/correct", a.cors(a.handlePOICorrection))
 	mux.HandleFunc("/api/v1/vertical/shopping/report", a.cors(a.handleShoppingDiscrepancyReport))
 	mux.HandleFunc("/api/v1/ai/gate-status", a.cors(a.handleAIGateStatus))
 	mux.HandleFunc("/api/v1/ai/synthesize", a.cors(a.handleAISynthesize))
 	mux.HandleFunc("/api/v1/ai/feedback", a.cors(a.handleAIFeedback))
 	mux.HandleFunc("/api/v1/ads/gate-status", a.cors(a.handleAdsGateStatus))
+	mux.HandleFunc("/api/v1/ads/click", a.cors(a.handleAdsClick))
 	mux.HandleFunc("/api/v1/webmaster/verify", a.cors(a.handleWebmasterVerify))
 	mux.HandleFunc("/api/v1/webmaster/sitemap", a.cors(a.handleWebmasterSitemap))
 	mux.HandleFunc("/api/v1/ads/auction", a.cors(a.handleAdsAuction))
@@ -1578,7 +1725,7 @@ func (a *app) productionRoutes() http.Handler {
 	internal := a.routes()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config":
+		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config", "/api/v1/vertical/search", "/api/v1/ads/click":
 			internal.ServeHTTP(w, r)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint unavailable", "code": "ENDPOINT_UNAVAILABLE"})

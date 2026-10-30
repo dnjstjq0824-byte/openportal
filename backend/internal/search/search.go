@@ -29,17 +29,46 @@ type Hit struct {
 	DomainAuthority      float64 `json:"-"`
 	TermFrequencyDensity float64 `json:"-"`
 }
+type AIOverviewSummary struct {
+	Summary     string       `json:"summary"`
+	Citations   []AICitation `json:"citations"`
+	Confidence  float64      `json:"confidence"`
+	IsFaithful  bool         `json:"is_faithful"`
+	Disclaimer  string       `json:"disclaimer,omitempty"`
+	ExecutionMs int64        `json:"execution_ms"`
+}
+
+type AICitation struct {
+	Index    int    `json:"index"`
+	SourceID string `json:"source_id"`
+	URL      string `json:"url"`
+	Title    string `json:"title"`
+	Snippet  string `json:"snippet"`
+}
+
+type SponsoredAdItem struct {
+	AdID           string  `json:"ad_id"`
+	Headline       string  `json:"headline"`
+	Description    string  `json:"description"`
+	TargetURL      string  `json:"target_url"`
+	DisplayURL     string  `json:"display_url"`
+	SponsoredLabel string  `json:"sponsored_label"`
+	ClearingCPCKRW float64 `json:"clearing_cpc_krw,omitempty"`
+}
+
 type Response struct {
-	Query          string `json:"query"`
-	Total          int64  `json:"total"`
-	Hits           []Hit  `json:"hits"`
-	ElapsedMS      int64  `json:"elapsed_ms"`
-	RequestID      string `json:"request_id,omitempty"`
-	CorrectedQuery string `json:"corrected_query,omitempty"`
-	SafeSearch     string `json:"safe_search,omitempty"`
-	Vertical       string `json:"vertical,omitempty"`
-	Intent         string `json:"intent,omitempty"`
-	NextPageToken  string `json:"next_page_token,omitempty"`
+	Query          string             `json:"query"`
+	Total          int64              `json:"total"`
+	Hits           []Hit              `json:"hits"`
+	ElapsedMS      int64              `json:"elapsed_ms"`
+	RequestID      string             `json:"request_id,omitempty"`
+	CorrectedQuery string             `json:"corrected_query,omitempty"`
+	SafeSearch     string             `json:"safe_search,omitempty"`
+	Vertical       string             `json:"vertical,omitempty"`
+	Intent         string             `json:"intent,omitempty"`
+	NextPageToken  string             `json:"next_page_token,omitempty"`
+	AIOverview     *AIOverviewSummary `json:"ai_overview,omitempty"`
+	SponsoredAds   []SponsoredAdItem  `json:"sponsored_ads,omitempty"`
 }
 type osResponse struct {
 	TimedOut bool `json:"timed_out"`
