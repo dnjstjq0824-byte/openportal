@@ -113,7 +113,7 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 		"last_crawled_at":        crawledAt.Format(time.RFC3339),
 		"domain_authority":       domainAuthorityScore(rawURL),
 		"published_at":           crawledAt.Format(time.RFC3339),
-		"term_frequency_density": 0.05,
+		"term_frequency_density": computeTermFrequencyDensity(extracted.Body),
 	}
 
 	ev, err := s.outbox.Enqueue(docID, OpUpsert, versionNum, docPayload)
@@ -214,4 +214,27 @@ func domainAuthorityScore(rawURL string) float64 {
 		score = 1.0
 	}
 	return score
+}
+
+func computeTermFrequencyDensity(text string) float64 {
+	words := strings.Fields(strings.ToLower(text))
+	if len(words) < 5 {
+		return 0.05
+	}
+	freq := make(map[string]int, len(words))
+	maxCount := 0
+	for _, w := range words {
+		w = strings.Trim(w, ".,!?;:\"'()[]{}")
+		if len(w) < 2 {
+			continue
+		}
+		freq[w]++
+		if freq[w] > maxCount {
+			maxCount = freq[w]
+		}
+	}
+	if maxCount == 0 {
+		return 0.05
+	}
+	return float64(maxCount) / float64(len(words))
 }

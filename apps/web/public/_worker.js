@@ -120,15 +120,25 @@ function tokenize(text) {
   return text.toLowerCase().match(/[a-z가-힣]+|[0-9]+(?:\.[0-9]+)*/gi) || [];
 }
 
+function classifyEdgeIntent(query) {
+  const q = (query || '').toLowerCase();
+  if (/https?:\/\/|www\.|\.org|\.kr|\.com|공식\s*홈페이지|로그인/.test(q)) return 'navigational';
+  if (/구매|가격|할인|최저가|buy|price|discount/.test(q)) return 'transactional';
+  if (/맛집|근처|지도|위치|가는\s*길|near\s*me|map/.test(q)) return 'local';
+  if (/뉴스|속보|오늘|실시간|news|breaking/.test(q)) return 'news';
+  return 'informational';
+}
+
 function edgeSearch(query, requestID) {
   const q = (query || '').trim().toLowerCase();
+  const intent = classifyEdgeIntent(q);
   if (!q) {
-    return { query, total: 0, hits: [], elapsed_ms: 1, request_id: requestID };
+    return { query, total: 0, hits: [], elapsed_ms: 1, intent, request_id: requestID };
   }
 
   const terms = tokenize(q);
   if (terms.length === 0) {
-    return { query, total: 0, hits: [], elapsed_ms: 1, request_id: requestID };
+    return { query, total: 0, hits: [], elapsed_ms: 1, intent, request_id: requestID };
   }
 
   const scoredHits = [];
@@ -196,6 +206,7 @@ function edgeSearch(query, requestID) {
     total: scoredHits.length,
     hits: scoredHits,
     elapsed_ms: 2,
+    intent,
     request_id: requestID,
   };
 }

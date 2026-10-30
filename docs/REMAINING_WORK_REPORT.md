@@ -3,6 +3,15 @@
 생성일: 2026-10-28
 기준: `docs/PHASES_0_TO_9.md` 100개 작업, `docs/IMPLEMENTATION_STATUS.md`, `docs/GAP_REGISTER.md`
 
+## 2026-10-30 재검증: 코드 결함 정리 및 신호 파이프라인 연동
+
+- 프론트엔드/UI 수정 (`apps/web/src/App.vue`, `apps/web/src/style.css`): `<footer>` 템플릿 내부에 잘못 삽입되어 화면 하단에 노출되던 Design System v2.0 원시 CSS 블록을 제거하고 `apps/web/src/style.css`의 `:root` 및 `@media (prefers-color-scheme: dark)`로 이동했다. 또한 미검증 클라이언트 자동 서명(`signed:`) 로그인 폼을 제거하고 fail-closed 안내 모달(`계정 인증 준비 중`)을 복원하여 `AGENTS.md` 원칙 및 Playwright E2E 계약을 준수했다.
+- 백엔드/보안/랭킹 수정 (`backend/cmd/api/main.go`, `backend/internal/search/search.go`, `backend/internal/indexer/pipeline.go`, `backend/internal/crawler/`):
+  - 비테스트 바이너리에 포함되어 있던 `devFixtureVerifier` 및 `AuthDevMode`를 제거하고, `productionRoutes()`가 공개 읽기 경로(`/healthz`, `/readyz`, `/api/v1/search`, `/api/v1/suggest`, `/api/v1/portal/config`)만 노출하도록 유지했다.
+  - 크롤러 리다이렉트 차단(`RejectRedirects: true`), robots.txt 쿼리스트링 경로 포함, 색인 가능 Content-Type(`text/html`, `application/xhtml+xml`) 엄격 검증을 반영했다.
+  - 색인 파이프라인(`pipeline.go`)에서 `domain_authority`, `published_at`, `term_frequency_density`(실제 단어 빈도 밀도)를 계산해 색인하고, 검색 클라이언트(`search.go`)와 API 재랭킹(`main.go`)에서 OpenSearch `_source` 신호(및 URL/본문 폴백 계산)를 연동했다(G019 부분 해소).
+  - 검색 핸들러에 쿼리 의도 분류(`IntentClassifier`) 및 하이브리드 RRF 융합(`ReciprocalRankFusion`)을 연결했다(G020 부분 해소).
+
 ## 2026-10-28 재검증: 색인 실패 복구
 
 - 소스 수정: 기존 미커밋 `pipeline.go`의 함수 중첩 문법 오류를 복구했다. 기존 랭킹 필드 변경은 보존했다. 문서 변경감지 상태는 OpenSearch 전송 성공 뒤 갱신하고, 버전 번호를 누적하며 자기 문서를 유사중복 비교에서 제외한다. 동시 ingest의 공유 상태 접근은 mutex로 직렬화한다.

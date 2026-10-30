@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -49,15 +50,6 @@ type app struct {
 	drMgr         *launch.DRManager
 	sloTracker    *launch.SLOTracker
 	defectReg     *launch.DefectRegister
-}
-
-type devFixtureVerifier struct{}
-
-func (devFixtureVerifier) Verify(_ context.Context, ch identity.Challenge, response string) (identity.Principal, error) {
-	if response != "signed:"+ch.ChallengeText {
-		return identity.Principal{}, identity.ErrInvalidChallenge
-	}
-	return identity.Principal{Issuer: "dev-fixture", Subject: ch.Email, Email: ch.Email}, nil
 }
 
 var validTraceID = regexp.MustCompile(`^[A-Za-z0-9._-]{8,64}$`)
@@ -768,6 +760,70 @@ func titleTermMatches(title, query string) int {
 	}
 	return count
 }
+
+func resolveHitPublishedAt(h search.Hit, fallback time.Time) time.Time {
+	for _, raw := range []string{h.PublishedAt, h.LastCrawledAt} {
+		if raw == "" {
+			continue
+		}
+		if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+			return parsed
+		}
+	}
+	return fallback
+}
+
+func resolveHitDomainAuthority(h search.Hit) float64 {
+	if h.DomainAuthority > 0 {
+		return h.DomainAuthority
+	}
+	u, err := url.Parse(h.URL)
+	if err != nil || u.Host == "" {
+		return 0.3
+	}
+	score := 0.4
+	if u.Scheme == "https" {
+		score += 0.2
+	}
+	host := strings.TrimPrefix(strings.ToLower(u.Host), "www.")
+	if len(host) <= 20 {
+		score += 0.1
+	}
+	if strings.Contains(host, ".go.kr") || strings.Contains(host, ".ac.kr") || strings.Contains(host, ".or.kr") || strings.HasSuffix(host, ".org") {
+		score += 0.1
+	}
+	if score > 1.0 {
+		score = 1.0
+	}
+	return score
+}
+
+func resolveHitTermDensity(h search.Hit) float64 {
+	if h.TermFrequencyDensity > 0 {
+		return h.TermFrequencyDensity
+	}
+	words := strings.Fields(strings.ToLower(h.Title + " " + h.Description))
+	if len(words) < 5 {
+		return 0.05
+	}
+	freq := make(map[string]int, len(words))
+	maxCount := 0
+	for _, w := range words {
+		w = strings.Trim(w, ".,!?;:\"'()[]{}")
+		if len(w) < 2 {
+			continue
+		}
+		freq[w]++
+		if freq[w] > maxCount {
+			maxCount = freq[w]
+		}
+	}
+	if maxCount == 0 {
+		return 0.05
+	}
+	return float64(maxCount) / float64(len(words))
+}
+
 func clientIP(r *http.Request) string {
 
 	if xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); xff != "" {
@@ -915,6 +971,7 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 
 		// 3. Second-Pass Quality, Freshness & Spam Reranking (Task 043)
 		if len(result.Hits) > 0 {
+			now := time.Now()
 			candidates := make([]ranking.DocumentSignals, 0, len(result.Hits))
 			for _, h := range result.Hits {
 				candidates = append(candidates, ranking.DocumentSignals{
@@ -923,12 +980,12 @@ func (a *app) search(w http.ResponseWriter, r *http.Request) {
 					Title:                h.Title,
 					Description:          h.Description,
 					BaseScore:            h.Score,
-					PublishedAt:          time.Now(),
-					DomainAuthority:      0.5,
-					TermFrequencyDensity: 0.05,
+					PublishedAt:          resolveHitPublishedAt(h, now),
+					DomainAuthority:      resolveHitDomainAuthority(h),
+					TermFrequencyDensity: resolveHitTermDensity(h),
 				})
 			}
-			reranked := a.ensureReranker().Rerank(candidates, time.Now())
+			reranked := a.ensureReranker().Rerank(candidates, now)
 			original := make(map[string]search.Hit, len(result.Hits))
 			for _, h := range result.Hits {
 				original[h.DocumentID] = h
@@ -1514,17 +1571,14 @@ func (a *app) routes() http.Handler {
 	return a.withGatewayHeaders(mux)
 }
 
-// productionRoutes exposes only implemented public read paths plus authenticated
-// session/account/moderation paths. All other endpoints return 404 until the
-// corresponding phase gate and independent review are completed.
+// productionRoutes exposes only implemented public read paths. The in-memory
+// identity store and unverified mutation endpoints remain gated until
+// persistent database backing and phase gate sign-offs are completed.
 func (a *app) productionRoutes() http.Handler {
 	internal := a.routes()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config",
-			"/api/v1/auth/challenge", "/api/v1/auth/verify", "/api/v1/auth/session",
-			"/api/v1/auth/revoke", "/api/v1/auth/mfa/enroll", "/api/v1/auth/mfa/verify",
-			"/api/v1/auth/recover":
+		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config":
 			internal.ServeHTTP(w, r)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint unavailable", "code": "ENDPOINT_UNAVAILABLE"})
@@ -1535,9 +1589,7 @@ func (a *app) productionRoutes() http.Handler {
 func main() {
 	cfg := config.Load()
 	var idStore *identity.Store
-	if cfg.AuthDevMode {
-		idStore = identity.NewStoreWithVerifier(devFixtureVerifier{})
-	} else if cfg.OIDCIssuer != "" && cfg.OIDCClientID != "" {
+	if cfg.OIDCIssuer != "" && cfg.OIDCClientID != "" {
 		verifier, err := identity.NewOIDCVerifier(context.Background(), cfg.OIDCIssuer, cfg.OIDCClientID)
 		if err != nil {
 			log.Printf("oidc verifier initialization failed: %v (auth endpoints fail-closed)", err)
@@ -1549,9 +1601,9 @@ func main() {
 		idStore = identity.NewStore()
 	}
 	a := &app{
-		c:           search.New(cfg.OpenSearchURL, cfg.OpenSearchIndex, cfg.OpenSearchUsername, cfg.OpenSearchPassword),
-		idStore:     idStore,
-		corsOrigin:  cfg.CORSOrigin,
+		c:          search.New(cfg.OpenSearchURL, cfg.OpenSearchIndex, cfg.OpenSearchUsername, cfg.OpenSearchPassword),
+		idStore:    idStore,
+		corsOrigin: cfg.CORSOrigin,
 	}
 	srv := &http.Server{Addr: net.JoinHostPort(cfg.ListenHost, cfg.Port), Handler: a.productionRoutes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	log.Printf("openportal search api listening port=%s", cfg.Port)

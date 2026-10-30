@@ -803,42 +803,6 @@ async function runSearch(nextPage = 1, overrideQuery?: string, updateHistory = t
   }
 }
 
-async function loginAuth() {
-  if (!authEmail.value) return;
-  authStatus.value = '인증 챌린지 요청 중…';
-  try {
-    const chRes = await fetch('/api/v1/auth/challenge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ challenge_type: 'passkey_register', email: authEmail.value }),
-    });
-    if (!chRes.ok) throw new Error(`챌린지 실패 (${chRes.status})`);
-    const ch = (await chRes.json()) as { challenge_id: string; challenge: string };
-    const vRes = await fetch('/api/v1/auth/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        challenge_id: ch.challenge_id,
-        challenge_response: `signed:${ch.challenge}`,
-        display_name: authEmail.value.split('@')[0],
-      }),
-    });
-    if (!vRes.ok) throw new Error(`인증 실패 (${vRes.status})`);
-    const data = (await vRes.json()) as {
-      session_token: string;
-      account: { id: string; email: string; mfa_enrolled: boolean };
-    };
-    sessionToken.value = data.session_token;
-    accountId.value = data.account.id;
-    accountEmail.value = data.account.email;
-    mfaEnrolled.value = data.account.mfa_enrolled;
-    authStatus.value = '인증 성공';
-  } catch (e) {
-    authStatus.value = e instanceof Error ? e.message : '인증 실패';
-  }
-}
-
-
 async function revokeCurrentSession() {
   if (!sessionToken.value) return;
   try {
@@ -1229,24 +1193,11 @@ onMounted(async () => {
     >
       <div class="auth-modal-card">
         <div class="auth-modal-header">
-          <h2 class="auth-modal-title">계정 인증</h2>
+          <h2 class="auth-modal-title">계정 인증 준비 중</h2>
           <p class="auth-modal-subtitle" role="status">
-            이메일로 인증 챌린지를 요청하고, 개발 모드에서는 자동 서명으로 세션을 발급합니다.
+            로그인, 계정 생성, 비밀번호 복구는 현재 사용할 수 없습니다. 인증 서비스와 보안 검증이 완료되면 제공됩니다.
           </p>
         </div>
-         <div class="auth-form">
-           <input v-model="authEmail" type="email" placeholder="이메일" class="auth-input" />
-           <button type="button" class="auth-primary-btn" @click="loginAuth" :disabled="!authEmail">로그인 / 등록</button>
-           <button type="button" class="auth-secondary-btn" @click="revokeCurrentSession" :disabled="!sessionToken">로그아웃</button>
-         </div>
-         <div v-if="authStatus" class="auth-status">{{ authStatus }}</div>
-         <div v-if="sessionToken" class="auth-session-info">
-           <span>세션: {{ sessionToken.slice(0, 12) }}…</span>
-           <span v-if="accountId">계정: {{ accountEmail }}</span>
-           <button type="button" class="auth-secondary-btn" @click="enrollMFA" :disabled="mfaEnrolled">MFA 등록</button>
-         </div>
-
-
         <div class="auth-action-buttons">
           <button type="button" class="auth-secondary-btn" @click="closeAuthModal">닫기</button>
         </div>
@@ -2070,121 +2021,6 @@ onMounted(async () => {
           <a href="#" @click.prevent="showSettings = true">약관</a>
           <a href="#" @click.prevent="showSettings = true">설정</a>
         </div>
-/* Design System v2.0 color tokens added for UI enhancement */
-:root { --color-primary: #4285f4; --color-bg: #fafafa; --color-surface: #fff; --color-text-primary: #202124; --color-text-secondary: #5f6368; }
-/* Typography & Spacing Scale */
---font-family-base: 'Google Sans', 'Roboto', 'Noto KR', sans-serif;
-/* Light Mode */
-:root {
-/* Dark Mode */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #202124;
-    --color-bg-subtle: #2a2c32;
-    --color-surface: #2a2c32;
-    --color-surface-elevated: #2d333b;
-    --color-primary: #e8f0fe;
-    --color-primary-hover: #357ae8;
-    --color-primary-active: #2c5aa0;
-    --color-on-primary: #202124;
-    --color-on-primary-variant: #1a0e3e;
-    --color-on-primary-container: #1a0e3e;
-    --color-error: #fda4a1;
-    --color-error-hover: #c82331;
-    --color-warning: #fbbc04;
-    --color-warning-hover: #f8a503;
-    --color-success: #34a853;
-    --color-success-hover: #2c5a42;
-    --color-info: #e8f0fe;
-    --color-info-hover: #357ae8;
-    --color-text-primary: #f0f2f5;
-    --color-text-secondary: #b0b0b0;
-    --color-text-disabled: #5a5a5a;
-    --color-text-hint: #5a5a5a;
-    --color-text-on-bg: #f0f2f5;
-    --color-text-divider: #3f4145;
-    --color-border: #3f4145;
-    --color-border-focus: #4285f4;
-    --color-border-input: #484848;
-    --color-shadow: rgba(0, 0, 0, 0.3);
-    --color-shadow-hover: rgba(0, 0, 0, 0.4);
-    --color-placeholder: #5a5a5a;
-    --color-ripple: rgba(255, 255, 255, 0.1);
-  }
-}
-  --color-bg: #fafafa;
-  --color-bg-subtle: #f5f5f5;
-  --color-surface: #ffffff;
-  --color-surface-elevated: #fafafa;
-  --color-primary: #4285f4;
-  --color-primary-hover: #357ae8;
-  --color-primary-active: #2c5aa0;
-  --color-on-primary: #ffffff;
-  --color-on-primary-variant: #e8f0fe;
-  --color-on-primary-container: #eff6ff;
-  --color-error: #ea4335;
-  --color-error-hover: #c82331;
-  --color-warning: #fbbc04;
-  --color-warning-hover: #f8a503;
-  --color-success: #34a853;
-  --color-success-hover: #2c5a42;
-  --color-info: #4285f4;
-  --color-info-hover: #357ae8;
-  --color-text-primary: #202124;
-  --color-text-secondary: #5f6368;
-  --color-text-disabled: #b0b0b0;
-  --color-text-hint: #7a7a7a;
-  --color-text-on-bg: #202124;
-  --color-text-divider: #dadce0;
-  --color-border: #dadce0;
-  --color-border-focus: #4285f4;
-  --color-border-input: #e0e0e0;
-  --color-shadow: rgba(0, 0, 0, 0.04);
-  --color-shadow-hover: rgba(0, 0, 0, 0.08);
-  --color-placeholder: #7a7a7a;
-  --color-ripple: rgba(0, 0, 0, 0.1);
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-full: 9999px;
-  --radius-pill: 99999px;
-  --spacing-0: 0;
-  --spacing-1: 4px;
-  --spacing-2: 8px;
-  --spacing-3: 12px;
-  --spacing-4: 16px;
-  --spacing-5: 20px;
-  --spacing-6: 24px;
-  --spacing-8: 32px;
-  --spacing-10: 40px;
---font-family-mono: 'Roboto Mono', 'Fira Code', monospace;
---font-size-xxs: 10px;
---font-size-xs: 12px;
---font-size-sm: 13px;
---font-size-md: 14px;
---font-size-lg: 15px;
---font-size-xl: 18px;
---font-size-2xl: 24px;
---font-size-3xl: 32px;
---font-size-4xl: 48px;
---font-weight-normal: 400;
---font-weight-medium: 500;
---font-weight-bold: 700;
---line-height-tight: 1.2;
---line-height-normal: 1.5;
---line-height-relaxed: 1.6;
---spacing-0: 0;
---spacing-1: 4px;
---spacing-2: 8px;
---spacing-3: 12px;
---spacing-4: 16px;
---spacing-5: 20px;
---spacing-6: 24px;
---spacing-8: 32px;
---spacing-10: 40px;
---transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
---transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
---transition-slow: 300ms ease;
       </div>
     </footer>
   </div>

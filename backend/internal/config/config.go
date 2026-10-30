@@ -13,7 +13,6 @@ type Config struct {
 	OpenSearchUsername string
 	OpenSearchPassword string
 	CORSOrigin         string
-	AuthDevMode        bool
 	OIDCIssuer         string
 	OIDCClientID       string
 }
@@ -34,7 +33,6 @@ func Load() Config {
 		OpenSearchUsername: os.Getenv("OPENSEARCH_USERNAME"),
 		OpenSearchPassword: os.Getenv("OPENSEARCH_PASSWORD"),
 		CORSOrigin:         env("CORS_ORIGIN", "http://127.0.0.1:5173"),
-		AuthDevMode:        strings.EqualFold(strings.TrimSpace(os.Getenv("AUTH_DEV_MODE")), "true"),
 		OIDCIssuer:         strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
 		OIDCClientID:       strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")),
 	}

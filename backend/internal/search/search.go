@@ -18,12 +18,16 @@ type Client struct {
 	HTTP                               *http.Client
 }
 type Hit struct {
-	DocumentID  string  `json:"document_id,omitempty"`
-	Title       string  `json:"title"`
-	URL         string  `json:"url"`
-	Description string  `json:"description"`
-	Language    string  `json:"language"`
-	Score       float64 `json:"score"`
+	DocumentID           string  `json:"document_id,omitempty"`
+	Title                string  `json:"title"`
+	URL                  string  `json:"url"`
+	Description          string  `json:"description"`
+	Language             string  `json:"language"`
+	Score                float64 `json:"score"`
+	PublishedAt          string  `json:"-"`
+	LastCrawledAt        string  `json:"-"`
+	DomainAuthority      float64 `json:"-"`
+	TermFrequencyDensity float64 `json:"-"`
 }
 type Response struct {
 	Query          string `json:"query"`
@@ -50,11 +54,15 @@ type osResponse struct {
 			ID     string  `json:"_id"`
 			Score  float64 `json:"_score"`
 			Source struct {
-				DocumentID  string `json:"document_id"`
-				Title       string `json:"title"`
-				URL         string `json:"url"`
-				Description string `json:"description"`
-				Language    string `json:"language"`
+				DocumentID           string  `json:"document_id"`
+				Title                string  `json:"title"`
+				URL                  string  `json:"url"`
+				Description          string  `json:"description"`
+				Language             string  `json:"language"`
+				PublishedAt          string  `json:"published_at"`
+				LastCrawledAt        string  `json:"last_crawled_at"`
+				DomainAuthority      float64 `json:"domain_authority"`
+				TermFrequencyDensity float64 `json:"term_frequency_density"`
 			} `json:"_source"`
 		} `json:"hits"`
 	} `json:"hits"`
@@ -115,7 +123,7 @@ func (c *Client) Search(ctx context.Context, phrase, lang string, page, limit in
 		"from":             (page - 1) * limit,
 		"size":             limit,
 		"track_total_hits": true,
-		"_source":          []string{"document_id", "title", "url", "description", "language"},
+		"_source":          []string{"document_id", "title", "url", "description", "language", "published_at", "last_crawled_at", "domain_authority", "term_frequency_density"},
 		"query":            opensearchDSL,
 	}
 
@@ -143,12 +151,16 @@ func (c *Client) Search(ctx context.Context, phrase, lang string, page, limit in
 			docID = h.ID
 		}
 		r.Hits = append(r.Hits, Hit{
-			DocumentID:  docID,
-			Title:       h.Source.Title,
-			URL:         h.Source.URL,
-			Description: h.Source.Description,
-			Language:    h.Source.Language,
-			Score:       h.Score,
+			DocumentID:           docID,
+			Title:                h.Source.Title,
+			URL:                  h.Source.URL,
+			Description:          h.Source.Description,
+			Language:             h.Source.Language,
+			Score:                h.Score,
+			PublishedAt:          h.Source.PublishedAt,
+			LastCrawledAt:        h.Source.LastCrawledAt,
+			DomainAuthority:      h.Source.DomainAuthority,
+			TermFrequencyDensity: h.Source.TermFrequencyDensity,
 		})
 	}
 	return r, nil
