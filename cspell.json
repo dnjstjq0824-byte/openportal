@@ -95,6 +95,8 @@
     "govulncheck",
     "grayscale",
     "healthcheck",
+    "healthchecks",
+    "Healthchecks",
     "healthz",
     "Hiddenpolicyregression",
     "HMAC",
