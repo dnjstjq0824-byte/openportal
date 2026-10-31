@@ -2743,7 +2743,7 @@ onMounted(async () => {
           </div>
           <pre class="dev-code-block"><code>{{
             activeDevLang === 'curl' ? `curl -H "Authorization: Bearer ${devApiKey}" \\\n  "https://openportal.pages.dev/api/v1/search?q=openportal&page=1"` :
-            activeDevLang === 'go' ? `package main\n\nimport (\n\t"fmt"\n\t"net/http"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest("GET", "https://openportal.pages.dev/api/v1/search?q=openportal", nil)\n\treq.Header.Set("Authorization", "Bearer ${devApiKey}")\n\tresp, _ := http.DefaultClient.Do(req)\n\tfmt.Println("Status:", resp.Status)\n}` :
+            activeDevLang === 'go' ? `package main\n\nimport (\n  "fmt"\n  "net/http"\n)\n\nfunc main() {\n  req, _ := http.NewRequest("GET", "https://openportal.pages.dev/api/v1/search?q=openportal", nil)\n  req.Header.Set("Authorization", "Bearer ${devApiKey}")\n  resp, _ := http.DefaultClient.Do(req)\n  fmt.Println("Status:", resp.Status)\n}` :
             activeDevLang === 'python' ? `import requests\n\nheaders = {"Authorization": "Bearer ${devApiKey}"}\nres = requests.get("https://openportal.pages.dev/api/v1/search", params={"q": "openportal"}, headers=headers)\nprint(res.json())` :
             `import { fetch } from 'undici';\n\nconst res = await fetch('https://openportal.pages.dev/api/v1/search?q=openportal', {\n  headers: { Authorization: 'Bearer ${devApiKey}' }\n});\nconst data = await res.json();\nconsole.log(data);`
           }}</code></pre>
