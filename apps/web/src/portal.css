@@ -16,4 +16,7 @@ html[data-theme=dark]{--bg:#0b1120;--surface:#141f32;--text:#e8eefb;--muted:#b5c
 .hit-icon{color:var(--muted);flex-shrink:0}
 .hit-domain{font-size:.82rem;color:var(--accent);font-weight:600}
 .source-tag{display:inline-block;margin-top:6px;font-size:.75rem;padding:2px 8px;border-radius:6px;background:var(--soft);color:var(--muted)}
+.empty-state{padding:24px 0}
+.empty-title{font-size:1.15rem;font-weight:600;color:var(--text);margin-bottom:12px}
+.empty-tips{padding-left:20px;color:var(--muted);line-height:1.8;margin:0}
 

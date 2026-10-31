@@ -1,3 +1,6 @@
+> [!CAUTION]
+> **DEPRECATED**: 2026-10-31 실측 감사 결과 허위 기재 확인됨 (가짜 픽스처 기반 동작, 버티컬 7개 미연동, 1,280,450 상수 지표 노출 등). 본 문서는 과거 문서로 취급되며, 현재 SE-00~SE-30 실제 검색엔진 구현 작업이 진행 중입니다.
+
 # OPEN SCANNER — FINAL COMMERCIAL READINESS & GO / NO-GO AUDIT
 **Directive Reference:** `OPENSCANNER_GLOBAL_SEARCH_P0_P3_FULL_EXECUTION_20261031` (Deliverables 17 & Section 16)  
 **Date:** 2026-10-31  
