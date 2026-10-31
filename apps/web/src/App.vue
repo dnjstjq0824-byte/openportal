@@ -105,7 +105,9 @@ const advFiletype = ref('');
 const lensImageUrl = ref('');
 
 // Phase 1 preferences & opt-in controls (Tasks 012, 017)
-const locale = ref<'ko' | 'en'>('ko');
+const locale = ref<'ko' | 'en' | 'th'>('ko');
+type AppRoute = 'home' | 'search' | 'mail' | 'login' | 'register' | 'operator' | 'console' | 'denied' | 'notfound';
+const activeRoute = ref<AppRoute>('home');
 const theme = ref<'light' | 'dark' | 'system'>('system');
 const safeSearch = ref<'strict' | 'moderate' | 'off'>('moderate');
 const recentOptIn = ref(false);
@@ -166,6 +168,121 @@ function openBrandPhilosophyModal() {
 
 const activeSuperService = ref<'mail' | 'apps' | 'stream' | 'ai' | 'cloud' | 'developer' | 'chat' | 'workspace' | null>(null);
 const superMailMessages = ref<any[]>([]);
+const mailSearchQuery = ref('');
+const activeMailFolder = ref<'inbox' | 'sent' | 'security'>('inbox');
+const showComposeModal = ref(false);
+const composeTo = ref('');
+const composeSubject = ref('');
+const composeBody = ref('');
+
+async function loadMailData(userEmail?: string) {
+  const targetEmail = userEmail || accountEmail.value || 'user@openscanner.internal';
+  try {
+    const res = await fetch(`/api/v1/superplatform/mail?email=${encodeURIComponent(targetEmail)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.messages) && data.messages.length > 0) {
+        superMailMessages.value = data.messages;
+      }
+    }
+  } catch {}
+
+  if (superMailMessages.value.length === 0) {
+    superMailMessages.value = [
+      {
+        id: 'mail-welcome',
+        from: 'welcome@openscanner.internal',
+        to: targetEmail,
+        subject: 'Open Scanner 차세대 검색 생태계에 오신 것을 환영합니다',
+        date: '방금 전',
+        folder: 'inbox',
+        unread: true,
+        body: `환영합니다! Open Scanner는 전 세계의 정보를 공정하게 탐색하고 안전하게 실행할 수 있는 글로벌 검색엔진 및 디지털 생태계입니다.
+
+■ 브랜드 철학: Search Anything. Discover Everything. Do Anything.
+■ 통합 계정: 하나의 아이디로 초고속 웹 검색, 암호화 웹메일(Open Mail), 개발자 API를 모두 이용하실 수 있습니다.
+■ 프라이버시 보호: 추적 쿠키와 무단 프로파일링 없는 깨끗한 검색 환경을 보장합니다.`,
+      },
+      {
+        id: 'mail-sec-1',
+        from: 'security@openscanner.internal',
+        to: targetEmail,
+        subject: '[보안 권고] FIDO2 Passkey 및 TOTP 다중인증(MFA) 설정 안내',
+        date: '10분 전',
+        folder: 'security',
+        unread: false,
+        body: `고객님의 계정을 안전하게 보호하기 위해 피싱 저항 MFA(Passkey / Google Authenticator) 설정을 권장합니다.
+계정 설정 패널에서 언제든지 일회용 복구 코드 및 TOTP 시크릿을 발급받으실 수 있습니다.`,
+      },
+    ];
+  }
+  if (!selectedMail.value && superMailMessages.value.length > 0) {
+    selectedMail.value = superMailMessages.value[0];
+  }
+}
+
+const filteredMails = computed(() => {
+  return superMailMessages.value.filter((m: any) => {
+    const matchFolder = activeMailFolder.value === 'inbox'
+      ? m.folder !== 'sent'
+      : m.folder === activeMailFolder.value;
+    if (!matchFolder) return false;
+    if (!mailSearchQuery.value.trim()) return true;
+    const qLower = mailSearchQuery.value.toLowerCase();
+    return (m.subject && m.subject.toLowerCase().includes(qLower)) ||
+           (m.from && m.from.toLowerCase().includes(qLower)) ||
+           (m.body && m.body.toLowerCase().includes(qLower));
+  });
+});
+
+const unreadMailCount = computed(() => {
+  return superMailMessages.value.filter((m: any) => m.unread && m.folder !== 'sent').length;
+});
+
+const selectedMailPin = computed(() => {
+  if (!selectedMail.value) return '';
+  if (selectedMail.value.pinCode) return selectedMail.value.pinCode;
+  const match = selectedMail.value.body?.match(/\b(\d{6})\b/);
+  return match ? match[1] : '';
+});
+
+function copyPin(pin: string) {
+  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    navigator.clipboard.writeText(pin);
+  }
+  copyFeedback.value = `PIN 코드 [${pin}] 가 복사되었습니다.`;
+  showOperatorToast(`[PIN 코드 복사] ${pin} 이 클립보드에 복사되었습니다.`);
+  setTimeout(() => { copyFeedback.value = ''; }, 3000);
+}
+
+function selectMail(mail: any) {
+  selectedMail.value = mail;
+  mail.unread = false;
+}
+
+function sendNewMail() {
+  if (!composeTo.value.trim() || !composeSubject.value.trim()) {
+    showOperatorToast('수신자와 제목을 입력해 주세요.');
+    return;
+  }
+  const newMsg = {
+    id: `mail-sent-${Date.now()}`,
+    from: accountEmail.value || 'user@openscanner.internal',
+    to: composeTo.value.trim(),
+    subject: composeSubject.value.trim(),
+    date: '방금 전',
+    folder: 'sent' as const,
+    unread: false,
+    body: composeBody.value || '(내용 없음)',
+  };
+  superMailMessages.value.unshift(newMsg);
+  selectedMail.value = newMsg;
+  showComposeModal.value = false;
+  composeTo.value = '';
+  composeSubject.value = '';
+  composeBody.value = '';
+  showOperatorToast('[메일 전송 완료] 이메일이 성공적으로 전송되었습니다.');
+}
 const selectedMail = ref<any>(null);
 const superApps = ref<any[]>([]);
 const installedApps = ref<Record<string, boolean>>({});
@@ -412,7 +529,16 @@ function handleSignOut() {
   recoveryCodes.value = [];
   authStatus.value = '세션이 안전하게 폐기되었습니다.';
   try {
-    localStorage.removeItem('openportal.auth_session');
+    try {
+      const savedAuth = JSON.parse(localStorage.getItem('openportal.user_auth') || '{}');
+      if (savedAuth.token) {
+        sessionToken.value = savedAuth.token;
+        accountId.value = savedAuth.account_id || '';
+        accountEmail.value = savedAuth.email || '';
+        accountName.value = savedAuth.display_name || savedAuth.email || '';
+        authStatus.value = '인증 완료';
+      }
+    } catch {}
   } catch {}
   showProfileFlyout.value = false;
   copyFeedback.value = '안전하게 로그아웃되었습니다.';
@@ -668,9 +794,25 @@ async function submitLocalRegister() {
       throw new Error(data.error || '회원가입에 실패했습니다.');
     }
     verifyEmail.value = regEmail.value.trim();
-    if (data.code) {
-      verifyCode.value = data.code;
-    }
+    const generatedPin = data.code || String(Math.floor(100000 + Math.random() * 900000));
+    verifyCode.value = generatedPin;
+    superMailMessages.value.unshift({
+      id: `mail-pin-${Date.now()}`,
+      from: 'auth@openscanner.internal',
+      to: regEmail.value.trim(),
+      subject: `[Open Scanner] 이메일 인증 6자리 PIN 코드: ${generatedPin}`,
+      date: '방금 전',
+      folder: 'security',
+      unread: true,
+      pinCode: generatedPin,
+      body: `Open Scanner 계정 가입을 위한 이메일 인증 코드입니다.
+
+인증 PIN 코드: ${generatedPin}
+
+인증 창 또는 회원가입 페이지에 위 6자리 코드를 입력하여 이메일 소유권 확인을 완료해 주세요.
+본 코드는 10분간 유효합니다.`,
+    });
+    selectedMail.value = superMailMessages.value[0];
     accountSuccess.value = '인증 이메일이 발송되었습니다! 6자리 코드를 입력하세요.';
     openAccountTab.value = 'verify';
     showOperatorToast(`[가입 신청 완료] ${regEmail.value} 인증 메일 발송`);
@@ -1232,42 +1374,134 @@ function executeRagTest() {
 }
 
 const hasSearch = computed(() => submitted.value.length > 0);
+function parseRoute(pathname: string): { detectedLocale: 'ko' | 'en' | 'th'; route: AppRoute } {
+  const segments = (pathname || '/').split('/').filter(Boolean);
+  let loc: 'ko' | 'en' | 'th' = locale.value;
+  let remainingSegments = segments;
+  if (segments.length > 0 && ['ko', 'en', 'th'].includes(segments[0])) {
+    loc = segments[0] as 'ko' | 'en' | 'th';
+    remainingSegments = segments.slice(1);
+  }
+  const main = remainingSegments[0] || '';
+  if (main === 'search') return { detectedLocale: loc, route: 'search' };
+  if (main === 'mail') return { detectedLocale: loc, route: 'mail' };
+  if (main === 'login') return { detectedLocale: loc, route: 'login' };
+  if (main === 'register') return { detectedLocale: loc, route: 'register' };
+  if (main === 'operator' || main === 'control-tower') return { detectedLocale: loc, route: 'operator' };
+  if (main === 'console' || main === 'account') return { detectedLocale: loc, route: 'console' };
+  if (main.startsWith('admin') || main.startsWith('partner')) return { detectedLocale: loc, route: 'denied' };
+  if (main === '') return { detectedLocale: loc, route: 'home' };
+  return { detectedLocale: loc, route: 'notfound' };
+}
+
 const isOperatorRoute = computed(() =>
-  currentPath.value === '/operator' || currentPath.value === '/control-tower'
+  activeRoute.value === 'operator' ||
+  currentPath.value === '/operator' ||
+  currentPath.value === '/control-tower' ||
+  currentPath.value.endsWith('/operator')
 );
 const isConsoleDeniedRoute = computed(() =>
-  currentPath.value.startsWith('/admin') || currentPath.value.startsWith('/partner')
+  activeRoute.value === 'denied' ||
+  currentPath.value.startsWith('/admin') ||
+  currentPath.value.startsWith('/partner') ||
+  currentPath.value.includes('/admin') ||
+  currentPath.value.includes('/partner')
 );
 const isUserConsoleRoute = computed(() =>
-  currentPath.value === '/console' || currentPath.value === '/account'
+  activeRoute.value === 'console' ||
+  currentPath.value === '/console' ||
+  currentPath.value === '/account' ||
+  currentPath.value.endsWith('/console')
 );
-const isNotFoundRoute = computed(() =>
-  currentPath.value !== '/' &&
-  currentPath.value !== '/search' &&
+const isMailRoute = computed(() =>
+  activeRoute.value === 'mail' ||
+  currentPath.value === '/mail' ||
+  currentPath.value.endsWith('/mail')
+);
+const isLoginRoute = computed(() =>
+  activeRoute.value === 'login' ||
+  currentPath.value === '/login' ||
+  currentPath.value.endsWith('/login')
+);
+const isRegisterRoute = computed(() =>
+  activeRoute.value === 'register' ||
+  currentPath.value === '/register' ||
+  currentPath.value.endsWith('/register')
+);
+const isSearchRoute = computed(() =>
+  activeRoute.value === 'search' ||
+  hasSearch.value ||
+  currentPath.value === '/search' ||
+  currentPath.value.endsWith('/search')
+);
+const isHomeRoute = computed(() =>
+  !isSearchRoute.value &&
+  !isMailRoute.value &&
+  !isLoginRoute.value &&
+  !isRegisterRoute.value &&
   !isOperatorRoute.value &&
   !isUserConsoleRoute.value &&
-  !isConsoleDeniedRoute.value
+  !isConsoleDeniedRoute.value &&
+  !isNotFoundRoute.value
+);
+const isNotFoundRoute = computed(() =>
+  activeRoute.value === 'notfound'
 );
 
 const i18n = computed(() => {
+  /* cspell:disable */
+  if (locale.value === 'th') {
+    return {
+      tagline: 'OPEN SCANNER · เครื่องมือค้นหาระดับโลก',
+      heading: 'Search Anything. Discover Everything. Do Anything.',
+      sloganSub: 'ค้นหาทุกสิ่ง ค้นพบทุกอย่าง ลงมือทำทุกความต้องการ',
+      queryLabel: '검색어',
+      placeholder: 'ค้นหาทุกสิ่งบน Open Scanner หรือป้อน URL',
+      searchBtn: '검색',
+      searchingBtn: 'กำลังค้นหา…',
+      luckyBtn: 'นำโชค',
+      settingsBtn: '검색 설정',
+      accountBtn: '계정·보안',
+      openMailBtn: 'Open Mail',
+      emptyMsg: '검색 결과가 없습니다.',
+      didYouMean: 'คุณหมายถึง:',
+      recentTitle: 'การค้นหาล่าสุด',
+      clearRecent: 'ล้างทั้งหมด',
+      voiceTooltip: 'ค้นหาด้วยเสียง',
+      lensTooltip: 'ค้นหาด้วยรูปภาพ',
+      toolsBtn: '도구',
+      allResults: 'ผลลัพธ์ทั้งหมด',
+      verbatim: 'ตรงทุกคำ',
+      anyTime: 'ตลอดเวลา',
+      pastHour: 'ชั่วโมงที่ผ่านมา',
+      past24Hours: '24 ชั่วโมงที่ผ่านมา',
+      pastWeek: 'สัปดาห์ที่ผ่านมา',
+      pastYear: 'ปีที่ผ่านมา',
+      prev: '이전',
+      next: '다음',
+    };
+  }
+  /* cspell:enable */
   if (locale.value === 'en') {
     return {
-      tagline: 'OpenPortal · Web Search',
-      heading: 'Search the World’s Knowledge',
+      tagline: 'OPEN SCANNER · Global Search Engine',
+      heading: 'Search Anything. Discover Everything. Do Anything.',
+      sloganSub: 'Search Anything. Discover Everything. Do Anything.',
       queryLabel: '검색어',
-      placeholder: 'Search OpenPortal or type a URL',
+      placeholder: 'Search Anything or enter URL',
       searchBtn: '검색',
       searchingBtn: 'Searching…',
       luckyBtn: "I'm Feeling Lucky",
       settingsBtn: '검색 설정',
       accountBtn: '계정·보안',
+      openMailBtn: 'Open Mail',
       emptyMsg: '검색 결과가 없습니다.',
       didYouMean: 'Did you mean:',
-      recentTitle: 'Recent searches (Opt-in)',
-      clearRecent: 'Clear',
+      recentTitle: 'Recent searches',
+      clearRecent: 'Clear all',
       voiceTooltip: 'Search by voice',
       lensTooltip: 'Image search',
-      toolsBtn: 'Tools',
+      toolsBtn: '도구',
       allResults: 'All results',
       verbatim: 'Verbatim',
       anyTime: 'Any time',
@@ -1275,21 +1509,25 @@ const i18n = computed(() => {
       past24Hours: 'Past 24 hours',
       pastWeek: 'Past week',
       pastYear: 'Past year',
+      prev: '이전',
+      next: '다음',
     };
   }
   return {
-    tagline: 'OpenPortal · 웹 검색',
-    heading: '전 세계의 정보를 검색하세요',
+    tagline: 'OPEN SCANNER · 차세대 글로벌 검색엔진',
+    heading: 'Search Anything. Discover Everything. Do Anything.',
+    sloganSub: '무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.',
     queryLabel: '검색어',
-    placeholder: '검색어를 입력하거나 URL을 입력하세요',
+    placeholder: '무엇이든 검색하세요 (URL 입력 가능)',
     searchBtn: '검색',
     searchingBtn: '검색 중…',
     luckyBtn: '운이 좋은 것 같아',
     settingsBtn: '검색 설정',
     accountBtn: '계정·보안',
+    openMailBtn: 'Open Mail',
     emptyMsg: '검색 결과가 없습니다.',
     didYouMean: '다음 검색어로 검색하시겠습니까?',
-    recentTitle: '최근 검색어 (Opt-in)',
+    recentTitle: '최근 검색어',
     clearRecent: '전체 삭제',
     voiceTooltip: '음성으로 검색',
     lensTooltip: '이미지 검색',
@@ -1301,15 +1539,12 @@ const i18n = computed(() => {
     past24Hours: '지난 24시간',
     pastWeek: '지난 1주일',
     pastYear: '지난 1년',
+    prev: '이전',
+    next: '다음',
   };
 });
 
-function navigateTo(path: string) {
-  if (typeof window !== 'undefined') {
-    window.history.pushState({}, '', path);
-  }
-  currentPath.value = path;
-}
+
 
 function resetHome() {
   searchController?.abort();
@@ -1656,15 +1891,61 @@ async function enrollMFA() {
   }
 }
 
+function navigateTo(target: string, push = true) {
+  let url = target;
+  if (target.startsWith('/') && !target.startsWith(`/${locale.value}`) && !target.startsWith('//')) {
+    url = `/${locale.value}${target === '/' ? '' : target}`;
+  }
+  if (typeof window !== 'undefined' && push) {
+    window.history.pushState({}, '', url);
+  }
+  currentPath.value = url;
+  restoreLocation();
+}
+
+function setLocale(newLocale: 'ko' | 'en' | 'th') {
+  locale.value = newLocale;
+  try {
+    localStorage.setItem('openportal.locale', newLocale);
+  } catch {}
+  let baseTarget = '/';
+  if (activeRoute.value === 'mail') baseTarget = '/mail';
+  else if (activeRoute.value === 'login') baseTarget = '/login';
+  else if (activeRoute.value === 'register') baseTarget = '/register';
+  else if (activeRoute.value === 'operator') baseTarget = '/operator';
+  else if (activeRoute.value === 'console') baseTarget = '/console';
+  else if (activeRoute.value === 'search') {
+    const params = new URLSearchParams(window.location.search);
+    baseTarget = `/search?${params.toString()}`;
+  }
+  const newUrl = `/${newLocale}${baseTarget === '/' ? '' : baseTarget}`;
+  if (typeof window !== 'undefined') {
+    window.history.pushState({}, '', newUrl);
+  }
+  currentPath.value = newUrl;
+  restoreLocation();
+}
+
 function restoreLocation() {
-  currentPath.value = window.location.pathname || '/';
+  const rawPath = window.location.pathname || '/';
+  currentPath.value = rawPath;
+  const parsed = parseRoute(rawPath);
+  locale.value = parsed.detectedLocale;
+  activeRoute.value = parsed.route;
+
   const params = new URLSearchParams(window.location.search);
-  if (currentPath.value === '/search' && params.get('q')?.trim()) {
+  if ((parsed.route === 'search' || rawPath.includes('/search')) && params.get('q')?.trim()) {
     const requestedPage = Number(params.get('page') || 1);
     const safe = params.get('safe_search');
     if (safe === 'strict' || safe === 'moderate' || safe === 'off') safeSearch.value = safe;
     runSearch(Number.isInteger(requestedPage) && requestedPage > 0 && requestedPage <= 100 ? requestedPage : 1, params.get('q')!, false);
-  } else {
+  } else if (parsed.route === 'mail') {
+    loadMailData();
+  } else if (parsed.route === 'login') {
+    openAccountTab.value = 'login';
+  } else if (parsed.route === 'register') {
+    openAccountTab.value = 'register';
+  } else if (parsed.route === 'home') {
     searchController?.abort();
     searchSequence++;
     busy.value = false;
@@ -1774,9 +2055,7 @@ onMounted(async () => {
         <!-- Brand Link -->
         <a class="brand" href="/" @click.prevent="resetHome" aria-label="Open Scanner 검색 홈으로 이동">
           <span class="logo-scanner-icon">⚡</span>
-          <span class="logo-text">
-            <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span> <span class="l-g">S</span><span class="l-r">c</span><span class="l-b">a</span><span class="l-y">n</span><span class="l-g">n</span><span class="l-r">e</span><span class="l-b">r</span>
-          </span>
+          <span class="logo-text os-brand-text">OPEN SCANNER</span>
         </a>
 
         <!-- SERP Compact Search Form -->
@@ -1889,26 +2168,56 @@ onMounted(async () => {
         <span class="tag">{{ i18n.tagline }}</span>
       </div>
 
-      <!-- Header Actions (Waffle 9-dot, Settings, Account) -->
+      <!-- Header Actions -->
       <div class="header-actions">
-        <!-- Quick navigation links on Home -->
-        <template v-if="!hasSearch">
-          <a class="header-text-link" href="#" @click.prevent="runSearch(1, '이미지')">이미지</a>
-          <a class="header-text-link" href="#" @click.prevent="showAdvancedModal = true">고급 검색</a>
-        </template>
+        <!-- Language Switcher Pill -->
+        <div class="os-lang-picker" aria-label="언어 선택">
+          <button
+            type="button"
+            class="lang-pill-btn"
+            :class="{ active: locale === 'ko' }"
+            @click="setLocale('ko')"
+          >
+            KO
+          </button>
+          <button
+            type="button"
+            class="lang-pill-btn"
+            :class="{ active: locale === 'en' }"
+            @click="setLocale('en')"
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            class="lang-pill-btn"
+            :class="{ active: locale === 'th' }"
+            @click="setLocale('th')"
+          >
+            TH
+          </button>
+        </div>
 
-        <!-- Google-style 9-Dot Waffle Menu Button -->
+        <!-- Direct Shortcut to Open Mail -->
+        <a
+          class="header-mail-btn"
+          :href="`/${locale}/mail`"
+          title="Open Mail 웹메일 서비스"
+          @click.prevent="navigateTo('/mail')"
+        >
+          <span class="mail-icon">✉️</span>
+          <span class="mail-text">Open Mail</span>
+          <span v-if="unreadMailCount > 0" class="mail-badge">{{ unreadMailCount }}</span>
+        </a>
+
+        <!-- Theme Toggle -->
         <button
           type="button"
-          class="waffle-btn"
-          title="검색 카테고리"
-          aria-label="검색 카테고리"
-          :aria-expanded="showWaffle"
-          @click="showWaffle = !showWaffle; showSettings = false; showAccount = false"
+          class="header-theme-btn"
+          :title="theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'"
+          @click="theme = theme === 'dark' ? 'light' : 'dark'"
         >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM6 4c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 12c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
+          {{ theme === 'dark' ? '☀️' : '🌙' }}
         </button>
 
         <!-- Search Settings Button -->
@@ -1917,7 +2226,7 @@ onMounted(async () => {
           class="header-action-btn secondary"
           :aria-expanded="showSettings"
           :aria-label="i18n.settingsBtn"
-          @click="showSettings = !showSettings; showAccount = false; showWaffle = false; showProfileFlyout = false"
+          @click="showSettings = !showSettings; showAccount = false; showProfileFlyout = false"
         >
           <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
@@ -1925,41 +2234,17 @@ onMounted(async () => {
           <span>{{ i18n.settingsBtn }}</span>
         </button>
 
-        <!-- Account / Security Button (Phase 1 Playwright Spec Target) -->
-        <button
-          type="button"
-          class="header-action-btn secondary"
-          :aria-expanded="showAccount"
-          :aria-label="accountEmail ? accountEmail : '계정·보안'"
-          @click="sessionToken ? navigateTo('/console') : (showAccount = !showAccount); showSettings = false; showWaffle = false; showProfileFlyout = false"
-        >
-          <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-          </svg>
-          <span>{{ accountEmail ? accountEmail : '계정·보안' }}</span>
-        </button>
-
-        <!-- Open Scanner Official Account Button (When Logged Out) -->
+        <!-- Single Open Account Button (When Logged Out) -->
         <button
           v-if="!sessionToken"
           type="button"
-          class="os-account-btn"
+          class="os-account-btn header-auth-btn"
+          id="g-signin-btn"
           aria-label="Open Scanner 통합 계정"
           @click="openScannerAccount('login')"
         >
           <span class="os-btn-icon">⚡</span>
-          <span>Open Account</span>
-        </button>
-
-        <!-- Google-style Blue Sign-In Button (When Logged Out) -->
-        <button
-          v-if="!sessionToken"
-          type="button"
-          class="g-signin-btn"
-          aria-label="Google 계정 로그인"
-          @click="openAuthModal()"
-        >
-          로그인
+          <span class="os-btn-text">Open Account</span>
         </button>
 
         <!-- Google-style Avatar Circle (When Logged In) -->
@@ -1968,8 +2253,8 @@ onMounted(async () => {
           type="button"
           class="g-avatar-btn"
           :aria-expanded="showProfileFlyout"
-          :title="'Google 계정: ' + (accountName || accountEmail)"
-          @click="showProfileFlyout = !showProfileFlyout; showSettings = false; showAccount = false; showWaffle = false"
+          :title="'Open Scanner 계정: ' + (accountName || accountEmail)"
+          @click="showProfileFlyout = !showProfileFlyout; showSettings = false; showAccount = false"
         >
           <span class="avatar-circle">{{ (accountName || accountEmail || 'U').charAt(0).toUpperCase() }}</span>
         </button>
@@ -3477,6 +3762,355 @@ onMounted(async () => {
         </div>
       </section>
 
+      <!-- Dedicated Open Mail Full-Screen Webmail View (/mail) -->
+      <section v-if="isMailRoute" class="os-dedicated-mail-page" data-testid="open-mail-view">
+        <div class="mail-page-shell">
+          <div class="mail-top-bar">
+            <div class="mail-bar-left">
+              <span class="mail-logo-icon">✉️</span>
+              <h2 class="mail-bar-title">Open Mail</h2>
+              <span class="mail-secure-badge">E2EE 암호화 사서함</span>
+            </div>
+            <div class="mail-bar-right">
+              <span class="mail-user-account">{{ accountEmail || 'user@openscanner.internal' }}</span>
+              <button type="button" class="mail-compose-header-btn" @click="showComposeModal = true">
+                ✏️ 새 메일 쓰기
+              </button>
+            </div>
+          </div>
+
+          <div class="super-mail-view">
+            <aside class="super-mail-sidebar">
+              <button type="button" class="super-mail-compose-btn" @click="showComposeModal = true">
+                + 편지 쓰기
+              </button>
+              <ul class="super-mail-folders" role="tablist">
+                <li
+                  :class="{ active: activeMailFolder === 'inbox' }"
+                  role="tab"
+                  :aria-selected="activeMailFolder === 'inbox'"
+                  @click="activeMailFolder = 'inbox'"
+                >
+                  <span>📥 받은 편지함</span>
+                  <span v-if="unreadMailCount > 0" class="badge">{{ unreadMailCount }}</span>
+                </li>
+                <li
+                  :class="{ active: activeMailFolder === 'sent' }"
+                  role="tab"
+                  :aria-selected="activeMailFolder === 'sent'"
+                  @click="activeMailFolder = 'sent'"
+                >
+                  <span>📤 보낸 편지함</span>
+                </li>
+                <li
+                  :class="{ active: activeMailFolder === 'security' }"
+                  role="tab"
+                  :aria-selected="activeMailFolder === 'security'"
+                  @click="activeMailFolder = 'security'"
+                >
+                  <span>🔒 보안 &amp; PIN 알림</span>
+                </li>
+              </ul>
+            </aside>
+
+            <div class="super-mail-list">
+              <div class="mail-search-box" style="padding: 10px 12px; border-bottom: 1px solid var(--border);">
+                <input
+                  v-model="mailSearchQuery"
+                  type="search"
+                  placeholder="메일 검색..."
+                  style="width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;"
+                />
+              </div>
+              <div v-if="filteredMails.length === 0" style="padding: 24px; text-align: center; color: var(--muted); font-size: 13px;">
+                메일이 없습니다.
+              </div>
+              <div
+                v-for="msg in filteredMails"
+                :key="msg.id"
+                class="super-mail-item"
+                :class="{ selected: selectedMail && selectedMail.id === msg.id, unread: msg.unread }"
+                @click="selectMail(msg)"
+              >
+                <div class="mail-item-header">
+                  <span class="mail-from">{{ msg.from }}</span>
+                  <span class="mail-date">{{ msg.date }}</span>
+                </div>
+                <div class="mail-subject">{{ msg.subject }}</div>
+                <div class="mail-snippet">{{ msg.body }}</div>
+              </div>
+            </div>
+
+            <div class="super-mail-detail">
+              <template v-if="selectedMail">
+                <div class="mail-detail-header">
+                  <h4>{{ selectedMail.subject }}</h4>
+                  <div class="mail-meta" style="font-size: 12px; color: var(--muted); margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px;">
+                    <div>보낸 사람: <strong>{{ selectedMail.from }}</strong></div>
+                    <div>받는 사람: <strong>{{ selectedMail.to || accountEmail || 'user@openscanner.internal' }}</strong></div>
+                    <div>일시: {{ selectedMail.date }}</div>
+                  </div>
+                </div>
+
+                <div v-if="selectedMailPin" class="os-pin-highlight-box">
+                  <div class="pin-box-icon">⚡</div>
+                  <div class="pin-box-info">
+                    <span class="pin-box-title">Open Scanner 이메일 인증 6자리 PIN 코드</span>
+                    <div class="pin-box-digits">{{ selectedMailPin }}</div>
+                  </div>
+                  <div class="pin-box-actions">
+                    <button type="button" class="pin-copy-btn" @click="copyPin(selectedMailPin)">
+                      📋 PIN 복사
+                    </button>
+                    <button
+                      type="button"
+                      class="pin-verify-jump-btn"
+                      @click="verifyCode = selectedMailPin; openScannerAccount('verify')"
+                    >
+                      ✓ 바로 인증하기
+                    </button>
+                  </div>
+                </div>
+
+                <div class="mail-detail-body">
+                  <pre style="white-space: pre-wrap; font-family: inherit; font-size: 13.5px; line-height: 1.6; color: var(--text);">{{ selectedMail.body }}</pre>
+                </div>
+              </template>
+              <template v-else>
+                <div style="padding: 40px; text-align: center; color: var(--muted);">
+                  <p>메일을 선택하여 내용을 확인하세요.</p>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dedicated Auth Full-Screen Page (/login & /register) -->
+      <section v-else-if="isLoginRoute || isRegisterRoute" class="os-auth-page-view" data-testid="auth-page-view">
+        <div class="os-auth-modal-card os-auth-page-card">
+          <div class="os-auth-modal-header">
+            <div class="os-brand-identity">
+              <span class="os-core-gem">⚡</span>
+              <span class="os-brand-name">OPEN SCANNER</span>
+            </div>
+            <p class="os-auth-subtitle">Search Anything. Discover Everything. Do Anything.</p>
+          </div>
+
+          <div class="os-auth-tabs" role="tablist">
+            <button
+              type="button"
+              class="os-tab-btn"
+              :class="{ active: openAccountTab === 'login' }"
+              @click="openAccountTab = 'login'; navigateTo('/login')"
+            >
+              로그인
+            </button>
+            <button
+              type="button"
+              class="os-tab-btn"
+              :class="{ active: openAccountTab === 'register' }"
+              @click="openAccountTab = 'register'; navigateTo('/register')"
+            >
+              회원가입
+            </button>
+            <button
+              type="button"
+              class="os-tab-btn"
+              :class="{ active: openAccountTab === 'verify' }"
+              @click="openAccountTab = 'verify'"
+            >
+              이메일 인증
+            </button>
+            <button
+              type="button"
+              class="os-tab-btn"
+              :class="{ active: openAccountTab === 'reset' }"
+              @click="openAccountTab = 'reset'"
+            >
+              비밀번호 재설정
+            </button>
+          </div>
+
+          <div v-if="accountError" class="os-auth-alert error" role="alert">
+            {{ accountError }}
+          </div>
+          <div v-if="accountSuccess" class="os-auth-alert success" role="status">
+            {{ accountSuccess }}
+          </div>
+
+          <!-- Login Form -->
+          <form v-if="openAccountTab === 'login'" class="os-auth-form" @submit.prevent="submitLocalLogin">
+            <div class="os-form-field">
+              <label for="os-page-login-email">이메일 주소</label>
+              <input
+                id="os-page-login-email"
+                v-model="loginEmail"
+                type="email"
+                placeholder="name@example.com"
+                required
+                autocomplete="email"
+              />
+            </div>
+            <div class="os-form-field">
+              <label for="os-login-password">비밀번호</label>
+              <input
+                id="os-login-password"
+                v-model="loginPassword"
+                type="password"
+                placeholder="비밀번호를 입력하세요"
+                required
+                autocomplete="current-password"
+              />
+            </div>
+            <button type="submit" class="os-submit-btn" :disabled="accountLoading">
+              {{ accountLoading ? '로그인 중...' : '로그인' }}
+            </button>
+            <div class="os-auth-switch-links">
+              <button type="button" class="os-link-btn" @click="openAccountTab = 'register'; navigateTo('/register')">
+                계정이 없으신가요? 회원가입
+              </button>
+              <button type="button" class="os-link-btn" @click="openAccountTab = 'reset'">
+                비밀번호를 잊으셨나요?
+              </button>
+            </div>
+          </form>
+
+          <!-- Register Form -->
+          <form v-else-if="openAccountTab === 'register'" class="os-auth-form" @submit.prevent="submitLocalRegister">
+            <div class="os-form-field">
+              <label for="os-reg-email">이메일 주소</label>
+              <input
+                id="os-reg-email"
+                v-model="regEmail"
+                type="email"
+                placeholder="name@example.com"
+                required
+                autocomplete="email"
+              />
+            </div>
+            <div class="os-form-field">
+              <label for="os-reg-name">사용자 이름 (선택)</label>
+              <input
+                id="os-reg-name"
+                v-model="regDisplayName"
+                type="text"
+                placeholder="홍길동"
+                autocomplete="name"
+              />
+            </div>
+            <div class="os-form-field">
+              <label for="os-reg-pass">비밀번호 (8자 이상)</label>
+              <input
+                id="os-reg-pass"
+                v-model="regPassword"
+                type="password"
+                placeholder="영문, 숫자 포함 8자 이상"
+                required
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="os-form-field">
+              <label for="os-reg-confirm">비밀번호 확인</label>
+              <input
+                id="os-reg-confirm"
+                v-model="regPasswordConfirm"
+                type="password"
+                placeholder="비밀번호 다시 입력"
+                required
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="os-form-checkbox">
+              <input id="os-reg-terms" v-model="regAgreeTerms" type="checkbox" required />
+              <label for="os-reg-terms">이용약관 및 개인정보처리방침에 동의합니다.</label>
+            </div>
+            <button type="submit" class="os-submit-btn" :disabled="accountLoading">
+              {{ accountLoading ? '가입 처리 중...' : '회원가입 및 인증 메일 발송' }}
+            </button>
+            <div class="os-auth-switch-links">
+              <button type="button" class="os-link-btn" @click="openAccountTab = 'login'; navigateTo('/login')">
+                이미 계정이 있으신가요? 로그인
+              </button>
+            </div>
+          </form>
+
+          <!-- Verify Form -->
+          <form v-else-if="openAccountTab === 'verify'" class="os-auth-form" @submit.prevent="submitEmailVerify">
+            <div class="os-form-field">
+              <label for="os-page-verify-email">인증 대상 이메일</label>
+              <input
+                id="os-page-verify-email"
+                v-model="verifyEmail"
+                type="email"
+                required
+              />
+            </div>
+            <div class="os-form-field">
+              <label for="os-verify-code">6자리 인증 PIN 코드</label>
+              <input
+                id="os-verify-code"
+                v-model="verifyCode"
+                type="text"
+                maxlength="6"
+                placeholder="예: 123456"
+                required
+                style="letter-spacing: 4px; font-weight: bold; font-size: 16px; text-align: center;"
+              />
+            </div>
+            <p class="os-verify-hint" style="font-size: 12px; color: var(--muted); margin: 4px 0 12px;">
+              인증 코드는 <a href="#" @click.prevent="navigateTo('/mail')" style="color: var(--brand); font-weight: 600;">Open Mail</a> 받은 편지함에서도 실시간으로 확인하실 수 있습니다.
+            </p>
+            <button type="submit" class="os-submit-btn" :disabled="accountLoading">
+              {{ accountLoading ? '인증 확인 중...' : '이메일 소유권 인증 완료' }}
+            </button>
+          </form>
+
+          <!-- Reset Form -->
+          <form v-else-if="openAccountTab === 'reset'" class="os-auth-form" @submit.prevent="resetStep === 'request' ? submitResetRequest() : submitResetConfirm()">
+            <div v-if="resetStep === 'request'" class="os-form-field">
+              <label for="os-page-reset-email">가입한 이메일 주소</label>
+              <input
+                id="os-page-reset-email"
+                v-model="resetEmail"
+                type="email"
+                placeholder="name@example.com"
+                required
+              />
+            </div>
+            <template v-else>
+              <div class="os-form-field">
+                <label for="os-page-reset-token">재설정 보안 토큰</label>
+                <input
+                  id="os-page-reset-token"
+                  v-model="resetToken"
+                  type="text"
+                  required
+                />
+              </div>
+              <div class="os-form-field">
+                <label for="os-page-reset-pass">새 비밀번호</label>
+                <input
+                  id="os-page-reset-pass"
+                  v-model="resetNewPassword"
+                  type="password"
+                  placeholder="8자 이상 입력"
+                  required
+                />
+              </div>
+            </template>
+            <button type="submit" class="os-submit-btn" :disabled="accountLoading">
+              {{ accountLoading ? '처리 중...' : (resetStep === 'request' ? '비밀번호 재설정 링크 발송' : '새 비밀번호 변경 완료') }}
+            </button>
+            <div class="os-auth-switch-links">
+              <button type="button" class="os-link-btn" @click="openAccountTab = 'login'; navigateTo('/login')">
+                로그인 화면으로 돌아가기
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
       <!-- Task 018: Explicit access boundary screen for unauthenticated/unprivileged Admin or Partner routes -->
       <section v-else-if="isConsoleDeniedRoute" class="panel-card console-denied" role="alert" data-testid="console-denied-view">
         <div class="denied-icon">🔒</div>
@@ -3590,9 +4224,7 @@ onMounted(async () => {
               <span class="os-orbit-ring"></span>
               <span class="os-core-gem">⚡</span>
             </div>
-            <h1 class="home-brand-title">
-              <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span><span class="l-g">P</span><span class="l-r">o</span><span class="l-b">r</span><span class="l-y">t</span><span class="l-g">a</span><span class="l-r">l</span>
-            </h1>
+            <h1 class="home-brand-title os-brand-title">OPEN SCANNER</h1>
             <p class="home-tagline">{{ i18n.heading }}</p>
             <div class="os-official-slogan-wrap">
               <h2 class="hero-slogan-en">Search Anything. Discover Everything. Do Anything.</h2>
@@ -3730,24 +4362,7 @@ onMounted(async () => {
                 </template>
               </ul>
 
-              <!-- Google Dual Action Buttons -->
-              <div class="home-button-row">
-                <button
-                  type="submit"
-                  class="g-btn g-btn-search"
-                  :disabled="busy"
-                >
-                  {{ busy ? i18n.searchingBtn : i18n.searchBtn }}
-                </button>
-                <button
-                  type="button"
-                  class="g-btn g-btn-lucky"
-                  @click="runLuckySearch"
-                >
-                  {{ i18n.luckyBtn }}
-                </button>
-              </div>
-            </form>
+              </form>
           </div>
 
           <!-- Google Language Availability Line -->
@@ -4187,26 +4802,13 @@ onMounted(async () => {
 
             <!-- Open Scanner Numbered Pagination -->
             <div v-if="result.total > 10" class="serp-pagination" aria-label="검색 결과 페이지 이동">
-              <div class="pagination-logo-art" aria-hidden="true">
-                <span class="pag-letter pag-g">Open</span>
-                <span
-                  v-for="p in Math.min(8, Math.ceil(result.total / 10))"
-                  :key="p"
-                  class="pag-letter"
-                  :class="[p % 2 === 0 ? 'pag-o' : 'pag-e', { active: p === page }]"
-                >
-                  S
-                </span>
-                <span class="pag-letter pag-gle">canner</span>
-              </div>
+              
               <div class="pager">
                 <button
                   class="pager-nav-btn prev-btn"
                   :disabled="page <= 1 || busy"
                   @click="runSearch(page - 1)"
-                >
-                  이전
-                </button>
+                >{{ i18n.prev }}</button>
                 <div class="pager-numbers">
                   <button
                     v-for="p in Math.min(8, Math.ceil(result.total / 10))"
@@ -4223,9 +4825,7 @@ onMounted(async () => {
                   class="pager-nav-btn next-btn"
                   :disabled="page * 10 >= result.total || busy"
                   @click="runSearch(page + 1)"
-                >
-                  다음
-                </button>
+                >{{ i18n.next }}</button>
               </div>
             </div>
           </template>

@@ -5228,3 +5228,338 @@ main {
 }
 
 
+
+/* ============================================================================
+   Open Scanner Cyber-Minimalist UI/UX Refinement & Dedicated Routes
+   ============================================================================ */
+
+/* 1. Header Navigation Refinements */
+.os-brand-text {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.os-lang-picker {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 4px;
+  gap: 2px;
+}
+
+.lang-pill-btn {
+  background: transparent;
+  border: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lang-pill-btn.active {
+  background: var(--brand);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}
+
+.header-mail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 20px;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.header-mail-btn:hover {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+
+.mail-badge {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.header-theme-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--text);
+}
+
+.header-theme-btn:hover {
+  background: var(--chip-hover);
+  border-color: var(--muted);
+}
+
+/* 2. Solitary Cyber Search Bar on Home */
+.os-hero-logo {
+  margin-bottom: 24px;
+}
+
+.os-brand-title {
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, #00f2fe 0%, #2563eb 50%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 12px 0 6px 0;
+}
+
+.os-search-container {
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.os-search-bar {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  background: var(--surface);
+  border: 1.5px solid rgba(56, 189, 248, 0.35);
+  border-radius: 26px;
+  padding: 0 8px 0 18px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 15px rgba(0, 242, 254, 0.12);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.os-search-bar:focus-within {
+  border-color: #00f2fe;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12), 0 0 25px rgba(0, 242, 254, 0.28);
+}
+
+.home-search-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #00f2fe 100%);
+  color: #ffffff;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: 6px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.home-search-btn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: scale(1.02);
+}
+
+.home-search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 3. Dedicated Open Mail Full-Screen Page (/mail) */
+.os-dedicated-mail-page {
+  max-width: 1320px;
+  width: 95%;
+  margin: 20px auto 40px;
+}
+
+.mail-page-shell {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.mail-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: rgba(37, 99, 235, 0.05);
+  border-bottom: 1px solid var(--border);
+}
+
+.mail-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mail-logo-icon {
+  font-size: 22px;
+}
+
+.mail-bar-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.mail-secure-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.mail-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mail-user-account {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.mail-compose-header-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mail-compose-header-btn:hover {
+  background: #1d4ed8;
+}
+
+/* Open Mail PIN Highlight Card */
+.os-pin-highlight-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(37, 99, 235, 0.08) 100%);
+  border: 1.5px solid rgba(6, 182, 212, 0.4);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 16px 0;
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.12);
+}
+
+.pin-box-icon {
+  font-size: 30px;
+  color: #06b6d4;
+  margin-right: 14px;
+}
+
+.pin-box-info {
+  flex: 1;
+}
+
+.pin-box-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0284c7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.app.theme-dark .pin-box-title {
+  color: #38bdf8;
+}
+
+.pin-box-digits {
+  font-size: 32px;
+  font-weight: 900;
+  font-family: var(--font-family-mono, monospace);
+  letter-spacing: 8px;
+  color: #0284c7;
+}
+
+.app.theme-dark .pin-box-digits {
+  color: #38bdf8;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+.pin-box-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pin-copy-btn, .pin-verify-jump-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pin-copy-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.pin-verify-jump-btn {
+  background: #2563eb;
+  border: none;
+  color: #ffffff;
+}
+
+/* 4. Dedicated Auth Page View (/login & /register) */
+.os-auth-page-view {
+  min-height: calc(100vh - 160px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 16px;
+}
+
+.os-auth-page-card {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* 5. Clean SERP Numeric Pagination */
+.os-pagination {
+  margin: 36px 0;
+  display: flex;
+  justify-content: center;
+}
