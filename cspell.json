@@ -410,6 +410,11 @@
     "CLAMAV",
     "EHLO",
     "HELO",
-    "ungranted"
+    "ungranted",
+    "howsearchworks",
+    "wordmark",
+    "linejoin",
+    "networkidle",
+    "openscan"
   ]
 }

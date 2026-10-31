@@ -1,29 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0B1020"/>
-      <stop offset="100%" stop-color="#1E293B"/>
-    </linearGradient>
-    <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2563EB"/>
-      <stop offset="100%" stop-color="#22C7E8"/>
-    </linearGradient>
-    <linearGradient id="grad-violet" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#22C7E8"/>
-      <stop offset="100%" stop-color="#7C3AED"/>
-    </linearGradient>
-  </defs>
-  <!-- Background Container -->
-  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
-  
-  <!-- Scanner Focus Frame Brackets -->
-  <path d="M 12 24 L 12 14 A 2 2 0 0 1 14 12 L 24 12" stroke="url(#grad-blue)" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M 40 12 L 50 12 A 2 2 0 0 1 52 14 L 52 24" stroke="url(#grad-blue)" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M 52 40 L 52 50 A 2 2 0 0 1 50 52 L 40 52" stroke="url(#grad-violet)" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M 24 52 L 14 52 A 2 2 0 0 1 12 50 L 12 40" stroke="url(#grad-violet)" stroke-width="4.5" stroke-linecap="round"/>
-
-  <!-- Discovery Orbit & Core -->
-  <circle cx="32" cy="32" r="12" stroke="#22C7E8" stroke-width="2.5" stroke-dasharray="5 3" fill="none"/>
-  <circle cx="32" cy="32" r="5" fill="#7C3AED"/>
-  <circle cx="32" cy="32" r="2.5" fill="#FFFFFF"/>
+<svg viewBox="0 0 48 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M12 28h24a8 8 0 0 0 2-15.75A11 11 0 0 0 17 9.5 8 8 0 0 0 8 20a8 8 0 0 0 4 8z" fill="#DCEEFF" stroke="#3F8FE0" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="23" cy="18" r="7" fill="#FFFFFF" stroke="#3F8FE0" stroke-width="2.5"/>
+  <path d="M28 23l6 6" stroke="#2470C2" stroke-width="3" stroke-linecap="round"/>
 </svg>
