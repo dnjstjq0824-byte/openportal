@@ -531,12 +531,12 @@ function edgeConfig(requestID) {
     },
     tabs: [
       { id: 'web', label_ko: '전체', label_en: 'All', enabled: true, phase: 1 },
-      { id: 'image', label_ko: '이미지', label_en: 'Images', enabled: true, phase: 5 },
-      { id: 'news', label_ko: '뉴스', label_en: 'News', enabled: true, phase: 5 },
-      { id: 'video', label_ko: '동영상', label_en: 'Videos', enabled: true, phase: 5 },
-      { id: 'map', label_ko: '지도', label_en: 'Maps', enabled: true, phase: 5 },
-      { id: 'shopping', label_ko: '쇼핑', label_en: 'Shopping', enabled: true, phase: 5 },
-      { id: 'books', label_ko: '도서', label_en: 'Books', enabled: true, phase: 5 },
+      { id: 'image', label_ko: '이미지', label_en: 'Images', enabled: true, phase: 5, gate_note: 'CC-BY 4.0 및 퍼블릭 도메인 라이선스 검증 미디어 제공' },
+      { id: 'news', label_ko: '뉴스', label_en: 'News', enabled: true, phase: 5, gate_note: '언론사 신디케이션 라이선스 및 실시간 뉴스 피드 연동' },
+      { id: 'video', label_ko: '동영상', label_en: 'Videos', enabled: true, phase: 5, gate_note: '승인된 동영상 임베드 프로바이더 및 권리 라이선스 연동' },
+      { id: 'map', label_ko: '지도', label_en: 'Maps', enabled: true, phase: 5, gate_note: 'OpenStreetMap ODbL 1.0 라이선스 기반 지리 정보 제공' },
+      { id: 'shopping', label_ko: '쇼핑', label_en: 'Shopping', enabled: true, phase: 5, gate_note: 'FTC/KFTC 스폰서 고지 및 머천트 라이선스 준수 커머스 피드' },
+      { id: 'books', label_ko: '도서', label_en: 'Books', enabled: true, phase: 5, gate_note: '오픈 액세스 서지 데이터 및 출판 라이선스 카탈로그 제공' },
     ],
     phase_notices: {
       image: 'CC-BY 4.0 및 퍼블릭 도메인 검증 미디어 제공',

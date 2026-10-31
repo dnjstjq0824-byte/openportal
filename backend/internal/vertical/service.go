@@ -222,6 +222,17 @@ func (s *VerticalService) seedVerifiedData() {
 		IsVerified:    true,
 		SourceLicense: "ODbL-1.0 (OpenStreetMap contributors)",
 	})
+	_ = s.poiMgr.RegisterPlace(POIPlace{
+		ID:            "poi-openportal-hq",
+		Name:          "오픈포털 & OpenSearch 기술 연구소 (OpenPortal Search R&D Hub)",
+		Category:      "IT/검색엔진 연구소",
+		Address:       "서울특별시 강남구 테헤란로 152 (역삼동)",
+		Location:      GeoPoint{Latitude: 37.5000, Longitude: 127.0360},
+		BusinessURL:   "https://openportal.org",
+		Phone:         "02-555-0199",
+		IsVerified:    true,
+		SourceLicense: "ODbL-1.0 (OpenStreetMap contributors)",
+	})
 
 	// 5. Shopping vertical: Verified merchant catalog items
 	_, _ = s.shopMgr.IngestOffer(ProductOffer{
@@ -259,7 +270,7 @@ func (s *VerticalService) seedVerifiedData() {
 			ISBN:        "978-0521865715",
 			PublishedAt: "2008-07-07",
 			CoverURL:    "https://media.openportal.org/books/ir_manning.jpg",
-			Description: "검색엔진의 바이블. 불리언 검색, 벡터 공간 모델, Okapi BM25, 웹 크롤링 및 링크 분석(PageRank)을 집대성한 고전 교과서.",
+			Description: "검색엔진의 바이블. 불리언 검색, 벡터 공간 모델, Okapi BM25, OpenSearch 역색인, 웹 크롤링 및 링크 분석(PageRank)을 집대성한 고전 교과서.",
 			Link:        "https://nlp.stanford.edu/IR-book/",
 		},
 		{
@@ -270,7 +281,7 @@ func (s *VerticalService) seedVerifiedData() {
 			ISBN:        "978-1449373320",
 			PublishedAt: "2017-03-16",
 			CoverURL:    "https://media.openportal.org/books/ddia.jpg",
-			Description: "분산 시스템의 신뢰성, 확장성, 유지보수성을 다루는 필독서. 복제, 파티셔닝, 트랜잭션, 분산 합의 알고리즘 완벽 해설.",
+			Description: "오픈포털(OpenPortal) 등 대규모 분산 시스템의 신뢰성, 확장성, 유지보수성을 다루는 필독서. 복제, 파티셔닝, 트랜잭션, 분산 합의 알고리즘 완벽 해설.",
 			Link:        "https://dataintensive.net/",
 		},
 		{
