@@ -4,8 +4,10 @@
 **Status:** APPROVED & ACTIVE  
 **Security Classification:** Highly Confidential / Open Scanner Commercial Core  
 **Product Name:** OPEN SCANNER  
-**Vision Statement:** "Beyond Search. Open Everything."  
-**Core Target:** Autonomous, independent global search engine & super platform providing unbiased information discovery, integrated identity, transactional email, and developer ecosystem.
+**Official Global Slogan:** **Search Anything. Discover Everything. Do Anything.**  
+**Korean Localization:** **무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.**  
+**Brand Philosophy:** Search-to-Action Ecosystem (`Search → Discover → Connect → Experience → Create`)  
+**Core Target:** Autonomous, independent global search engine & super platform providing unbiased information discovery, integrated identity, transactional email, 30-platform service integration, and developer ecosystem.
 
 ---
 
@@ -102,3 +104,4 @@ Open Scanner is an independent, non-proxy search engine and unified digital plat
 - [x] Local registration, email verification, login, and password reset endpoints pass Go HTTP integration tests (`backend/cmd/api/http_test.go`).
 - [x] All 13 backend Go packages pass tests (`cd backend && go test ./...`).
 - [x] Frontend builds with zero TypeScript or Vite bundle errors (`npm run build`).
+

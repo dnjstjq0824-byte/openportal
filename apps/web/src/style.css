@@ -4769,6 +4769,323 @@ main {
   }
 }
 
+/* ============================================================================
+   Open Scanner Official Global Brand Slogan & Philosophy System
+   "Search Anything. Discover Everything. Do Anything."
+   ============================================================================ */
+.os-official-slogan-wrap {
+  margin: 10px 0 14px;
+  text-align: center;
+}
+
+.hero-slogan-en {
+  margin: 0 0 4px 0;
+  font-size: 19px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #2563eb, #22c7e8 50%, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+}
+
+.hero-slogan-ko {
+  margin: 0 0 12px 0;
+  font-size: 13.5px;
+  color: #64748b;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.app.theme-dark .hero-slogan-ko {
+  color: #94a3b8;
+}
+
+.search-to-action-chain {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(37, 99, 235, 0.05);
+  border: 1px solid rgba(34, 199, 232, 0.25);
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+.app.theme-dark .search-to-action-chain {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(51, 65, 85, 0.8);
+}
+
+.s2a-step {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.s2a-step.active {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.app.theme-dark .s2a-step {
+  color: #94a3b8;
+}
+
+.app.theme-dark .s2a-step.active {
+  color: #38bdf8;
+}
+
+.s2a-arrow {
+  color: #cbd5e1;
+  font-size: 11px;
+}
+
+/* Waffle Header & Pillars */
+.waffle-ecosystem-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.05), rgba(124, 58, 237, 0.05));
+  border-radius: 12px 12px 0 0;
+}
+
+.app.theme-dark .waffle-ecosystem-header {
+  border-bottom-color: #334155;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.waffle-eco-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.waffle-eco-slogan {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.waffle-tile-pillar {
+  font-size: 9.5px;
+  font-weight: 600;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+/* Modal Title Slogan Tiny */
+.os-brand-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.os-brand-slogan-tiny {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #2563eb;
+  letter-spacing: -0.01em;
+}
+
+/* Footer Slogan Strip */
+.footer-brand-slogan-strip {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.strip-slogan-en {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.strip-slogan-ko {
+  color: #64748b;
+}
+
+/* Philosophy Modal */
+.philosophy-modal-card {
+  max-width: 840px;
+}
+
+.philosophy-modal-body {
+  padding: 24px 28px;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+.philo-hero {
+  text-align: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 24px;
+}
+
+.app.theme-dark .philo-hero {
+  border-bottom-color: #334155;
+}
+
+.philo-slogan-main {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #2563eb, #22c7e8 50%, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.philo-slogan-sub {
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.app.theme-dark .philo-slogan-sub {
+  color: #cbd5e1;
+}
+
+.philo-manifesto {
+  margin: 0 auto;
+  max-width: 600px;
+  padding: 14px 20px;
+  background: #f8fafc;
+  border-left: 4px solid #2563eb;
+  border-radius: 0 10px 10px 0;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #1e293b;
+}
+
+.app.theme-dark .philo-manifesto {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+
+.philo-section {
+  margin-bottom: 28px;
+}
+
+.philo-section h5 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.philo-chain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app.theme-dark .philo-chain {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.chain-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.node-tag {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.node-desc {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.chain-arrow {
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.philo-note {
+  font-size: 13px;
+  color: #64748b;
+  margin: 10px 0 0;
+  text-align: center;
+  font-weight: 500;
+}
+
+.philo-ecosystem-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.eco-pillar {
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.app.theme-dark .eco-pillar {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.eco-pillar h6 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #2563eb;
+  letter-spacing: 0.05em;
+}
+
+.eco-pillar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.eco-pillar li strong {
+  color: inherit;
+}
+
+@media (max-width: 640px) {
+  .hero-slogan-en {
+    font-size: 15px;
+  }
+  .hero-slogan-ko {
+    font-size: 12px;
+  }
+  .philo-ecosystem-grid {
+    grid-template-columns: 1fr;
+  }
+  .footer-brand-slogan-strip {
+    display: none;
+  }
+}
+
+
 
 
 

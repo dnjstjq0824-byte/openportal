@@ -103,3 +103,30 @@ The Open Scanner Design System provides cross-platform semantic tokens ensuring 
    - `skip-link` pointing to `#main-content` at start of DOM.
 3. **Screen Reader Landmarks:**
    - Proper `role="banner"`, `role="search"`, `role="main"`, `role="contentinfo"`, and `role="dialog"`.
+
+---
+
+## 5. Official Global Brand Slogan & Motion Architecture
+
+### 5.1 The Brand Slogan Token Hierarchy
+- **Master Global Slogan:** `Search Anything. Discover Everything. Do Anything.`
+- **Korean Localization:** `무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.`
+- **Core Manifesto:** `"We don't just help people find information. We connect the world to everything it can discover and do."`
+
+### 5.2 Search-to-Action Lifecycle Sequence Tokens
+| Lifecycle Stage | Visual Accent Token | Semantic Role |
+|---|---|---|
+| **1. Search** | `#2563EB` (Primary Blue) | 전 세계 정보 인덱스 탐색 및 질의 |
+| **2. Discover** | `#22C7E8` (Discovery Cyan) | 신경망 AI, 멀티미디어, 상품 발견 |
+| **3. Connect** | `#7C3AED` (Intelligence Violet)| 글로벌 통합 계정 및 서비스 연결 |
+| **4. Experience** | `#10B981` (Emerald Green) | 초저지연 스트리밍, 웹메일, 앱 실행 |
+| **5. Create** | `#F59E0B` (Amber Gold) | 분산 클라우드, API SDK, 가치 창출 |
+
+### 5.3 Scanning Laser Beam Motion Specification
+- **Selector:** `.scanning-laser-beam`
+- **Gradient:** `linear-gradient(90deg, transparent, #22c7e8, #7c3aed, #2563eb, transparent)`
+- **Shadow:** `0 0 10px #22c7e8, 0 0 16px #7c3aed`
+- **Timing Function:** `1.4s ease-in-out infinite alternate`
+- **Transform Origin:** `scaleX(0.8) -> scaleX(1.3)` during sweep
+
+

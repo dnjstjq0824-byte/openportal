@@ -242,7 +242,7 @@ func (s *Service) SendRegistrationVerification(ctx context.Context, email, displ
 
 	subject := "[Open Scanner] 계정 가입 인증 코드: " + pinCode
 	textBody := fmt.Sprintf(
-		"안녕하세요, %s님.\n\nOpen Scanner 회원가입을 완료하려면 아래 6자리 인증 코드를 입력하세요:\n\n인증 코드: %s\n\n본 코드는 15분간 유효합니다.\n\nOpen Scanner 팀 드림\nBeyond Search. Open Everything.",
+		"안녕하세요, %s님.\n\nOpen Scanner 회원가입을 완료하려면 아래 6자리 인증 코드를 입력하세요:\n\n인증 코드: %s\n\n본 코드는 15분간 유효합니다.\n\nOpen Scanner 팀 드림\nSearch Anything. Discover Everything. Do Anything.\n(무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.)",
 		displayName, pinCode,
 	)
 	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
@@ -260,9 +260,14 @@ func (s *Service) SendRegistrationVerification(ctx context.Context, email, displ
     <div style="background: #f1f5f9; border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 24px;">
       <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #2563eb;">%s</span>
     </div>
-    <p style="font-size: 13px; color: #94a3b8; margin: 0;">
+    <p style="font-size: 13px; color: #94a3b8; margin: 0 0 20px 0;">
       * 본 코드는 15분 후 만료됩니다. 본인이 가입을 요청하지 않았다면 본 메일을 무시하셔도 안전합니다.
     </p>
+    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">
+      <strong style="color: #111827;">OPEN SCANNER</strong><br>
+      <span style="color: #2563eb; font-weight: 600;">Search Anything. Discover Everything. Do Anything.</span><br>
+      <span style="font-size: 11px; color: #94a3b8;">무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.</span>
+    </div>
   </div>
 </body>
 </html>`, displayName, pinCode)
@@ -341,7 +346,7 @@ func (s *Service) SendPasswordReset(ctx context.Context, email string) (*Passwor
 
 	subject := "[Open Scanner] 계정 비밀번호 재설정 안내"
 	textBody := fmt.Sprintf(
-		"안녕하세요.\n\nOpen Scanner 계정의 비밀번호 재설정 요청이 접수되었습니다.\n\n아래 보안 토큰을 입력하여 비밀번호를 재설정하세요:\n\n토큰: %s\n\n본 링크 및 토큰은 15분간 유효합니다.\n\nOpen Scanner 보안팀 드림",
+		"안녕하세요.\n\nOpen Scanner 계정의 비밀번호 재설정 요청이 접수되었습니다.\n\n아래 보안 토큰을 입력하여 비밀번호를 재설정하세요:\n\n토큰: %s\n\n본 링크 및 토큰은 15분간 유효합니다.\n\nOpen Scanner 보안팀 드림\nSearch Anything. Discover Everything. Do Anything.\n(무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.)",
 		tokenStr,
 	)
 	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
@@ -356,9 +361,14 @@ func (s *Service) SendPasswordReset(ctx context.Context, email string) (*Passwor
     <div style="background: #f1f5f9; border-radius: 8px; padding: 14px; font-family: monospace; font-size: 16px; color: #2563eb; word-break: break-all; text-align: center; margin-bottom: 20px;">
       %s
     </div>
-    <p style="font-size: 13px; color: #94a3b8; margin: 0;">
+    <p style="font-size: 13px; color: #94a3b8; margin: 0 0 20px 0;">
       * 본 토큰은 15분 후 만료됩니다. 본인이 요청하지 않았다면 즉시 고객센터로 신고해 주세요.
     </p>
+    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">
+      <strong style="color: #111827;">OPEN SCANNER</strong><br>
+      <span style="color: #2563eb; font-weight: 600;">Search Anything. Discover Everything. Do Anything.</span><br>
+      <span style="font-size: 11px; color: #94a3b8;">무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.</span>
+    </div>
   </div>
 </body>
 </html>`, tokenStr)

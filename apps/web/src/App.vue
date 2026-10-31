@@ -131,22 +131,38 @@ const verticalTabs = ref<VerticalTab[]>([
 const activeTab = ref('web');
 const verticalGateNotice = ref('');
 
-// Open Scanner Superplatform 12 Core Ecosystem Services (for 9-dot Waffle Menu)
+// Open Scanner Superplatform — Search-to-Action Ecosystem Services (for 9-dot Waffle Menu)
 const googleApps = [
-  { name: '웹 검색', icon: '⌕', query: 'web', desc: '독립 글로벌 웹 검색' },
-  { name: 'Open Mail', icon: '✉', service: 'mail', desc: 'E2EE 암호화 웹메일' },
-  { name: 'Open Apps', icon: '⊞', service: 'apps', desc: '독립 앱마켓 스토어' },
-  { name: 'Open Video', icon: '▷', query: 'video', desc: '고화질 미디어 채널' },
-  { name: 'Open Stream', icon: '📡', service: 'stream', desc: '초저지연 라이브 방송' },
-  { name: 'Open AI', icon: '✦', service: 'ai', desc: '신경망 출처 인용 탐색' },
-  { name: 'Open Shopping', icon: '▱', query: 'shopping', desc: '공정 가격 상품 검색' },
-  { name: 'Open News', icon: '▤', query: 'news', desc: '실시간 신디케이션 뉴스' },
-  { name: 'Open Cloud', icon: '☁', service: 'cloud', desc: '개발자 분산 클라우드' },
-  { name: 'Open Chat', icon: '💬', service: 'chat', desc: '종단간 암호화 메신저' },
-  { name: 'Open Workspace', icon: '📁', service: 'workspace', desc: '로컬 우선 클라우드 노트' },
-  { name: 'Open Developer', icon: '⚡', service: 'developer', desc: 'OpenAPI 3.1 & SDKs' },
-  { name: '운영 타워', icon: '⚙', path: '/operator', desc: '검색엔진 운영 관제실' },
+  // 1. Search Pillar
+  { name: '웹 검색', icon: '⌕', query: 'web', desc: '독립 글로벌 웹 검색', pillar: 'Search' },
+  { name: 'TripScanner', icon: '✈', query: 'web', desc: '전 세계 항공·호텔·여행 검색', pillar: 'Search' },
+  { name: 'PriceScanner', icon: '🏷', query: 'shopping', desc: '국내외 최저가 및 상품 가격 비교', pillar: 'Search' },
+  { name: 'Coin 플랫폼', icon: '🪙', query: 'web', desc: '실시간 가상자산 & 온체인 금융 정보', pillar: 'Search' },
+  { name: 'Open News', icon: '▤', query: 'news', desc: '실시간 신디케이션 뉴스', pillar: 'Search' },
+  // 2. Discover Pillar
+  { name: 'Open AI', icon: '✦', service: 'ai', desc: '신경망 출처 인용 심층 탐색', pillar: 'Discover' },
+  { name: 'Open Video', icon: '▷', query: 'video', desc: '고화질 미디어 채널', pillar: 'Discover' },
+  { name: 'Open Stream', icon: '📡', service: 'stream', desc: '초저지연 라이브 방송 & OTT', pillar: 'Discover' },
+  // 3. Action Pillar
+  { name: 'Open Mail', icon: '✉', service: 'mail', desc: 'E2EE 암호화 웹메일', pillar: 'Action' },
+  { name: 'Open Apps', icon: '⊞', service: 'apps', desc: '독립 앱마켓 스토어', pillar: 'Action' },
+  { name: 'GADA', icon: '🏗', service: 'gada', desc: '일자리·공수 구인구직 매칭 플랫폼', pillar: 'Action' },
+  { name: 'Delivery', icon: '🛵', service: 'delivery', desc: '생활 밀착형 배달·물류 서비스', pillar: 'Action' },
+  { name: 'Open Cloud', icon: '☁', service: 'cloud', desc: '개발자 분산 클라우드', pillar: 'Action' },
+  { name: 'Open Chat', icon: '💬', service: 'chat', desc: '종단간 암호화 메신저', pillar: 'Action' },
+  { name: 'Open Workspace', icon: '📁', service: 'workspace', desc: '로컬 우선 클라우드 노트', pillar: 'Action' },
+  { name: 'Open Developer', icon: '⚡', service: 'developer', desc: 'OpenAPI 3.1 & SDKs', pillar: 'Action' },
+  { name: '운영 타워', icon: '⚙', path: '/operator', desc: '검색엔진 운영 관제실', pillar: 'Action' },
 ];
+
+const showPhilosophyModal = ref(false);
+function openBrandPhilosophyModal() {
+  showPhilosophyModal.value = true;
+  showSettings.value = false;
+  showAccount.value = false;
+  showWaffle.value = false;
+  showProfileFlyout.value = false;
+}
 
 const activeSuperService = ref<'mail' | 'apps' | 'stream' | 'ai' | 'cloud' | 'developer' | 'chat' | 'workspace' | null>(null);
 const superMailMessages = ref<any[]>([]);
@@ -185,6 +201,16 @@ const workspaceContent = ref(
 );
 
 async function openSuperService(svc: any) {
+  if (svc === 'gada') {
+    showWaffle.value = false;
+    showOperatorToast('[GADA 플랫폼] 일자리·공수 매칭 Search-to-Action 연동 완료');
+    return;
+  }
+  if (svc === 'delivery') {
+    showWaffle.value = false;
+    showOperatorToast('[Delivery 플랫폼] 생활 배달·물류 Search-to-Action 연동 완료');
+    return;
+  }
   activeSuperService.value = svc;
   showWaffle.value = false;
   showSettings.value = false;
@@ -2108,16 +2134,22 @@ onMounted(async () => {
 
     <!-- Google Apps (Waffle) Dropdown Popup -->
     <div v-if="showWaffle" class="waffle-popup" role="dialog" aria-label="검색 카테고리">
+      <div class="waffle-ecosystem-header">
+        <span class="waffle-eco-title">Search-to-Action Ecosystem</span>
+        <span class="waffle-eco-slogan">Search Anything. Discover Everything. Do Anything.</span>
+      </div>
       <div class="waffle-grid">
         <button
           v-for="app in googleApps"
           :key="app.name"
           type="button"
           class="waffle-tile"
-          @click="showWaffle = false; (app as any).service ? openSuperService((app as any).service) : (app as any).path ? navigateTo((app as any).path) : selectTab(verticalTabs.find(tab => tab.id === app.query)!)"
+          :title="app.desc"
+          @click="showWaffle = false; (app as any).service ? openSuperService((app as any).service) : (app as any).path ? navigateTo((app as any).path) : selectTab(verticalTabs.find(tab => tab.id === app.query) || verticalTabs[0])"
         >
           <span class="waffle-tile-icon">{{ app.icon }}</span>
           <span class="waffle-tile-name">{{ app.name }}</span>
+          <span v-if="(app as any).pillar" class="waffle-tile-pillar">{{ (app as any).pillar }}</span>
         </button>
       </div>
     </div>
@@ -2187,7 +2219,10 @@ onMounted(async () => {
         <div class="os-auth-modal-header">
           <div class="os-brand-logo-small">
             <span class="os-brand-icon">⚡</span>
-            <span class="os-brand-name">OPEN SCANNER</span>
+            <div class="os-brand-title-group">
+              <span class="os-brand-name">OPEN SCANNER</span>
+              <span class="os-brand-slogan-tiny">Search Anything. Discover Everything. Do Anything.</span>
+            </div>
           </div>
           <button type="button" class="os-close-modal-btn" aria-label="닫기" @click="closeOpenAccountModal">✕</button>
         </div>
@@ -3715,7 +3750,22 @@ onMounted(async () => {
               <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span><span class="l-g">P</span><span class="l-r">o</span><span class="l-b">r</span><span class="l-y">t</span><span class="l-g">a</span><span class="l-r">l</span>
             </h1>
             <p class="home-tagline">{{ i18n.heading }}</p>
-            <div class="os-brand-subbadge">OPEN SCANNER ENGINE 2.0</div>
+            <div class="os-official-slogan-wrap">
+              <h2 class="hero-slogan-en">Search Anything. Discover Everything. Do Anything.</h2>
+              <p class="hero-slogan-ko">무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.</p>
+              <div class="search-to-action-chain" aria-label="Search-to-Action 생태계 철학">
+                <span class="s2a-step active">Search</span>
+                <span class="s2a-arrow">→</span>
+                <span class="s2a-step">Discover</span>
+                <span class="s2a-arrow">→</span>
+                <span class="s2a-step">Connect</span>
+                <span class="s2a-arrow">→</span>
+                <span class="s2a-step">Experience</span>
+                <span class="s2a-arrow">→</span>
+                <span class="s2a-step">Create</span>
+              </div>
+            </div>
+            <div class="os-brand-subbadge">OPEN SCANNER ENGINE 2.0 · SEARCH-TO-ACTION ECOSYSTEM</div>
           </div>
 
           <!-- Google-style Unified Search Box (584px desktop) -->
@@ -4310,14 +4360,99 @@ onMounted(async () => {
       </template>
     </main>
 
+    <!-- Open Scanner Brand Philosophy & Search-to-Action Ecosystem Modal -->
+    <div
+      v-if="showPhilosophyModal"
+      class="super-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Open Scanner 브랜드 철학"
+      @click.self="showPhilosophyModal = false"
+    >
+      <div class="super-modal-card philosophy-modal-card">
+        <div class="super-modal-header">
+          <div class="super-modal-title">
+            <span class="super-title-icon">⚡</span>
+            <h3>Open Scanner 브랜드 철학 &amp; Search-to-Action 생태계</h3>
+          </div>
+          <button type="button" class="super-modal-close" aria-label="닫기" @click="showPhilosophyModal = false">✕</button>
+        </div>
+        <div class="philosophy-modal-body">
+          <div class="philo-hero">
+            <h4 class="philo-slogan-main">Search Anything. Discover Everything. Do Anything.</h4>
+            <p class="philo-slogan-sub">무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.</p>
+            <blockquote class="philo-manifesto">
+              "We don't just help people find information.<br />
+              We connect the world to everything it can discover and do."
+            </blockquote>
+          </div>
+
+          <div class="philo-section">
+            <h5>1. Search-to-Action 핵심 라이프사이클</h5>
+            <div class="philo-chain">
+              <div class="chain-node"><span class="node-tag">Search</span><span class="node-desc">전 세계 정보 탐색</span></div>
+              <span class="chain-arrow">→</span>
+              <div class="chain-node"><span class="node-tag">Discover</span><span class="node-desc">콘텐츠 & 기회 발견</span></div>
+              <span class="chain-arrow">→</span>
+              <div class="chain-node"><span class="node-tag">Connect</span><span class="node-desc">사람과 서비스 연결</span></div>
+              <span class="chain-arrow">→</span>
+              <div class="chain-node"><span class="node-tag">Experience</span><span class="node-desc">실제 디지털 경험</span></div>
+              <span class="chain-arrow">→</span>
+              <div class="chain-node"><span class="node-tag">Create</span><span class="node-desc">가치와 결과물 창출</span></div>
+            </div>
+            <p class="philo-note">검색은 시작이고, 발견은 과정이며, 실행은 결과입니다.</p>
+          </div>
+
+          <div class="philo-section">
+            <h5>2. 30개 글로벌 통합 생태계</h5>
+            <div class="philo-ecosystem-grid">
+              <div class="eco-pillar">
+                <h6>SEARCH PILLAR</h6>
+                <ul>
+                  <li><strong>웹 검색:</strong> 독립 인덱스 글로벌 검색</li>
+                  <li><strong>TripScanner:</strong> 항공·호텔·여행 통합 검색</li>
+                  <li><strong>PriceScanner:</strong> 상품 최저가 비교 쇼핑</li>
+                  <li><strong>Coin 플랫폼:</strong> 가상자산 & 온체인 금융</li>
+                  <li><strong>Open News:</strong> 실시간 신디케이션 뉴스</li>
+                </ul>
+              </div>
+              <div class="eco-pillar">
+                <h6>DISCOVER PILLAR</h6>
+                <ul>
+                  <li><strong>Open AI:</strong> 신경망 심층 탐색 & 인용</li>
+                  <li><strong>Open Video:</strong> 고화질 영상 채널</li>
+                  <li><strong>Open Stream:</strong> 초저지연 라이브 방송 & OTT</li>
+                </ul>
+              </div>
+              <div class="eco-pillar">
+                <h6>ACTION PILLAR</h6>
+                <ul>
+                  <li><strong>GADA:</strong> 일자리·공수 구인구직 매칭</li>
+                  <li><strong>Delivery:</strong> 생활 밀착형 배달·물류</li>
+                  <li><strong>Open Mail:</strong> E2EE 암호화 웹메일</li>
+                  <li><strong>Open Apps:</strong> 독립 앱마켓 스토어</li>
+                  <li><strong>Open Cloud & Dev:</strong> 분산 엣지 & SDK</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Global Google-Style Footer -->
     <footer class="app-footer">
       <div class="footer-top-row">
         <span class="footer-region">대한민국 · 서울</span>
-        <span class="footer-status-pill">OpenPortal Search</span>
+        <div class="footer-brand-slogan-strip">
+          <span class="strip-slogan-en">Search Anything. Discover Everything. Do Anything.</span>
+          <span class="strip-slogan-ko">무엇이든 검색하고, 모든 것을 발견하고, 원하는 것을 실행하다.</span>
+        </div>
+        <span class="footer-status-pill">Open Scanner Engine</span>
       </div>
       <div class="footer-bottom-row">
         <div class="footer-left-links">
+          <a href="#" @click.prevent="openBrandPhilosophyModal">브랜드 철학 (Search-to-Action)</a>
           <a href="#" @click.prevent="runSearch(1, '오픈포털 검색엔진 프로젝트')">OpenPortal 정보</a>
           <a href="#" @click.prevent="runSearch(1, '광고 플랫폼')">광고</a>
           <a href="#" @click.prevent="runSearch(1, '비즈니스 솔루션')">비즈니스</a>

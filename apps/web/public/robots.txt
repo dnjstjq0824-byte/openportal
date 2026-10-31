@@ -16,3 +16,4 @@ Disallow: /partner
 Disallow: /api/
 
 Sitemap: https://openscanner.internal/sitemap.xml
+
