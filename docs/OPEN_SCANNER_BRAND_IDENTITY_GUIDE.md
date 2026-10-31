@@ -81,3 +81,4 @@ All layout dimensions, paddings, and margins adhere strictly to an 8-point base 
 | **Input Error** | Direct, constructive, guiding | "비밀번호는 최소 8자 이상이어야 합니다." | "잘못된 비밀번호입니다. 다시 시도하십시오." |
 | **Empty Search Results** | Helpful, offering logical alternates | "'xyz'에 대한 검색 결과가 없습니다. 철자를 확인하거나 일반적인 단어로 검색해 보세요." | "아무것도 찾을 수 없습니다." |
 | **Privacy Safeguards** | Transparent, non-marketing | "검색어는 익명화되어 안전하게 처리됩니다." | "우리는 여러분의 데이터를 절대로 팔지 않음을 맹세합니다." |
+

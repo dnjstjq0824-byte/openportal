@@ -1978,6 +1978,171 @@ func (a *app) requireRole(role string, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (a *app) handleSuperplatformApps(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	apps := []map[string]interface{}{
+		{
+			"id":          "devstudio",
+			"name":        "Open DevStudio",
+			"category":    "Developer Tools",
+			"icon":        "💻",
+			"version":     "1.2.0",
+			"rating":      4.9,
+			"downloads":   "128K",
+			"status":      "available",
+			"description": "클라우드 및 로컬 환경을 위한 통합 코드 에디터 및 개발자 워크스페이스",
+			"badge":       "Verified Sandbox",
+		},
+		{
+			"id":          "shield",
+			"name":        "Open Shield",
+			"category":    "Privacy & Security",
+			"icon":        "🛡️",
+			"version":     "2.0.1",
+			"rating":      5.0,
+			"downloads":   "450K",
+			"status":      "available",
+			"description": "제로 텔레메트리 트래킹 방지 및 암호화 프록시 네트워크 보호기",
+			"badge":       "Core Security",
+		},
+		{
+			"id":          "mail",
+			"name":        "Open Mail",
+			"category":    "Communication",
+			"icon":        "✉️",
+			"version":     "1.0.0",
+			"rating":      4.8,
+			"downloads":   "89K",
+			"status":      "available",
+			"description": "종단간 암호화(E2EE) 트랜잭션 및 글로벌 개인 웹메일 클라이언트",
+			"badge":       "E2EE Protocol",
+		},
+		{
+			"id":          "notes",
+			"name":        "Quantum Notes",
+			"category":    "Productivity",
+			"icon":        "📝",
+			"version":     "1.1.4",
+			"rating":      4.7,
+			"downloads":   "210K",
+			"status":      "available",
+			"description": "로컬 우선 고속 마크다운 저널 및 지식 그래프 노트",
+			"badge":       "Local-First",
+		},
+		{
+			"id":          "media",
+			"name":        "Open Player",
+			"category":    "Media & Streaming",
+			"icon":        "🎬",
+			"version":     "1.0.2",
+			"rating":      4.8,
+			"downloads":   "320K",
+			"status":      "available",
+			"description": "초고화질 4K 멀티미디어 스트리밍 및 미디어 플레이어",
+			"badge":       "Hardware Accelerated",
+		},
+		{
+			"id":          "reader",
+			"name":        "Open Reader",
+			"category":    "News & RSS",
+			"icon":        "📰",
+			"version":     "1.0.5",
+			"rating":      4.6,
+			"downloads":   "64K",
+			"status":      "available",
+			"description": "클린 리딩 뷰와 광고 없는 RSS 피드 뉴스 애그리게이터",
+			"badge":       "Ad-Free",
+		},
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "success",
+		"total":  len(apps),
+		"apps":   apps,
+	})
+}
+
+func (a *app) handleSuperplatformMail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	targetEmail := r.URL.Query().Get("email")
+	if targetEmail == "" {
+		targetEmail = "user@openscanner.internal"
+	}
+	now := time.Now().Format("2006-01-02 15:04")
+	messages := []map[string]interface{}{
+		{
+			"id":         "msg-001",
+			"sender":     "Open Scanner Security <security@openscanner.internal>",
+			"subject":    "[인증 코드] Open Scanner 계정 이메일 소유권 인증",
+			"snippet":    "Open Scanner 계정 가입을 환영합니다. 귀하의 6자리 인증 PIN 코드를 확인하세요.",
+			"date":       now,
+			"read":       false,
+			"importance": "high",
+			"body":       "안녕하세요,\n\nOpen Scanner 서비스에 가입해 주셔서 대단히 감사합니다.\n귀하의 이메일 소유권 인증을 위한 보안 PIN 코드가 발송되었습니다.\n\n인증 코드: [발송된 6자리 코드]\n유효 시간: 발송 후 15분 이내\n\n본인이 요청하지 않은 경우 이 메일을 무시하시기 바랍니다.\n\n— Open Scanner Security Team",
+		},
+		{
+			"id":         "msg-002",
+			"sender":     "Open Scanner Announcement <notice@openscanner.internal>",
+			"subject":    "Open Scanner 글로벌 검색엔진 및 슈퍼플랫폼 v1.0 출범",
+			"snippet":    "독자적 크롤링, 초고속 역색인 검색, 그리고 슈퍼플랫폼 생태계가 정식 가동됩니다.",
+			"date":       "2026-10-31 09:00",
+			"read":       true,
+			"importance": "normal",
+			"body":       "Beyond Search. Open Everything.\n\nOpen Scanner는 글로벌 검색의 개방성과 투명성을 지향합니다.\n웹, 이미지, 동영상, 뉴스, 쇼핑 검색뿐만 아니라 앱 유통, 미디어 스트리밍, 개발자 API를 아우르는 통합 플랫폼을 경험해 보세요.\n\n감사합니다.\nOpen Scanner 팀 드림",
+		},
+		{
+			"id":         "msg-003",
+			"sender":     "Open Scanner System <system@openscanner.internal>",
+			"subject":    "[보안 안내] 노 트래킹 검색 및 개인정보보호 강화 적용 완료",
+			"snippet":    "비인증 검색 쿼리 제로 로깅 정책 및 엔드투엔드 암호화 세션이 활성화되었습니다.",
+			"date":       "2026-10-30 14:20",
+			"read":       true,
+			"importance": "normal",
+			"body":       "사용자 프라이버시 최우선 원칙에 따라, 검색 기록은 사용자의 브라우저 로컬 저장소에만 보관되며 제3자 트래커로 전송되지 않습니다.\n설정 패널에서 원클릭으로 기록을 언제든 파기할 수 있습니다.",
+		},
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":   "success",
+		"mailbox":  targetEmail,
+		"unread":   1,
+		"messages": messages,
+	})
+}
+
+func (a *app) handleSuperplatformDeveloper(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":      "online",
+		"api_version": "v1.0.0-PROD",
+		"rate_limit": map[string]interface{}{
+			"limit_per_minute": 1000,
+			"remaining":        998,
+			"tier":             "Community Free Tier",
+		},
+		"endpoints": []string{
+			"/api/v1/search",
+			"/api/v1/suggest",
+			"/api/v1/vertical/search",
+			"/api/v1/superplatform/apps",
+			"/api/v1/superplatform/mail",
+		},
+		"sdks": map[string]string{
+			"go":         "go get example.com/openportal-search/backend",
+			"typescript": "npm install @openscanner/sdk",
+			"python":     "pip install openscanner-sdk",
+		},
+		"spec_url": "/openapi.yaml",
+	})
+}
+
 func (a *app) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
@@ -1996,6 +2161,10 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/v1/search", a.cors(a.search))
 	mux.HandleFunc("/api/v1/suggest", a.cors(a.suggest))
 	mux.HandleFunc("/api/v1/portal/config", a.cors(a.portalConfig))
+	// Open Scanner Superplatform Endpoints
+	mux.HandleFunc("/api/v1/superplatform/apps", a.cors(a.handleSuperplatformApps))
+	mux.HandleFunc("/api/v1/superplatform/mail", a.cors(a.handleSuperplatformMail))
+	mux.HandleFunc("/api/v1/superplatform/developer", a.cors(a.handleSuperplatformDeveloper))
 	// Authentication paths — challenge/verify are public entry points;
 	// session/revoke/MFA/recover require a valid session.
 	mux.HandleFunc("/api/v1/auth/register", a.cors(a.handleLocalRegister))
@@ -2057,7 +2226,8 @@ func (a *app) productionRoutes() http.Handler {
 			"/api/v1/vertical/search", "/api/v1/vertical/news/syndicate", "/api/v1/vertical/shopping/feed",
 			"/api/v1/ads/click", "/api/v1/ads/reconcile", "/api/v1/ops/idp-verify",
 			"/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/email/verify",
-			"/api/v1/auth/password/reset-request", "/api/v1/auth/password/reset-confirm":
+			"/api/v1/auth/password/reset-request", "/api/v1/auth/password/reset-confirm",
+			"/api/v1/superplatform/apps", "/api/v1/superplatform/mail", "/api/v1/superplatform/developer":
 			internal.ServeHTTP(w, r)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint unavailable", "code": "ENDPOINT_UNAVAILABLE"})

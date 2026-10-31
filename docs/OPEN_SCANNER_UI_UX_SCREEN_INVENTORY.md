@@ -61,3 +61,4 @@
 - **Tablet Viewport (768px):** Search bar widens to 584px, vertical tabs scroll horizontally with subtle gradient edge masks.
 - **Desktop Standard (1024px – 1440px):** Strict 652px left rail for organic hits, 368px right rail for knowledge graph / weather / stock cards.
 - **High-DPI / Retina Displays:** Vector SVG icons, 2x raster source srcset, crystal-clear typography rendering.
+

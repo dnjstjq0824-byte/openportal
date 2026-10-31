@@ -72,3 +72,4 @@ Any of the following signals detected by Prometheus alerting rules trigger an im
   - Forward migrations are fully reversible via corresponding down scripts.
   - In the event of catastrophic data corruption, Point-in-Time Recovery (PITR) is restored from the last verified base backup using write-ahead logs (WAL).
   - Validation: Proven by the rollback test in `scripts/test-database.mjs`, which verifies that rolling back leaves zero orphaned records.
+

@@ -1086,3 +1086,83 @@ func TestLocalAuthAndEmailVerificationHTTPEndpoints(t *testing.T) {
 	}
 }
 
+func TestSuperplatformHTTPEndpoints(t *testing.T) {
+	a := &app{
+		idStore: identity.NewStore(),
+	}
+	prodHandler := a.productionRoutes()
+
+	// 1. GET /api/v1/superplatform/apps -> 200 OK
+	{
+		req := httptest.NewRequest("GET", "/api/v1/superplatform/apps", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("apps endpoint failed: %d %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Status string                   `json:"status"`
+			Total  int                      `json:"total"`
+			Apps   []map[string]interface{} `json:"apps"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal apps error: %v", err)
+		}
+		if resp.Total == 0 || len(resp.Apps) == 0 {
+			t.Fatalf("expected non-empty apps list")
+		}
+	}
+
+	// 2. GET /api/v1/superplatform/mail -> 200 OK
+	{
+		req := httptest.NewRequest("GET", "/api/v1/superplatform/mail?email=tester@openscanner.internal", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("mail endpoint failed: %d %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Status   string                   `json:"status"`
+			Mailbox  string                   `json:"mailbox"`
+			Messages []map[string]interface{} `json:"messages"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal mail error: %v", err)
+		}
+		if len(resp.Messages) == 0 {
+			t.Fatalf("expected non-empty mailbox messages")
+		}
+	}
+
+	// 3. GET /api/v1/superplatform/developer -> 200 OK
+	{
+		req := httptest.NewRequest("GET", "/api/v1/superplatform/developer", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("developer endpoint failed: %d %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Status    string            `json:"status"`
+			Endpoints []string          `json:"endpoints"`
+			SDKs      map[string]string `json:"sdks"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal developer error: %v", err)
+		}
+		if len(resp.Endpoints) == 0 || len(resp.SDKs) == 0 {
+			t.Fatalf("expected endpoints and SDKs")
+		}
+	}
+
+	// 4. Method not allowed on POST -> 405
+	{
+		req := httptest.NewRequest("POST", "/api/v1/superplatform/apps", nil)
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 405 {
+			t.Fatalf("expected 405 on POST apps, got %d", w.Code)
+		}
+	}
+}
+

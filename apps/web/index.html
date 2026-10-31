@@ -1,1 +1,61 @@
-<!doctype html><html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><meta name="theme-color" content="#176b58"/><meta name="description" content="OpenPortal에서 웹 정보를 검색하고 탐색하세요."/><meta property="og:title" content="OpenPortal Search"/><meta property="og:description" content="웹 정보를 검색하고 탐색하세요."/><meta name="referrer" content="strict-origin-when-cross-origin"/><link rel="icon" href="/favicon.svg"/><title>OpenPortal Search</title></head><body><div id="app"></div><script type="module" src="/src/main.ts"></script></body></html>
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B1020" />
+    <title>Open Scanner — Beyond Search. Open Everything.</title>
+    
+    <!-- Primary SEO Meta Tags -->
+    <meta name="description" content="Open Scanner는 자체 크롤링 엔진, 고속 역색인 검색, AI 기반 지식 탐색 및 통합 계정 생태계를 제공하는 독립 글로벌 검색엔진 및 슈퍼플랫폼입니다." />
+    <meta name="keywords" content="Open Scanner, 오픈스캐너, 검색엔진, 글로벌검색, 웹검색, 뉴스검색, 이미지검색, AI검색, 슈퍼플랫폼" />
+    <meta name="author" content="Open Scanner Engineering" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://openscanner.internal/" />
+    
+    <!-- Multilingual Hreflang Tags -->
+    <link rel="alternate" hreflang="ko" href="https://openscanner.internal/?lang=ko" />
+    <link rel="alternate" hreflang="en" href="https://openscanner.internal/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="https://openscanner.internal/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Open Scanner" />
+    <meta property="og:url" content="https://openscanner.internal/" />
+    <meta property="og:title" content="Open Scanner — Beyond Search. Open Everything." />
+    <meta property="og:description" content="독립 글로벌 검색엔진 및 통합 디지털 생태계. 편향 없는 정보 탐색과 빠른 응답 속도를 경험하세요." />
+    <meta property="og:image" content="https://openscanner.internal/favicon.svg" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@OpenScanner" />
+    <meta name="twitter:title" content="Open Scanner — Beyond Search. Open Everything." />
+    <meta name="twitter:description" content="독립 글로벌 검색엔진 및 통합 디지털 생태계." />
+    <meta name="twitter:image" content="https://openscanner.internal/favicon.svg" />
+
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Schema.org JSON-LD Structured Data for Global Search Engine -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Open Scanner",
+      "url": "https://openscanner.internal/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://openscanner.internal/?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

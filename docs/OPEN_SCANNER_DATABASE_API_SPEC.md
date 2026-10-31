@@ -60,3 +60,4 @@
 | `GET` | `/api/v1/ops/idp-verify` | Public | Enterprise IdP configuration status probe |
 | `GET` | `/admin` | Denied | Fail-closed administrative boundary (404/403) |
 | `GET` | `/partner` | Denied | Fail-closed partner boundary (404/403) |
+

@@ -54,3 +54,4 @@ Open Scanner has been subjected to comprehensive architectural threat modeling a
 1. **Anonymous Query Processing:** Unauthenticated search queries are processed statelessly in RAM without associating IP addresses or client fingerprints.
 2. **Search History Ownership:** Search history is stored exclusively in client-side `localStorage` unless an authenticated user explicitly opts in.
 3. **Right to Erasure:** A one-click purge action immediately wipes all client-side search history and cookies.
+

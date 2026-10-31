@@ -103,3 +103,4 @@ The Open Scanner Design System provides cross-platform semantic tokens ensuring 
    - `skip-link` pointing to `#main-content` at start of DOM.
 3. **Screen Reader Landmarks:**
    - Proper `role="banner"`, `role="search"`, `role="main"`, `role="contentinfo"`, and `role="dialog"`.
+

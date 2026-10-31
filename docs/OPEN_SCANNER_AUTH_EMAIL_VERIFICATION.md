@@ -150,3 +150,4 @@ The Open Scanner Unified Account system provides native, autonomous identity man
 - Unit tests in `backend/internal/email/email_test.go`: 100% PASS (`TestService_SendAndVerifyRegistrationToken`, `TestService_SendAndPasswordReset`).
 - Unit tests in `backend/internal/identity/local_auth_test.go`: 100% PASS (`TestLocalAccountRegistrationAndLogin`, `TestLocalAccountPasswordReset`).
 - End-to-end HTTP integration tests in `backend/cmd/api/http_test.go`: 100% PASS (`TestLocalAuthAndEmailVerificationHTTPEndpoints`).
+

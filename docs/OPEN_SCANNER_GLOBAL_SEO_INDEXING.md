@@ -67,3 +67,4 @@ Publishers can verify ownership and manage indexing through two automated method
 - Open Scanner maintains an automated tombstone mechanism.
 - Upon receipt of a verified DMCA notification or court-ordered privacy takedown, the URL or domain fingerprint is immediately committed to the `index.tombstones` ledger.
 - The inverted index filter prevents subsequent display of tombstoned records with zero downtime.
+

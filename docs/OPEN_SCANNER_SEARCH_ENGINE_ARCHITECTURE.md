@@ -97,3 +97,4 @@ The search parser (`backend/internal/search/query.go`) isolates syntax tokens be
 - `intitle:kubernetes` $\implies$ `must: { match: { "title": "kubernetes" } }`
 - `"exact quote"` $\implies$ `must: { match_phrase: { "body": "exact quote" } }`
 - Typo Correction: Korean 2-set keyboard distance (Damerau-Levenshtein) and English edit distance mapping.
+

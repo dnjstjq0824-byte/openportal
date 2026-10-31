@@ -102,3 +102,4 @@ Open Scanner is an independent, non-proxy search engine and unified digital plat
 - [x] Local registration, email verification, login, and password reset endpoints pass Go HTTP integration tests (`backend/cmd/api/http_test.go`).
 - [x] All 13 backend Go packages pass tests (`cd backend && go test ./...`).
 - [x] Frontend builds with zero TypeScript or Vite bundle errors (`npm run build`).
+

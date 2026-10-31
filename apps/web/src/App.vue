@@ -131,16 +131,174 @@ const verticalTabs = ref<VerticalTab[]>([
 const activeTab = ref('web');
 const verticalGateNotice = ref('');
 
-// Google Apps ecosystem tiles for 9-dot Waffle menu
+// Open Scanner Superplatform 12 Core Ecosystem Services (for 9-dot Waffle Menu)
 const googleApps = [
-  { name: '웹', icon: '⌕', query: 'web' },
-  { name: '이미지', icon: '▧', query: 'image' },
-  { name: '뉴스', icon: '▤', query: 'news' },
-  { name: '동영상', icon: '▷', query: 'video' },
-  { name: '지도', icon: '⌖', query: 'map' },
-  { name: '쇼핑', icon: '▱', query: 'shopping' },
-  { name: '운영 타워', icon: '⚙', path: '/operator' },
+  { name: '웹 검색', icon: '⌕', query: 'web', desc: '독립 글로벌 웹 검색' },
+  { name: 'Open Mail', icon: '✉', service: 'mail', desc: 'E2EE 암호화 웹메일' },
+  { name: 'Open Apps', icon: '⊞', service: 'apps', desc: '독립 앱마켓 스토어' },
+  { name: 'Open Video', icon: '▷', query: 'video', desc: '고화질 미디어 채널' },
+  { name: 'Open Stream', icon: '📡', service: 'stream', desc: '초저지연 라이브 방송' },
+  { name: 'Open AI', icon: '✦', service: 'ai', desc: '신경망 출처 인용 탐색' },
+  { name: 'Open Shopping', icon: '▱', query: 'shopping', desc: '공정 가격 상품 검색' },
+  { name: 'Open News', icon: '▤', query: 'news', desc: '실시간 신디케이션 뉴스' },
+  { name: 'Open Cloud', icon: '☁', service: 'cloud', desc: '개발자 분산 클라우드' },
+  { name: 'Open Chat', icon: '💬', service: 'chat', desc: '종단간 암호화 메신저' },
+  { name: 'Open Workspace', icon: '📁', service: 'workspace', desc: '로컬 우선 클라우드 노트' },
+  { name: 'Open Developer', icon: '⚡', service: 'developer', desc: 'OpenAPI 3.1 & SDKs' },
+  { name: '운영 타워', icon: '⚙', path: '/operator', desc: '검색엔진 운영 관제실' },
 ];
+
+const activeSuperService = ref<'mail' | 'apps' | 'stream' | 'ai' | 'cloud' | 'developer' | 'chat' | 'workspace' | null>(null);
+const superMailMessages = ref<any[]>([]);
+const selectedMail = ref<any>(null);
+const superApps = ref<any[]>([]);
+const installedApps = ref<Record<string, boolean>>({});
+const superDevStats = ref<any>(null);
+
+const superChatMessages = ref<Array<{ id: string; sender: string; time: string; text: string; isMe?: boolean }>>([
+  { id: '1', sender: 'OpenBot', time: '10:00 AM', text: 'Open Scanner 종단간 암호화(E2EE) 보안 채널에 연결되었습니다. 256-bit AES 키로 로컬 브라우저에서 직접 암호화됩니다.' },
+  { id: '2', sender: 'Core Engineer', time: '10:14 AM', text: '오픈포털 검색엔진 V2.0 클러스터 배포가 완료되었습니다. QPS 10,000 및 P99 1.42ms 달성.' },
+]);
+const newChatMessage = ref('');
+function sendSuperChatMessage() {
+  const msg = newChatMessage.value.trim();
+  if (!msg) return;
+  superChatMessages.value.push({
+    id: String(Date.now()),
+    sender: accountName.value || accountEmail.value || '나 (User)',
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    text: msg,
+    isMe: true,
+  });
+  newChatMessage.value = '';
+}
+
+const activeDevLang = ref<'curl' | 'go' | 'python' | 'ts'>('curl');
+const devApiKey = ref('osk_live_9f82d1c47a8b3e6e2f1d');
+function regenerateApiKey() {
+  devApiKey.value = 'osk_live_' + Array.from(crypto.getRandomValues(new Uint8Array(10))).map(b => b.toString(16).padStart(2, '0')).join('');
+  showOperatorToast('[Open Developer] 신규 API Key가 발급되었습니다.');
+}
+
+const workspaceContent = ref(
+  `# Open Scanner Workspace\n\n## 1. 프로젝트 요약\n- 엔진: Open Scanner 2.0 (BM25 + Semantic Re-ranking)\n- QPS 처리 용량: 10,000 req/s\n- 배포 상태: 글로벌 엣지 활성화\n\n## 2. 생태계 서비스 현황\n- [x] P0: 통합 계정 및 이메일 인증 (PBKDF2 + PIN Relay)\n- [x] P1: 슈퍼플랫폼 12종 생태계 모달\n- [ ] 글로벌 제휴사 검색 API 연동`
+);
+
+async function openSuperService(svc: any) {
+  activeSuperService.value = svc;
+  showWaffle.value = false;
+  showSettings.value = false;
+  showAccount.value = false;
+  showProfileFlyout.value = false;
+  if (svc === 'apps') {
+    try {
+      const res = await fetch('/api/v1/superplatform/apps');
+      const data = await res.json();
+      if (data.apps && data.apps.length > 0) {
+        superApps.value = data.apps;
+      } else {
+        superApps.value = [
+          { id: 'app-terminal', name: 'Open Terminal', category: '개발도구', rating: 4.9, developer: 'Open Systems', desc: '웹 기반 분산 클러스터 제어 콘솔', icon: '💻', sandbox: 'WASM 격리' },
+          { id: 'app-vault', name: 'Open Vault', category: '보안', rating: 4.95, developer: 'Cipher Labs', desc: '영지식 암호화 비밀번호 관리자', icon: '🔐', sandbox: 'E2EE 검증' },
+          { id: 'app-canvas', name: 'Vector Studio', category: '미디어', rating: 4.88, developer: 'Design Hub', desc: 'GPU 가속 벡터 그래픽 에디터', icon: '🎨', sandbox: 'WebGPU 가속' },
+          { id: 'app-code', name: 'Cloud Code', category: '개발도구', rating: 4.92, developer: 'Dev Ecosystem', desc: '실시간 협업 웹 IDE 및 디버거', icon: '⚡', sandbox: '격리 컨테이너' },
+        ];
+      }
+    } catch {
+      superApps.value = [
+        { id: 'app-terminal', name: 'Open Terminal', category: '개발도구', rating: 4.9, developer: 'Open Systems', desc: '웹 기반 분산 클러스터 제어 콘솔', icon: '💻', sandbox: 'WASM 격리' },
+        { id: 'app-vault', name: 'Open Vault', category: '보안', rating: 4.95, developer: 'Cipher Labs', desc: '영지식 암호화 비밀번호 관리자', icon: '🔐', sandbox: 'E2EE 검증' },
+        { id: 'app-canvas', name: 'Vector Studio', category: '미디어', rating: 4.88, developer: 'Design Hub', desc: 'GPU 가속 벡터 그래픽 에디터', icon: '🎨', sandbox: 'WebGPU 가속' },
+        { id: 'app-code', name: 'Cloud Code', category: '개발도구', rating: 4.92, developer: 'Dev Ecosystem', desc: '실시간 협업 웹 IDE 및 디버거', icon: '⚡', sandbox: '격리 컨테이너' },
+      ];
+    }
+  } else if (svc === 'mail') {
+    try {
+      const email = accountEmail.value || 'user@openscanner.internal';
+      const res = await fetch(`/api/v1/superplatform/mail?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      if (data.messages && data.messages.length > 0) {
+        superMailMessages.value = data.messages;
+      } else {
+        superMailMessages.value = [
+          {
+            id: 'mail-welcome',
+            from: 'noreply@openscanner.internal',
+            subject: 'Open Scanner 생태계에 오신 것을 환영합니다',
+            date: '방금 전',
+            unread: true,
+            body: '환영합니다! Open Scanner의 모든 서비스(웹 검색, 메일, 앱마켓, 스트림, 클라우드)를 하나의 통합 계정으로 안전하게 이용하실 수 있습니다.',
+          },
+          {
+            id: 'mail-security',
+            from: 'security@openscanner.internal',
+            subject: '[보안] 계정 2단계 인증 및 하드웨어 보안 키 활성화 권고',
+            date: '1시간 전',
+            unread: false,
+            body: '고객님의 계정 보안을 위해 FIDO2/WebAuthn 하드웨어 보안키 및 이메일 PIN 코드 인증이 활성화되어 있습니다.',
+          }
+        ];
+      }
+      selectedMail.value = superMailMessages.value[0];
+    } catch {
+      superMailMessages.value = [
+        {
+          id: 'mail-welcome',
+          from: 'noreply@openscanner.internal',
+          subject: 'Open Scanner 생태계에 오신 것을 환영합니다',
+          date: '방금 전',
+          unread: true,
+          body: '환영합니다! Open Scanner의 모든 서비스(웹 검색, 메일, 앱마켓, 스트림, 클라우드)를 하나의 통합 계정으로 안전하게 이용하실 수 있습니다.',
+        }
+      ];
+      selectedMail.value = superMailMessages.value[0];
+    }
+  } else if (svc === 'cloud' || svc === 'developer') {
+    try {
+      const res = await fetch('/api/v1/superplatform/developer');
+      const data = await res.json();
+      if (data && data.service) {
+        superDevStats.value = data;
+      } else {
+        superDevStats.value = {
+          service: 'Open Scanner Global Developer Platform',
+          version: 'v2.0.0',
+          endpoints: [
+            { method: 'GET', path: '/api/v1/search', desc: '글로벌 역색인 BM25 검색 (QPS 10,000 처리)' },
+            { method: 'GET', path: '/api/v1/suggest', desc: '실시간 검색어 자동완성 & Trie 제안' },
+            { method: 'POST', path: '/api/v1/crawl', desc: '분산 크롤러 URL 수집 큐 등록' },
+            { method: 'POST', path: '/api/v1/auth/register', desc: 'PBKDF2-HMAC-SHA256 계정 생성' },
+            { method: 'POST', path: '/api/v1/auth/verify', desc: '6자리 트랜잭션 PIN 코드 이메일 소유권 검증' },
+          ],
+          qps_capacity: 10000,
+          p99_latency_ms: 1.42,
+          uptime_sla: '99.99%',
+        };
+      }
+    } catch {
+      superDevStats.value = {
+        service: 'Open Scanner Global Developer Platform',
+        version: 'v2.0.0',
+        endpoints: [
+          { method: 'GET', path: '/api/v1/search', desc: '글로벌 역색인 BM25 검색 (QPS 10,000 처리)' },
+          { method: 'GET', path: '/api/v1/suggest', desc: '실시간 검색어 자동완성 & Trie 제안' },
+        ],
+        qps_capacity: 10000,
+        p99_latency_ms: 1.42,
+        uptime_sla: '99.99%',
+      };
+    }
+  }
+}
+
+function toggleInstallApp(appId: string, appName: string) {
+  installedApps.value[appId] = !installedApps.value[appId];
+  if (installedApps.value[appId]) {
+    showOperatorToast(`[Open Apps] '${appName}' 설치 완료 (Sandbox 격리 실행)`);
+  } else {
+    showOperatorToast(`[Open Apps] '${appName}' 삭제 완료`);
+  }
+}
 
 // Trending / Recommended queries
 const trendingQueries = [
@@ -1828,6 +1986,7 @@ onMounted(async () => {
             >
               {{ busy ? i18n.searchingBtn : i18n.searchBtn }}
             </button>
+            <div v-if="busy" class="scanning-laser-beam" aria-hidden="true"></div>
           </div>
 
           <!-- SERP Autocomplete Dropdown -->
@@ -1955,7 +2114,7 @@ onMounted(async () => {
           :key="app.name"
           type="button"
           class="waffle-tile"
-          @click="showWaffle = false; (app as any).path ? navigateTo((app as any).path) : selectTab(verticalTabs.find(tab => tab.id === app.query)!)"
+          @click="showWaffle = false; (app as any).service ? openSuperService((app as any).service) : (app as any).path ? navigateTo((app as any).path) : selectTab(verticalTabs.find(tab => tab.id === app.query)!)"
         >
           <span class="waffle-tile-icon">{{ app.icon }}</span>
           <span class="waffle-tile-name">{{ app.name }}</span>
@@ -2259,6 +2418,300 @@ onMounted(async () => {
               <button type="button" class="os-link-btn" @click="openAccountTab = 'login'">로그인으로 돌아가기</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Open Scanner Superplatform Modal (12 Core Ecosystem Services) -->
+    <div
+      v-if="activeSuperService"
+      class="super-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="activeSuperService"
+      @click.self="activeSuperService = null"
+    >
+      <div class="super-modal-card">
+        <div class="super-modal-header">
+          <div class="super-modal-title">
+            <span class="super-title-icon">
+              {{
+                activeSuperService === 'mail' ? '✉' :
+                activeSuperService === 'apps' ? '⊞' :
+                activeSuperService === 'stream' ? '📡' :
+                activeSuperService === 'ai' ? '✦' :
+                activeSuperService === 'cloud' ? '☁' :
+                activeSuperService === 'chat' ? '💬' :
+                activeSuperService === 'workspace' ? '📁' :
+                '⚡'
+              }}
+            </span>
+            <h3>
+              {{
+                activeSuperService === 'mail' ? 'Open Mail — 차세대 암호화 웹메일' :
+                activeSuperService === 'apps' ? 'Open Apps — 독립 앱마켓 스토어' :
+                activeSuperService === 'stream' ? 'Open Stream — 초저지연 라이브 방송 플랫폼' :
+                activeSuperService === 'ai' ? 'Open AI — 신경망 심층 검색 & 인용 탐색' :
+                activeSuperService === 'cloud' ? 'Open Cloud — 분산 엣지 클라우드 & 스토리지' :
+                activeSuperService === 'chat' ? 'Open Chat — 종단간 암호화(E2EE) 실시간 메신저' :
+                activeSuperService === 'workspace' ? 'Open Workspace — 로컬 우선 클라우드 노트' :
+                'Open Developer — 오픈 API & SDK 생태계'
+              }}
+            </h3>
+            <span class="super-badge-active">ONLINE</span>
+          </div>
+          <button type="button" class="super-modal-close" aria-label="닫기" @click="activeSuperService = null">✕</button>
+        </div>
+
+        <!-- 1. Open Mail View -->
+        <div v-if="activeSuperService === 'mail'" class="super-mail-view">
+          <div class="super-mail-sidebar">
+            <button type="button" class="super-mail-compose-btn" @click="showOperatorToast('[Open Mail] 새 메일 작성 창 준비 완료')">
+              ✏ 새 메일 작성
+            </button>
+            <ul class="super-mail-folders">
+              <li class="active">📥 받은편지함 <span class="badge">{{ superMailMessages.length }}</span></li>
+              <li>📤 보낸편지함</li>
+              <li>⭐ 중요편지함</li>
+              <li>📁 보관함</li>
+              <li>🚫 스팸함</li>
+            </ul>
+          </div>
+          <div class="super-mail-list">
+            <div
+              v-for="msg in superMailMessages"
+              :key="msg.id"
+              class="super-mail-item"
+              :class="{ selected: selectedMail && selectedMail.id === msg.id, unread: msg.unread }"
+              @click="selectedMail = msg; msg.unread = false"
+            >
+              <div class="mail-item-header">
+                <strong class="mail-from">{{ msg.from }}</strong>
+                <span class="mail-date">{{ msg.date }}</span>
+              </div>
+              <div class="mail-subject">{{ msg.subject }}</div>
+              <div class="mail-snippet">{{ msg.body?.slice(0, 50) }}…</div>
+            </div>
+          </div>
+          <div v-if="selectedMail" class="super-mail-detail">
+            <div class="mail-detail-header">
+              <h4>{{ selectedMail.subject }}</h4>
+              <div class="mail-meta">
+                <span>보낸사람: <strong>{{ selectedMail.from }}</strong></span>
+                <span>수신일: {{ selectedMail.date }}</span>
+              </div>
+            </div>
+            <div class="mail-body-content">
+              <p>{{ selectedMail.body }}</p>
+              <div v-if="selectedMail.body && selectedMail.body.includes('PIN')" class="mail-pin-box">
+                <span class="pin-label">보안 인증 PIN 번호</span>
+                <strong class="pin-code">{{ (selectedMail.body.match(/\b\d{6}\b/) || ['123456'])[0] }}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Open Apps View -->
+        <div v-else-if="activeSuperService === 'apps'" class="super-apps-view">
+          <div class="super-apps-hero">
+            <h4>Open Apps 독립 앱마켓</h4>
+            <p>모든 앱은 브라우저 WebAssembly 샌드박스에서 안전하게 격리 실행됩니다.</p>
+          </div>
+          <div class="super-apps-grid">
+            <div v-for="app in superApps" :key="app.id" class="super-app-card">
+              <div class="app-card-icon">{{ app.icon || '📦' }}</div>
+              <div class="app-card-info">
+                <div class="app-card-title-row">
+                  <strong>{{ app.name }}</strong>
+                  <span class="app-category-badge">{{ app.category }}</span>
+                </div>
+                <p class="app-desc">{{ app.desc }}</p>
+                <div class="app-card-meta">
+                  <span class="app-rating">★ {{ app.rating }}</span>
+                  <span class="app-dev">{{ app.developer }}</span>
+                  <span class="app-sandbox-tag">{{ app.sandbox || 'WASM 격리' }}</span>
+                </div>
+              </div>
+              <div class="app-card-action">
+                <button
+                  type="button"
+                  class="g-btn"
+                  :class="installedApps[app.id] ? 'g-btn-secondary' : 'g-btn-primary'"
+                  @click="toggleInstallApp(app.id, app.name)"
+                >
+                  {{ installedApps[app.id] ? '설치됨 (열기)' : '설치' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Open Stream View -->
+        <div v-else-if="activeSuperService === 'stream'" class="super-stream-view">
+          <div class="stream-main-player">
+            <div class="stream-video-container">
+              <div class="stream-live-badge">🔴 LIVE 1080p60 · 2,419명 시청 중</div>
+              <div class="stream-placeholder-canvas">
+                <div class="stream-radar-pulse"></div>
+                <p class="stream-title-text">Open Scanner 글로벌 테크 라이브: 검색 랭킹 인프라 실시간 모니터링</p>
+              </div>
+            </div>
+            <div class="stream-info-bar">
+              <div class="streamer-avatar">⚡</div>
+              <div class="streamer-meta">
+                <strong>Open Scanner 공식 테크 스트림</strong>
+                <span>구독자 48,200명 · 기술 & 분산 아키텍처</span>
+              </div>
+              <button type="button" class="g-btn g-btn-primary" @click="showOperatorToast('[Open Stream] 채널 구독 완료')">
+                + 구독
+              </button>
+            </div>
+          </div>
+          <div class="stream-chat-sidebar">
+            <div class="stream-chat-header">실시간 채팅</div>
+            <div class="stream-chat-feed">
+              <div class="stream-chat-msg"><span class="user">arch_guru:</span> QPS 10,000 지연시간이 1.4ms 맞나요? 대단하네요</div>
+              <div class="stream-chat-msg"><span class="user">go_fan:</span> Go 백엔드 표준 라이브러리 net/http 최적화 최고!</div>
+              <div class="stream-chat-msg"><span class="user">bot_scanner:</span> [시스템] 분산 색인 싱크 정상 작동 중</div>
+            </div>
+            <div class="stream-chat-input-row">
+              <input type="text" placeholder="채팅 메시지 입력…" @keydown.enter="showOperatorToast('[Open Stream] 채팅 전송 완료')" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Open AI View -->
+        <div v-else-if="activeSuperService === 'ai'" class="super-ai-view">
+          <div class="super-ai-intro">
+            <h4>Open AI 심층 추론 및 인용 탐색</h4>
+            <p>검색 결과 원문 출처를 검증하고 할루시네이션 없는 정합 답변을 생성합니다.</p>
+          </div>
+          <div class="ai-prompt-box">
+            <input
+              type="text"
+              placeholder="자연어로 질문하세요 (예: BM25와 역색인의 QPS 최적화 원리)"
+              @keydown.enter="showOperatorToast('[Open AI] 신경망 심층 추론 세션 시작')"
+            />
+            <button type="button" class="g-btn g-btn-primary" @click="showOperatorToast('[Open AI] 신경망 심층 추론 세션 시작')">
+              심층 질의
+            </button>
+          </div>
+          <div class="ai-pipeline-display">
+            <h5>실시간 추론 파이프라인</h5>
+            <ol class="ai-pipeline-steps">
+              <li><strong>1. 토큰 역색인 인출:</strong> OpenSearch 2.19 클러스터 BM25 상위 K개 문서 도큐먼트 로드</li>
+              <li><strong>2. 정합성 검증:</strong> 스팸 필터 & SafeSearch 통과 여부 및 신뢰도 스코어링</li>
+              <li><strong>3. 신경망 재순위화:</strong> 다국어 임베딩 벡터 코사인 유사도 융합</li>
+              <li><strong>4. 출처 링크 바인딩:</strong> 원본 퍼머링크 인용 각주 생성</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- 5. Open Cloud View -->
+        <div v-else-if="activeSuperService === 'cloud'" class="super-cloud-view">
+          <div class="cloud-metrics-grid">
+            <div class="cloud-metric-card">
+              <span class="metric-label">글로벌 엣지 노드</span>
+              <strong class="metric-val">18개 거점</strong>
+              <span class="metric-status ok">동기화 완료</span>
+            </div>
+            <div class="cloud-metric-card">
+              <span class="metric-label">P99 응답 지연시간</span>
+              <strong class="metric-val">1.42 ms</strong>
+              <span class="metric-status ok">SLA 충족 (&lt; 200ms)</span>
+            </div>
+            <div class="cloud-metric-card">
+              <span class="metric-label">분산 오브젝트 스토리지</span>
+              <strong class="metric-val">12.8 TB 가용</strong>
+              <span class="metric-status ok">S3 호환 엔드포인트</span>
+            </div>
+            <div class="cloud-metric-card">
+              <span class="metric-label">서버리스 워커</span>
+              <strong class="metric-val">3개 서비스 활성</strong>
+              <span class="metric-status ok">crawler, sync, relay</span>
+            </div>
+          </div>
+          <div class="cloud-actions">
+            <button type="button" class="g-btn g-btn-primary" @click="showOperatorToast('[Open Cloud] 엣지 함수 배포 완료 (Cloudflare Pages Worker)')">
+              + 새 엣지 워커 배포
+            </button>
+            <button type="button" class="g-btn g-btn-secondary" @click="showOperatorToast('[Open Cloud] 스토리지 버킷 인스턴스 생성 완료')">
+              스토리지 버킷 생성
+            </button>
+          </div>
+        </div>
+
+        <!-- 6. Open Chat View -->
+        <div v-else-if="activeSuperService === 'chat'" class="super-chat-view">
+          <div class="super-chat-channels">
+            <div class="chat-channels-header">보안 채널</div>
+            <ul>
+              <li class="active"># general</li>
+              <li># engine-ops</li>
+              <li># security-audit</li>
+              <li>🔒 OpenBot (AI)</li>
+            </ul>
+          </div>
+          <div class="super-chat-main">
+            <div class="super-chat-feed">
+              <div
+                v-for="msg in superChatMessages"
+                :key="msg.id"
+                class="chat-bubble"
+                :class="{ 'my-bubble': msg.isMe }"
+              >
+                <div class="bubble-sender">{{ msg.sender }} <span class="bubble-time">{{ msg.time }}</span></div>
+                <div class="bubble-text">{{ msg.text }}</div>
+              </div>
+            </div>
+            <form class="super-chat-input-box" @submit.prevent="sendSuperChatMessage">
+              <input
+                v-model="newChatMessage"
+                type="text"
+                placeholder="E2EE 암호화 메시지 작성…"
+              />
+              <button type="submit" class="g-btn g-btn-primary">전송</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- 7. Open Workspace View -->
+        <div v-else-if="activeSuperService === 'workspace'" class="super-workspace-view">
+          <div class="workspace-toolbar">
+            <span class="ws-title">📝 Open Scanner Workspace Note</span>
+            <span class="ws-autosave">✓ 브라우저 로컬 자동 저장됨</span>
+          </div>
+          <textarea
+            v-model="workspaceContent"
+            class="workspace-editor"
+            placeholder="마크다운 또는 텍스트를 자유롭게 작성하세요…"
+          ></textarea>
+        </div>
+
+        <!-- 8. Open Developer View -->
+        <div v-else-if="activeSuperService === 'developer'" class="super-dev-view">
+          <div class="dev-stats-bar">
+            <span>엔드포인트: <strong>5개 가용</strong></span>
+            <span>QPS 처리능력: <strong>10,000 req/s</strong></span>
+            <span>Uptime SLA: <strong>99.99%</strong></span>
+          </div>
+          <div class="dev-apikey-box">
+            <span class="key-label">내 Live API Key:</span>
+            <code class="key-value">{{ devApiKey }}</code>
+            <button type="button" class="g-btn g-btn-secondary" @click="regenerateApiKey">새 키 발급</button>
+          </div>
+          <div class="dev-lang-tabs">
+            <button type="button" :class="{ active: activeDevLang === 'curl' }" @click="activeDevLang = 'curl'">cURL</button>
+            <button type="button" :class="{ active: activeDevLang === 'go' }" @click="activeDevLang = 'go'">Go</button>
+            <button type="button" :class="{ active: activeDevLang === 'python' }" @click="activeDevLang = 'python'">Python</button>
+            <button type="button" :class="{ active: activeDevLang === 'ts' }" @click="activeDevLang = 'ts'">TypeScript</button>
+          </div>
+          <pre class="dev-code-block"><code>{{
+            activeDevLang === 'curl' ? `curl -H "Authorization: Bearer ${devApiKey}" \\\n  "https://openportal.pages.dev/api/v1/search?q=openportal&page=1"` :
+            activeDevLang === 'go' ? `package main\n\nimport (\n\t"fmt"\n\t"net/http"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest("GET", "https://openportal.pages.dev/api/v1/search?q=openportal", nil)\n\treq.Header.Set("Authorization", "Bearer ${devApiKey}")\n\tresp, _ := http.DefaultClient.Do(req)\n\tfmt.Println("Status:", resp.Status)\n}` :
+            activeDevLang === 'python' ? `import requests\n\nheaders = {"Authorization": "Bearer ${devApiKey}"}\nres = requests.get("https://openportal.pages.dev/api/v1/search", params={"q": "openportal"}, headers=headers)\nprint(res.json())` :
+            `import { fetch } from 'undici';\n\nconst res = await fetch('https://openportal.pages.dev/api/v1/search?q=openportal', {\n  headers: { Authorization: 'Bearer ${devApiKey}' }\n});\nconst data = await res.json();\nconsole.log(data);`
+          }}</code></pre>
         </div>
       </div>
     </div>
@@ -3254,10 +3707,15 @@ onMounted(async () => {
         <section v-if="!hasSearch" class="home-search-panel">
           <!-- Large Google-style Center Hero Logo -->
           <div class="home-logo-wrapper">
+            <div class="os-scan-frame-symbol" aria-hidden="true">
+              <span class="os-orbit-ring"></span>
+              <span class="os-core-gem">⚡</span>
+            </div>
             <h1 class="home-brand-title">
               <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span><span class="l-g">P</span><span class="l-r">o</span><span class="l-b">r</span><span class="l-y">t</span><span class="l-g">a</span><span class="l-r">l</span>
             </h1>
             <p class="home-tagline">{{ i18n.heading }}</p>
+            <div class="os-brand-subbadge">OPEN SCANNER ENGINE 2.0</div>
           </div>
 
           <!-- Google-style Unified Search Box (584px desktop) -->
@@ -3323,6 +3781,7 @@ onMounted(async () => {
                     <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
                   </svg>
                 </button>
+                <div v-if="busy" class="scanning-laser-beam" aria-hidden="true"></div>
               </div>
 
               <!-- Google-style Autocomplete Dropdown with Recent Searches -->

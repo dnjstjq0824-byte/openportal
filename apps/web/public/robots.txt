@@ -1,0 +1,18 @@
+# OPEN SCANNER — ROBOTS EXCLUSION STANDARD (RFC 9309)
+User-agent: OpenScannerBot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /partner
+Disallow: /api/
+
+Sitemap: https://openscanner.internal/sitemap.xml

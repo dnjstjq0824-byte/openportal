@@ -68,3 +68,4 @@ Google's competitive strength stems from its platform lock-in (Google Search + G
    - TypeScript / Node.js: `@openscanner/sdk`
    - Python: `pip install openscanner-python`
 3. **Agentic AI & Plugin Marketplace:** Direct compatibility with autonomous agent toolchains (Model Context Protocol, agentic coding tools).
+

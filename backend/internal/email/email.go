@@ -403,3 +403,4 @@ func (s *Service) VerifyPasswordResetToken(email, token string) error {
 	s.resetTokens[cleanEmail] = res
 	return nil
 }
+

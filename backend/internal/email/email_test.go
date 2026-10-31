@@ -123,3 +123,4 @@ func TestEmailServiceTokenExpiration(t *testing.T) {
 		t.Fatalf("expected ErrTokenExpired, got %v", err)
 	}
 }
+

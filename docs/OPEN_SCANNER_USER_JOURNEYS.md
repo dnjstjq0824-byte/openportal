@@ -93,3 +93,4 @@ sequenceDiagram
 2. **Token Dispatch:** User enters their registered email; system sends a single-use password reset token (`/api/v1/auth/password/reset-request`).
 3. **Confirmation & Update:** User enters the reset token and specifies a new password (min 8 characters).
 4. **Re-Authentication:** System hashes the new password with PBKDF2-SHA256, invalidates prior sessions, and redirects to login.
+
