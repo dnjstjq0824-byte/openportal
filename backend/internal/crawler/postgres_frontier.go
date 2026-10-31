@@ -318,3 +318,4 @@ func (pf *PostgresFrontier) ReclaimExpiredLeases() int {
 	affected, _ := res.RowsAffected()
 	return int(affected)
 }
+

@@ -115,3 +115,4 @@ test('hybridSearch merges local backend and external API using RRF', async () =>
   assert.equal(res.hits[0].url, 'https://shared.org/item');
   assert.equal(res.hits[0].title, 'Local Shared'); // Local metadata preserved
 });
+

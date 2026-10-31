@@ -136,3 +136,4 @@ func TestRealCrawlPipelineIngestion(t *testing.T) {
 		t.Errorf("expected extracted body to contain %s, got %q", uniqueToken, extracted.Body)
 	}
 }
+

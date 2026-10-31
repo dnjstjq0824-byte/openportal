@@ -52,3 +52,4 @@ func TestPostgresFrontierHostCacheAndAllow(t *testing.T) {
 		t.Errorf("expected ErrHostNotRegistered, got %v", err)
 	}
 }
+
