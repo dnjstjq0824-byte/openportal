@@ -101,12 +101,18 @@
           "en": { "type": "text", "analyzer": "english_analyzer" }
         }
       },
+      "canonical_url": { "type": "keyword", "ignore_above": 2048 },
+      "host": { "type": "keyword" },
       "language": { "type": "keyword" },
       "simhash": { "type": "keyword" },
       "indexable": { "type": "boolean" },
       "is_representative": { "type": "boolean" },
       "is_tombstone": { "type": "boolean" },
       "tombstone_reason": { "type": "keyword" },
+      "domain_authority": { "type": "float" },
+      "spam_score": { "type": "float" },
+      "source": { "type": "keyword" },
+      "term_frequency_density": { "type": "float" },
       "published_at": { "type": "date" },
       "last_crawled_at": { "type": "date" }
     }

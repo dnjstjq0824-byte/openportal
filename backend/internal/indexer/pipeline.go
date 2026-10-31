@@ -96,10 +96,28 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 		WordCount:   extracted.WordCount,
 	}
 
+	canonicalURL := extracted.CanonicalURL
+	if canonicalURL == "" {
+		canonicalURL = rawURL
+	}
+	host := ""
+	if u, err := url.Parse(canonicalURL); err == nil {
+		host = strings.ToLower(u.Hostname())
+	}
+	if host == "" {
+		if u, err := url.Parse(rawURL); err == nil {
+			host = strings.ToLower(u.Hostname())
+		}
+	}
+
+	spamScore := computeSpamScore(extracted)
+
 	// 5. Enqueue outbox upsert event
 	docPayload := map[string]interface{}{
 		"document_id":            docID,
 		"url":                    rawURL,
+		"canonical_url":          canonicalURL,
+		"host":                   host,
 		"title":                  extracted.Title,
 		"description":            extracted.Description,
 		"body":                   extracted.Body,
@@ -111,7 +129,9 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 		"is_representative":      !isNearDup,
 		"is_tombstone":           false,
 		"last_crawled_at":        crawledAt.Format(time.RFC3339),
-		"domain_authority":       domainAuthorityScore(rawURL),
+		"domain_authority":       domainAuthorityScore(canonicalURL),
+		"spam_score":             spamScore,
+		"source":                 "crawler",
 		"published_at":           crawledAt.Format(time.RFC3339),
 		"term_frequency_density": computeTermFrequencyDensity(extracted.Body),
 	}
@@ -237,4 +257,27 @@ func computeTermFrequencyDensity(text string) float64 {
 		return 0.05
 	}
 	return float64(maxCount) / float64(len(words))
+}
+
+func computeSpamScore(doc *ExtractedDoc) float64 {
+	if doc == nil {
+		return 1.0
+	}
+	var score float64
+	if doc.WordCount < 10 || len(strings.TrimSpace(doc.Body)) < 30 {
+		score += 0.4
+	}
+	if len(strings.TrimSpace(doc.Title)) == 0 {
+		score += 0.3
+	} else if len(doc.Title) > 300 {
+		score += 0.2
+	}
+	density := computeTermFrequencyDensity(doc.Body)
+	if density > 0.4 {
+		score += 0.3
+	}
+	if score > 1.0 {
+		score = 1.0
+	}
+	return score
 }

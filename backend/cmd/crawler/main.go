@@ -28,7 +28,7 @@ func env(key, fallback string) string {
 
 func main() {
 	opensearchURL := flag.String("opensearch", env("OPENSEARCH_URL", "http://127.0.0.1:9200"), "OpenSearch base URL")
-	indexName := flag.String("index", env("OPENSEARCH_INDEX", "documents_v1"), "OpenSearch target index")
+	indexName := flag.String("index", env("OPENSEARCH_INDEX", "documents_v2"), "OpenSearch target index")
 	databaseURL := flag.String("database", env("DATABASE_URL", ""), "PostgreSQL connection string")
 	targetURL := flag.String("url", "", "Single URL to crawl directly and exit")
 	workerMode := flag.Bool("worker", false, "Run in continuous frontier worker loop")

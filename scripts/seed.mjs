@@ -8,7 +8,9 @@ const base = (process.env.OPENSEARCH_URL || 'http://127.0.0.1:9200').replace(/\/
 const index = process.env.OPENSEARCH_INDEX || 'documents_v1';
 
 export async function seed({ baseURL = base, indexName = index } = {}) {
-  const mapping = JSON.parse(fs.readFileSync(path.join(root, 'infra/opensearch/documents_v1.json'), 'utf-8'));
+  const mappingPath = path.join(root, `infra/opensearch/${indexName}.json`);
+  const fallbackPath = path.join(root, 'infra/opensearch/documents_v1.json');
+  const mapping = JSON.parse(fs.readFileSync(fs.existsSync(mappingPath) ? mappingPath : fallbackPath, 'utf-8'));
   
   // Create index if not exists
   const putRes = await fetch(`${baseURL}/${indexName}`, {

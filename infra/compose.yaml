@@ -72,7 +72,7 @@ services:
     profiles: ["crawler"]
     build: ../backend
     entrypoint: ["/crawler"]
-    command: ["--opensearch=http://opensearch:9200", "--index=documents_v1"]
+    command: ["--opensearch=http://opensearch:9200", "--index=documents_v2"]
     environment:
       OPENSEARCH_URL: "http://opensearch:9200"
       DATABASE_URL: postgres://openportal:local_dev_password_change_me@postgres:5432/openportal

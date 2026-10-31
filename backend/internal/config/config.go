@@ -29,7 +29,7 @@ func Load() Config {
 		ListenHost:         env("LISTEN_HOST", "127.0.0.1"),
 		Port:               env("PORT", "8080"),
 		OpenSearchURL:      strings.TrimRight(env("OPENSEARCH_URL", "http://localhost:9200"), "/"),
-		OpenSearchIndex:    env("OPENSEARCH_INDEX", "documents_v1"),
+		OpenSearchIndex:    env("OPENSEARCH_INDEX", "documents_v2"),
 		OpenSearchUsername: os.Getenv("OPENSEARCH_USERNAME"),
 		OpenSearchPassword: os.Getenv("OPENSEARCH_PASSWORD"),
 		CORSOrigin:         env("CORS_ORIGIN", "http://127.0.0.1:5173"),

@@ -20,6 +20,8 @@ const (
 	TombstoneReasonPrivacyRight    TombstoneReason = "privacy_right_to_be_forgotten"
 	TombstoneReasonMalwareSpam     TombstoneReason = "malware_or_spam_deindexed"
 	TombstoneReasonDeadHostRemoved TombstoneReason = "dead_host_removed"
+	TombstoneReasonNotFound404     TombstoneReason = "http_404_not_found"
+	TombstoneReasonGone410         TombstoneReason = "http_410_gone"
 )
 
 // TombstoneRecord contains tombstone metadata.
