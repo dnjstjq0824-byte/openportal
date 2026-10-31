@@ -4784,6 +4784,7 @@ main {
   font-weight: 800;
   background: linear-gradient(135deg, #2563eb, #22c7e8 50%, #7c3aed);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
 }
@@ -4936,6 +4937,7 @@ main {
   font-weight: 800;
   background: linear-gradient(135deg, #2563eb, #22c7e8 50%, #7c3aed);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
