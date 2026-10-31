@@ -284,6 +284,12 @@
     "tombstoned",
     "Tombstoned",
     "yonhap",
-    "Yubi"
+    "Yubi",
+    "PKCES",
+    "webauthn",
+    "searchoperator",
+    "securityauditor",
+    "finops",
+    "billingmanager"
   ]
 }

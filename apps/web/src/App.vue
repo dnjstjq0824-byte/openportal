@@ -560,7 +560,8 @@ const authStatus = ref('');
 // ============================================================================
 // Operator Control Tower State & Actions
 // ============================================================================
-const operatorTab = ref<'overview' | 'crawler' | 'indexer' | 'ranking' | 'moderation' | 'flags' | 'audit' | 'loadtest' | 'ads' | 'airag'>('overview');
+
+const operatorTab = ref<'overview' | 'crawler' | 'indexer' | 'ranking' | 'moderation' | 'flags' | 'airag' | 'ads' | 'loadtest' | 'audit'>('overview');
 const operatorToast = ref('');
 let operatorToastTimer: ReturnType<typeof setTimeout> | null = null;
 

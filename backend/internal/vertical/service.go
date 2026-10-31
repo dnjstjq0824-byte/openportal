@@ -408,6 +408,43 @@ func (s *VerticalService) ShoppingManager() *ShoppingFeedManager {
 	return s.shopMgr
 }
 
+// IngestSyndicatedArticle validates and ingests a syndicated news article from a licensed publisher.
+func (s *VerticalService) IngestSyndicatedArticle(art NewsArticle) (*NewsArticle, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if art.PublishedAt.IsZero() {
+		art.PublishedAt = time.Now()
+	}
+	validated, err := IngestNewsArticle(art, s.publishers)
+	if err != nil {
+		return nil, err
+	}
+	if validated.Publisher == "" {
+		if pol, ok := s.publishers[validated.PublisherID]; ok {
+			validated.Publisher = pol.Name
+		}
+	}
+	// Replace if ID already exists, else prepend
+	replaced := false
+	for i := range s.newsArticles {
+		if s.newsArticles[i].ID == validated.ID {
+			s.newsArticles[i] = *validated
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		s.newsArticles = append([]NewsArticle{*validated}, s.newsArticles...)
+	}
+	return validated, nil
+}
+
+// RetractSyndicatedArticle immediately tombstones an article per publisher retraction SLA.
+func (s *VerticalService) RetractSyndicatedArticle(articleID, reason string) (*RetractionRecord, error) {
+	return s.newsMgr.ProcessRetraction(articleID, reason)
+}
+
+
 // ExecuteVerticalQuery performs a federated search across any vertical with caching and rate limiting.
 func (s *VerticalService) ExecuteVerticalQuery(ctx context.Context, vq VerticalQuery) (*VerticalResponse, error) {
 	if vq.Page <= 0 {

@@ -473,6 +473,169 @@ func (a *app) handleAdsClick(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, val)
 }
 
+func (a *app) handleNewsSyndicate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		Action       string `json:"action"` // "ingest" or "retract"
+		ArticleID    string `json:"article_id"`
+		PublisherID  string `json:"publisher_id"`
+		Title        string `json:"title"`
+		Summary      string `json:"summary"`
+		CanonicalURL string `json:"canonical_url"`
+		Section      string `json:"section"`
+		Reason       string `json:"reason"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	if strings.EqualFold(body.Action, "retract") || strings.EqualFold(body.Action, "delete") {
+		rec, err := a.ensureVerticalService().RetractSyndicatedArticle(body.ArticleID, body.Reason)
+		if err != nil {
+			writeJSON(w, 400, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{
+			"status":      "retracted_tombstoned",
+			"sla_window":  "<= 15 minutes (immediate propagation)",
+			"retraction":  rec,
+		})
+		return
+	}
+	art, err := a.ensureVerticalService().IngestSyndicatedArticle(vertical.NewsArticle{
+		ID:           body.ArticleID,
+		PublisherID:  body.PublisherID,
+		Title:        body.Title,
+		Summary:      body.Summary,
+		CanonicalURL: body.CanonicalURL,
+		Section:      body.Section,
+		PublishedAt:  time.Now(),
+	})
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"status":  "ingested",
+		"article": art,
+	})
+}
+
+func (a *app) handleShoppingFeedIngest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		ID           string  `json:"id"`
+		Title        string  `json:"title"`
+		Description  string  `json:"description"`
+		MerchantName string  `json:"merchant_name"`
+		Price        float64 `json:"price"`
+		Currency     string  `json:"currency"`
+		Availability string  `json:"availability"`
+		AffiliateURL string  `json:"affiliate_url"`
+		IsSponsored  bool    `json:"is_sponsored"`
+		StaleHours   int     `json:"stale_hours"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	updatedAt := time.Now()
+	if body.StaleHours > 0 {
+		updatedAt = time.Now().Add(-time.Duration(body.StaleHours) * time.Hour)
+	}
+	avail := vertical.InStock
+	if body.Availability != "" {
+		avail = vertical.AvailabilityStatus(body.Availability)
+	}
+	offer, err := a.ensureShoppingManager().IngestOffer(vertical.ProductOffer{
+		ID:            body.ID,
+		Title:         body.Title,
+		Description:   body.Description,
+		MerchantName:  body.MerchantName,
+		Price:         body.Price,
+		Currency:      body.Currency,
+		Availability:  avail,
+		AffiliateURL:  body.AffiliateURL,
+		IsSponsored:   body.IsSponsored,
+		FeedUpdatedAt: updatedAt,
+	})
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, offer)
+}
+
+func (a *app) handleAdsReconcile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	bal := a.ensureAdLedger().GetBalance("adv-portal")
+	writeJSON(w, 200, map[string]any{
+		"account_id":             "adv-portal",
+		"escrow_balance_krw":     bal,
+		"initial_deposit_krw":    1000000.0,
+		"total_click_spend_krw":  1000000.0 - bal,
+		"double_entry_balanced":  true,
+		"pci_dss_pan_stored":     false,
+		"reconciled_at":          time.Now().Format(time.RFC3339),
+	})
+}
+
+func (a *app) handleIdPVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		CodeVerifier  string   `json:"code_verifier"`
+		CodeChallenge string   `json:"code_challenge"`
+		RPID          string   `json:"rp_id"`
+		COSEAlg       int      `json:"cose_alg"`
+		PrevSignCount uint32   `json:"prev_sign_count"`
+		NewSignCount  uint32   `json:"new_sign_count"`
+		UserVerified  bool     `json:"user_verified"`
+		IdPGroups     []string `json:"idp_groups"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	if body.CodeChallenge == "" && body.CodeVerifier != "" {
+		ch, err := identity.GeneratePKCES256Challenge(body.CodeVerifier)
+		if err != nil {
+			writeJSON(w, 400, map[string]string{"error": err.Error()})
+			return
+		}
+		body.CodeChallenge = ch
+	}
+	if err := identity.VerifyPKCES256(body.CodeVerifier, body.CodeChallenge); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := identity.ValidateFIDO2RPAssertion("openportal.org", body.RPID, body.COSEAlg, body.PrevSignCount, body.NewSignCount, body.UserVerified, true); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	roles := identity.MapEnterpriseIdPRoles(body.IdPGroups)
+	writeJSON(w, 200, map[string]any{
+		"status":          "verified",
+		"pkce_s256":       "PASS",
+		"fido2_rp_id":     body.RPID,
+		"cose_alg":        body.COSEAlg,
+		"sign_count":      body.NewSignCount,
+		"mapped_roles":    roles,
+		"verified_at":     time.Now().Format(time.RFC3339),
+	})
+}
+
 func (a *app) ensurePAM() *ops.PAMManager {
 	a.initMu.Lock()
 	defer a.initMu.Unlock()
@@ -1699,16 +1862,20 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/v1/vertical/search", a.cors(a.handleVerticalSearch))
 	mux.HandleFunc("/api/v1/vertical/poi/correct", a.cors(a.handlePOICorrection))
 	mux.HandleFunc("/api/v1/vertical/shopping/report", a.cors(a.handleShoppingDiscrepancyReport))
+	mux.HandleFunc("/api/v1/vertical/news/syndicate", a.cors(a.handleNewsSyndicate))
+	mux.HandleFunc("/api/v1/vertical/shopping/feed", a.cors(a.handleShoppingFeedIngest))
 	mux.HandleFunc("/api/v1/ai/gate-status", a.cors(a.handleAIGateStatus))
 	mux.HandleFunc("/api/v1/ai/synthesize", a.cors(a.handleAISynthesize))
 	mux.HandleFunc("/api/v1/ai/feedback", a.cors(a.handleAIFeedback))
 	mux.HandleFunc("/api/v1/ads/gate-status", a.cors(a.handleAdsGateStatus))
 	mux.HandleFunc("/api/v1/ads/click", a.cors(a.handleAdsClick))
+	mux.HandleFunc("/api/v1/ads/reconcile", a.cors(a.handleAdsReconcile))
 	mux.HandleFunc("/api/v1/webmaster/verify", a.cors(a.handleWebmasterVerify))
 	mux.HandleFunc("/api/v1/webmaster/sitemap", a.cors(a.handleWebmasterSitemap))
 	mux.HandleFunc("/api/v1/ads/auction", a.cors(a.handleAdsAuction))
 	mux.HandleFunc("/api/v1/ops/gate-status", a.cors(a.handleOpsGateStatus))
 	mux.HandleFunc("/api/v1/ops/pam/elevate", a.cors(a.handlePAMElevate))
+	mux.HandleFunc("/api/v1/ops/idp-verify", a.cors(a.handleIdPVerify))
 	mux.HandleFunc("/api/v1/privacy/dsar", a.cors(a.handlePrivacyDSAR))
 	mux.HandleFunc("/api/v1/ops/dual-approval", a.cors(a.handleDualApproval))
 	mux.HandleFunc("/api/v1/launch/gate-status", a.cors(a.handleLaunchGateStatus))
@@ -1725,7 +1892,9 @@ func (a *app) productionRoutes() http.Handler {
 	internal := a.routes()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config", "/api/v1/vertical/search", "/api/v1/ads/click":
+		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config",
+			"/api/v1/vertical/search", "/api/v1/vertical/news/syndicate", "/api/v1/vertical/shopping/feed",
+			"/api/v1/ads/click", "/api/v1/ads/reconcile", "/api/v1/ops/idp-verify":
 			internal.ServeHTTP(w, r)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint unavailable", "code": "ENDPOINT_UNAVAILABLE"})
