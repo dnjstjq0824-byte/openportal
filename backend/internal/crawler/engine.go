@@ -49,7 +49,7 @@ type ComplianceReport struct {
 // BoundedCrawler coordinates the full Phase 2 crawling lifecycle under strict compliance gates.
 type BoundedCrawler struct {
 	mu          sync.RWMutex
-	frontier    *Frontier
+	frontier    FrontierQueue
 	robotsCache *RobotsCache
 	politeness  *PolitenessManager
 	fetcher     *SafeFetcher
@@ -59,7 +59,7 @@ type BoundedCrawler struct {
 	report      ComplianceReport
 }
 
-func NewBoundedCrawler(frontier *Frontier, fetcher *SafeFetcher, politeness *PolitenessManager) *BoundedCrawler {
+func NewBoundedCrawler(frontier FrontierQueue, fetcher *SafeFetcher, politeness *PolitenessManager) *BoundedCrawler {
 	if frontier == nil {
 		frontier = NewFrontier()
 	}

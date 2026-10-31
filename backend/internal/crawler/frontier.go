@@ -26,6 +26,18 @@ const (
 	StateFailed  FrontierState = "failed"
 )
 
+// FrontierQueue defines the contract for partitioned crawl queues, leases, and host authorization.
+type FrontierQueue interface {
+	RegisterVerifiedHost(host *VerifiedHost)
+	IsHostAllowed(hostKey string) (*VerifiedHost, bool)
+	SubmitURL(rawURL string, priority int) (*FrontierItem, error)
+	LeaseAcquire(workerID string, maxBatch int, leaseDuration time.Duration) []*FrontierItem
+	Ack(urlHash string, workerID string) error
+	Nack(urlHash string, workerID string, errReason string) error
+	Block(urlHash string, reason string) error
+	QueueDepth(state FrontierState) int
+}
+
 // VerifiedHost represents a verified site eligible for crawling.
 type VerifiedHost struct {
 	ID           string        `json:"id"`

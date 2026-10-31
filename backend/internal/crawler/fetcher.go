@@ -77,6 +77,14 @@ func NewSafeFetcher(guard *SSRFGuard) *SafeFetcher {
 	}
 }
 
+// NewSafeFetcherWithClient constructs a SafeFetcher using a custom HTTP client (e.g. for testing).
+func NewSafeFetcherWithClient(client *http.Client) *SafeFetcher {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	return &SafeFetcher{client: client}
+}
+
 // Fetch retrieves the URL with full security guards applied.
 func (f *SafeFetcher) Fetch(ctx context.Context, targetURL string, opts FetchOptions) (*FetchResult, error) {
 	if opts.MaxBodyBytes <= 0 {

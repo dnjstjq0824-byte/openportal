@@ -7,3 +7,4 @@ PUBLIC_ORIGIN = "https://openportal.pages.dev"
 # Upstream Gateway configuration:
 # When WEB_GATEWAY_ORIGIN is configured, Pages worker forwards /api/v2/* requests to the persistent gateway.
 # WEB_GATEWAY_ORIGIN = "https://gateway.openportal.org"
+
