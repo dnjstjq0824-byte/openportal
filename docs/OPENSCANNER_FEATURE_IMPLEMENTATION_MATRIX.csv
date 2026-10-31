@@ -1,0 +1,47 @@
+Category,Module,Feature,Status,Source_File,Test_Evidence
+P0,Search Core,BM25 Keyword Search,PASS,backend/internal/ranking/bm25.go,backend/internal/ranking/bm25_test.go
+P0,Search Core,Korean Morphological Nori Analysis,PASS,backend/internal/ranking/analyzer.go,tests/search.spec.mjs
+P0,Search Core,Autocomplete Suggestions Trie,PASS,apps/web/public/_worker.js,tests/pages-worker.test.mjs
+P0,Search Core,Spam & Demotion Penalty,PASS,backend/internal/ranking/abuse.go,backend/internal/ranking/abuse_test.go
+P0,Search Core,Damerau-Levenshtein Fuzzy Correction,PASS,apps/web/src/App.vue,tests/search.spec.mjs
+P0,Crawler,RFC 9309 robots.txt Parser,PASS,backend/internal/crawler/robots.go,backend/internal/crawler/robots_test.go
+P0,Crawler,SSRF IP Pinning Dialer,PASS,backend/internal/crawler/ssrf.go,backend/internal/crawler/ssrf_test.go
+P0,Crawler,ISO 28500 WARC Storage,PASS,backend/internal/crawler/warc.go,backend/internal/crawler/warc_test.go
+P0,Crawler,Politeness Rate Limiter,PASS,backend/internal/crawler/politeness.go,backend/internal/crawler/politeness_test.go
+P0,Indexer,HTML Boilerplate Stripper,PASS,backend/internal/indexer/boilerplate.go,backend/internal/indexer/boilerplate_test.go
+P0,Indexer,SimHash Near-Duplicate Detection,PASS,backend/internal/indexer/dedup.go,backend/internal/indexer/pipeline_test.go
+P0,Indexer,Language Detection (ko/en),PASS,backend/internal/indexer/lang.go,backend/internal/indexer/metrics_test.go
+P0,Vertical,Image Search (CC-BY / Safety),PASS,backend/internal/vertical/image.go,tests/pages-worker.test.mjs
+P0,Vertical,Video Search (Embed Providers),PASS,backend/internal/vertical/video.go,tests/pages-worker.test.mjs
+P0,Vertical,News Search (Syndication & Retraction),PASS,backend/internal/vertical/news.go,tests/pages-worker.test.mjs
+P0,Vertical,Maps Search (OpenStreetMap ODbL),PASS,backend/internal/vertical/map.go,tests/pages-worker.test.mjs
+P0,Vertical,Shopping Search (FTC Sponsored Tag),PASS,backend/internal/vertical/shopping.go,tests/pages-worker.test.mjs
+P0,Vertical,Books Search (ISBN / Authors),PASS,backend/internal/vertical/service.go,tests/pages-worker.test.mjs
+P1,Auth & Identity,Local Account Registration (PBKDF2),PASS,backend/internal/identity/local_auth.go,tests/open_scanner_auth.spec.mjs
+P1,Auth & Identity,Transactional Email 6-Digit PIN,PASS,backend/internal/email/email.go,tests/open_scanner_auth.spec.mjs
+P1,Auth & Identity,Email Ownership Verification,PASS,backend/internal/email/email.go,tests/open_scanner_auth.spec.mjs
+P1,Auth & Identity,Password Reset via Secure Token,PASS,backend/internal/email/email.go,tests/open_scanner_auth.spec.mjs
+P1,Auth & Identity,WebAuthn / Passkey MFA,PASS,backend/internal/identity/identity.go,tests/search.spec.mjs
+P1,UI/UX,Responsive Viewports (320px to 1920px),PASS,apps/web/src/style.css,tests/responsive.spec.mjs
+P1,UI/UX,Light / Dark Theme Support,PASS,apps/web/src/App.vue,tests/responsive.spec.mjs
+P1,UI/UX,Official Brand Slogan & Typography,PASS,apps/web/src/App.vue,docs/evidence/search-browser.png
+P1,UI/UX,Search Tools Bar & Date Filters,PASS,apps/web/src/App.vue,tests/search.spec.mjs
+P1,Personalization,Recent Searches (Opt-in Privacy),PASS,apps/web/src/App.vue,tests/search.spec.mjs
+P1,Admin Console,Live Engine Status Monitoring,PASS,apps/web/src/App.vue,tests/search.spec.mjs
+P1,Admin Console,Real NDCG@10 / MRR@10 Benchmark,PASS,backend/internal/launch/benchmark.go,tests/search.spec.mjs
+P1,Admin Console,Emergency Tombstone Index Purge,PASS,apps/web/src/App.vue,tests/search.spec.mjs
+P1,Multilingual,10 Languages i18n Dictionary,PASS,apps/web/src/App.vue,tests/search.spec.mjs
+P1,SEO,Dynamic Canonical / hreflang / Sitemap,PASS,apps/web/public/sitemap.xml,tests/pages-worker.test.mjs
+P2,Superplatform,Open Apps Hub (8+ Services),PASS,apps/web/src/App.vue,tests/pages-worker.test.mjs
+P2,Superplatform,Open Mail Webmail Service,PASS,apps/web/src/App.vue,tests/pages-worker.test.mjs
+P2,Superplatform,Open Developer Studio & API Keys,PASS,apps/web/src/App.vue,tests/pages-worker.test.mjs
+P2,Security,SSRF Protection (RFC 1918 / Cloud Meta),PASS,backend/internal/crawler/ssrf.go,backend/internal/crawler/ssrf_test.go
+P2,Security,Dual-Custody Operator Approvals,PASS,backend/internal/ops/dual_custody.go,backend/internal/ops/dual_custody_test.go
+P2,Security,DSAR Privacy Workflow,PASS,backend/internal/ops/dsar.go,backend/internal/ops/dsar_test.go
+P3,Monetization,GSP Ad Auction & Clearing CPC,PASS,backend/internal/ads/auction.go,backend/internal/ads/auction_test.go
+P3,Monetization,Click Fraud Detection (Co-occurrence),PASS,backend/internal/ads/fraud.go,backend/internal/ads/fraud_test.go
+P3,Monetization,Ad Billing Double-Entry Ledger,PASS,backend/internal/ads/ledger.go,backend/internal/ads/ledger_test.go
+P3,Monetization,Production Payment Gateway & Settlement,BLOCKED_LEGAL,backend/internal/ads/signoff.go,Legal entity & merchant agreement required
+P3,External Contracts,Commercial News Publisher Syndication,BLOCKED_EXTERNAL,backend/internal/vertical/news.go,Formal publisher syndication contracts required
+P3,External Contracts,Commercial Mapping Tiles / Geocoding,BLOCKED_EXTERNAL,backend/internal/vertical/map.go,Commercial map provider SLA required
+P3,DevOps,Production Live Database Migration Execution,PO_APPROVAL_REQUIRED,database/migrations/,Requires explicit Product Owner approval

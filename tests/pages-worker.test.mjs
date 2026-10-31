@@ -67,3 +67,117 @@ test('edge search fallback on production pages.dev serves live verified corpus w
   const cfgBody = await cfgRes.json();
   assert.equal(cfgBody.search_enabled, true);
 });
+
+test('edge vertical search serves typed structured results without 404 or 503', async () => {
+  const reqPages = (path) => new Request(`https://openportal.pages.dev${path}`, { method: 'GET' });
+
+  for (const vert of ['image', 'video', 'news', 'map', 'shopping', 'books']) {
+    const res = await worker.fetch(reqPages(`/api/v1/vertical/search?vertical=${vert}&q=`), {});
+    assert.equal(res.status, 200, `vertical ${vert} must return 200`);
+    const body = await res.json();
+    assert.equal(body.vertical, vert);
+    assert.ok(Array.isArray(body.data));
+    assert.ok(body.total_hits > 0);
+  }
+
+  // Filtered vertical search
+  const filterRes = await worker.fetch(reqPages('/api/v1/vertical/search?vertical=books&q=Information'), {});
+  assert.equal(filterRes.status, 200);
+  const filterBody = await filterRes.json();
+  assert.ok(filterBody.total_hits >= 1);
+  assert.match(filterBody.data[0].title, /Information Retrieval/);
+});
+
+test('edge authentication lifecycle handles full user journey on pages.dev', async () => {
+  const postPages = (path, body) => new Request(`https://openportal.pages.dev${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const testEmail = `user_${Date.now()}@openscanner.internal`;
+  const testPassword = 'Password1234!';
+
+  // 1. Register
+  const regRes = await worker.fetch(postPages('/api/v1/auth/register', {
+    email: testEmail,
+    password: testPassword,
+    display_name: 'Edge Tester',
+  }), {});
+  assert.equal(regRes.status, 201);
+  const regBody = await regRes.json();
+  assert.equal(regBody.status, 'pending_verification');
+  assert.ok(regBody.code);
+
+  // 2. Attempt login before email verification -> fails closed
+  const preLoginRes = await worker.fetch(postPages('/api/v1/auth/login', {
+    email: testEmail,
+    password: testPassword,
+  }), {});
+  assert.equal(preLoginRes.status, 400);
+
+  // 3. Verify Email PIN
+  const verifyRes = await worker.fetch(postPages('/api/v1/auth/email/verify', {
+    email: testEmail,
+    code: regBody.code,
+  }), {});
+  assert.equal(verifyRes.status, 200);
+  const verifyBody = await verifyRes.json();
+  assert.equal(verifyBody.status, 'verified');
+
+  // 4. Authenticate Login
+  const loginRes = await worker.fetch(postPages('/api/v1/auth/login', {
+    email: testEmail,
+    password: testPassword,
+  }), {});
+  assert.equal(loginRes.status, 200);
+  const loginBody = await loginRes.json();
+  assert.equal(loginBody.status, 'authenticated');
+  assert.ok(loginBody.token);
+  assert.equal(loginBody.email, testEmail);
+
+  // 5. Password Reset Request & Confirm
+  const resetReqRes = await worker.fetch(postPages('/api/v1/auth/password/reset-request', {
+    email: testEmail,
+  }), {});
+  assert.equal(resetReqRes.status, 200);
+  const resetReqBody = await resetReqRes.json();
+  assert.ok(resetReqBody.token);
+
+  const resetConfirmRes = await worker.fetch(postPages('/api/v1/auth/password/reset-confirm', {
+    email: testEmail,
+    token: resetReqBody.token,
+    new_password: 'NewPassword999!',
+  }), {});
+  assert.equal(resetConfirmRes.status, 200);
+
+  // 6. Login with new password
+  const newLoginRes = await worker.fetch(postPages('/api/v1/auth/login', {
+    email: testEmail,
+    password: 'NewPassword999!',
+  }), {});
+  assert.equal(newLoginRes.status, 200);
+});
+
+test('edge superplatform endpoints serve apps, webmail, and devstudio', async () => {
+  const getPages = (path) => new Request(`https://openportal.pages.dev${path}`, { method: 'GET' });
+
+  // 1. Apps
+  const appsRes = await worker.fetch(getPages('/api/v1/superplatform/apps'), {});
+  assert.equal(appsRes.status, 200);
+  const appsBody = await appsRes.json();
+  assert.ok(appsBody.apps.length >= 8);
+
+  // 2. Mail
+  const mailRes = await worker.fetch(getPages('/api/v1/superplatform/mail?email=tester@openscanner.internal'), {});
+  assert.equal(mailRes.status, 200);
+  const mailBody = await mailRes.json();
+  assert.ok(mailBody.messages.length > 0);
+
+  // 3. Developer
+  const devRes = await worker.fetch(getPages('/api/v1/superplatform/developer'), {});
+  assert.equal(devRes.status, 200);
+  const devBody = await devRes.json();
+  assert.equal(devBody.version, 'v2.0.0');
+  assert.ok(devBody.api_key.startsWith('sk_live_'));
+});

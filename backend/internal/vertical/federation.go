@@ -18,6 +18,7 @@ const (
 	VerticalNews     VerticalType = "news"
 	VerticalMap      VerticalType = "map"
 	VerticalShopping VerticalType = "shopping"
+	VerticalBooks    VerticalType = "books"
 )
 
 // VerticalQuery carries universal search parameters for any vertical.

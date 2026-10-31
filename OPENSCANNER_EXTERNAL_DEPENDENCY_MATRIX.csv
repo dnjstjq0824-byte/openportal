@@ -1,0 +1,28 @@
+Package_or_API,Tier,Version,License,Purpose,Commercial_Readiness_Status,Blocking_Reason
+vue,Frontend,3.5.44,MIT,Reactive UI Framework,READY,None (Open Source)
+vite,Frontend,6.4.4,MIT,Next-Gen Frontend Tooling & Bundler,READY,None (Open Source)
+@vitejs/plugin-vue,Frontend,5.2.4,MIT,Vite plugin for Vue 3 SFCs,READY,None (Open Source)
+typescript,Frontend,5.9.3,Apache-2.0,Static Type Checking,READY,None (Open Source)
+vue-tsc,Frontend,3.3.1,MIT,Vue Type Validator,READY,None (Open Source)
+@playwright/test,QA/Test,1.64.1,Apache-2.0,End-to-End Browser Testing,READY,None (Open Source)
+pg,Backend/Node,8.16.3,MIT,PostgreSQL Client for Node tooling,READY,None (Open Source)
+embedded-postgres,Backend/Node,17.10.0-beta.17,PostgreSQL,Disposable Database Testing,READY,None (Open Source)
+ajv,Backend/Node,8.20.0,MIT,JSON Schema Validator,READY,None (Open Source)
+yaml,Backend/Node,2.8.3,ISC,YAML Parser,READY,None (Open Source)
+golang.org/x/net,Backend/Go,v0.62.0,BSD-3-Clause,HTML Parsing & Networking,READY,None (Open Source)
+golang.org/x/text,Backend/Go,v0.43.0,BSD-3-Clause,Unicode Normalization & Stemming,READY,None (Open Source)
+golang.org/x/oauth2,Backend/Go,v0.28.0,BSD-3-Clause,OAuth2 Client Protocols,READY,None (Open Source)
+google.golang.org/protobuf,Backend/Go,v1.36.12,BSD-3-Clause,Protocol Buffers Serialization,READY,None (Open Source)
+github.com/coreos/go-oidc/v3,Backend/Go,v3.17.0,Apache-2.0,OpenID Connect Identity Verification,READY,None (Open Source)
+github.com/go-jose/go-jose/v4,Backend/Go,v4.1.4,Apache-2.0,JWT & Cryptographic Signature Signing,READY,None (Open Source)
+Cloudflare Pages,Infrastructure,v2 Edge,Cloudflare Terms,Edge Worker Hosting & CDN,READY,Production deployed
+OpenSearch,Search Core,2.19.0,Apache-2.0,Distributed Full-Text Search Engine,READY,Active on port 9200
+PostgreSQL,Database Core,15+,PostgreSQL License,ACID Relational Storage (86 Tables),READY,Active & Migrations Verified
+Redis,Cache Subsystem,7.x,BSD-3-Clause,Fast In-Memory Autocomplete Trie,READY,Fallback to Memory Map active
+YouTube Data API v3,External Service,v3,Google API Terms,Live Video Search Federation,BLOCKED_EXTERNAL,Requires YOUTUBE_API_KEY & Google Cloud project approval
+Unsplash API,External Service,v1,Unsplash API Terms,High-Res Image Search Federation,BLOCKED_EXTERNAL,Requires UNSPLASH_ACCESS_KEY & Developer Application
+Mapbox GL / Geocoding,External Service,v2,Mapbox Terms,Interactive Maps & POI Geocoding,BLOCKED_EXTERNAL,Requires MAPBOX_ACCESS_TOKEN & Commercial Subscription
+NewsAPI / GDELT,External Service,v2,Commercial Terms,Live News Syndication Wire,BLOCKED_EXTERNAL,Requires NEWS_API_KEY & Commercial Media Licensing
+Stripe / Toss Payments,Payment Gateway,v1,Merchant Terms,Ad Ledger B2B Billing & Checkout,BLOCKED_EXTERNAL,Requires Corporate Merchant Contract & Gateway Keys
+AWS SES / SendGrid,Email Service,v1,Provider Terms,Production Email PIN & Password Delivery,BLOCKED_EXTERNAL,Requires Verified Production Domain SPF/DKIM & SMTP Auth
+Google Custom Search API,External Service,v1,Google Terms,Fallback Web Search Ingestion,BLOCKED_LEGAL,Direct scraping strictly prohibited by project rules

@@ -2215,9 +2215,9 @@ func (a *app) routes() http.Handler {
 	return a.withGatewayHeaders(mux)
 }
 
-// productionRoutes exposes only implemented public read paths. The in-memory
-// identity store and unverified mutation endpoints remain gated until
-// persistent database backing and phase gate sign-offs are completed.
+// productionRoutes exposes implemented public, vertical, and Open Scanner local authentication
+// endpoints. Internal and unverified mutation paths remain fail-closed behind 404
+// until persistent database backing and phase gate sign-offs are completed.
 func (a *app) productionRoutes() http.Handler {
 	internal := a.routes()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

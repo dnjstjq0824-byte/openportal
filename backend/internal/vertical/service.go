@@ -20,7 +20,20 @@ type SearchableImage struct {
 	SourceDomain string            `json:"source_domain"`
 }
 
-// VerticalService coordinates all 5 specialized verticals with verified seed corpora,
+// BookItem represents a catalogued book record.
+type BookItem struct {
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Authors     []string `json:"authors"`
+	Publisher   string   `json:"publisher"`
+	ISBN        string   `json:"isbn"`
+	PublishedAt string   `json:"published_at"`
+	CoverURL    string   `json:"cover_url"`
+	Description string   `json:"description"`
+	Link        string   `json:"link"`
+}
+
+// VerticalService coordinates specialized verticals with verified seed corpora,
 // rate limiting, caching, and licensing boundaries.
 type VerticalService struct {
 	mu           sync.RWMutex
@@ -31,6 +44,7 @@ type VerticalService struct {
 	publishers   map[string]PublisherPolicy
 	poiMgr       *POIManager
 	shopMgr      *ShoppingFeedManager
+	books        []BookItem
 	coordinator  *VerticalFederationCoordinator
 }
 
@@ -234,6 +248,54 @@ func (s *VerticalService) seedVerifiedData() {
 		IsSponsored:   true,
 		FeedUpdatedAt: time.Now(),
 	})
+
+	// 6. Books vertical: Verified computer science and information retrieval literature
+	s.books = []BookItem{
+		{
+			ID:          "book-ir-001",
+			Title:       "Introduction to Information Retrieval",
+			Authors:     []string{"Christopher D. Manning", "Prabhakar Raghavan", "Hinrich Schütze"},
+			Publisher:   "Cambridge University Press",
+			ISBN:        "978-0521865715",
+			PublishedAt: "2008-07-07",
+			CoverURL:    "https://media.openportal.org/books/ir_manning.jpg",
+			Description: "검색엔진의 바이블. 불리언 검색, 벡터 공간 모델, Okapi BM25, 웹 크롤링 및 링크 분석(PageRank)을 집대성한 고전 교과서.",
+			Link:        "https://nlp.stanford.edu/IR-book/",
+		},
+		{
+			ID:          "book-ddia-002",
+			Title:       "Designing Data-Intensive Applications (데이터 중심 애플리케이션 설계)",
+			Authors:     []string{"Martin Kleppmann"},
+			Publisher:   "O'Reilly Media",
+			ISBN:        "978-1449373320",
+			PublishedAt: "2017-03-16",
+			CoverURL:    "https://media.openportal.org/books/ddia.jpg",
+			Description: "분산 시스템의 신뢰성, 확장성, 유지보수성을 다루는 필독서. 복제, 파티셔닝, 트랜잭션, 분산 합의 알고리즘 완벽 해설.",
+			Link:        "https://dataintensive.net/",
+		},
+		{
+			ID:          "book-se-003",
+			Title:       "Search Engines: Information Retrieval in Practice",
+			Authors:     []string{"W. Bruce Croft", "Donald Metzler", "Trevor Strohman"},
+			Publisher:   "Pearson",
+			ISBN:        "978-0136072249",
+			PublishedAt: "2009-02-16",
+			CoverURL:    "https://media.openportal.org/books/se_croft.jpg",
+			Description: "실제 상용 검색엔진 아키텍처, 텍스트 처리, 역색인 파이프라인, 언어 모델, 검색 품질 평가 방법론 가이드.",
+			Link:        "https://ciir.cs.umass.edu/downloads/SEIRiP.pdf",
+		},
+		{
+			ID:          "book-go-004",
+			Title:       "The Go Programming Language",
+			Authors:     []string{"Alan A. A. Donovan", "Brian W. Kernighan"},
+			Publisher:   "Addison-Wesley Professional",
+			ISBN:        "978-0134190440",
+			PublishedAt: "2015-10-26",
+			CoverURL:    "https://media.openportal.org/books/gopl.jpg",
+			Description: "Go 언어 창시자와 전문가들이 집필한 명저. 고루틴, 채널, 고성능 네트워크 및 비동기 서버 개발의 정석.",
+			Link:        "https://www.gopl.io/",
+		},
+	}
 }
 
 // SearchImages searches verified images matching query terms.
@@ -398,6 +460,47 @@ func (s *VerticalService) SearchShopping(query string, maxPrice float64, inStock
 	return results[start:end], total
 }
 
+// SearchBooks searches verified book catalog records matching query terms.
+func (s *VerticalService) SearchBooks(query string, page, pageSize int) ([]BookItem, int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	terms := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+	var matched []BookItem
+
+	for _, b := range s.books {
+		if len(terms) == 0 {
+			matched = append(matched, b)
+			continue
+		}
+		titleLow := strings.ToLower(b.Title)
+		descLow := strings.ToLower(b.Description)
+		isbnLow := strings.ToLower(b.ISBN)
+		authLow := strings.ToLower(strings.Join(b.Authors, " "))
+		match := false
+		for _, term := range terms {
+			if strings.Contains(titleLow, term) || strings.Contains(descLow, term) || strings.Contains(isbnLow, term) || strings.Contains(authLow, term) {
+				match = true
+				break
+			}
+		}
+		if match {
+			matched = append(matched, b)
+		}
+	}
+
+	total := len(matched)
+	start := (page - 1) * pageSize
+	if start >= total {
+		return []BookItem{}, total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return matched[start:end], total
+}
+
 // POIManager returns the underlying POIManager.
 func (s *VerticalService) POIManager() *POIManager {
 	return s.poiMgr
@@ -480,6 +583,10 @@ func (s *VerticalService) ExecuteVerticalQuery(ctx context.Context, vq VerticalQ
 		case VerticalShopping:
 			data, total := s.SearchShopping(q.Query, math.MaxFloat64, false, "relevance", q.Page, q.PageSize)
 			return data, total, "Merchant Partner Feeds with FTC/KFTC Sponsored Disclosure", nil
+
+		case VerticalBooks:
+			data, total := s.SearchBooks(q.Query, q.Page, q.PageSize)
+			return data, total, "Open Access & Verified Bibliographic Catalog", nil
 
 		default:
 			return nil, 0, "", errors.New("unsupported vertical: " + string(q.Vertical))
