@@ -11,7 +11,9 @@
     "backend/bin/**",
     ".git/**",
     "package-lock.json",
-    "backend/go.sum"
+    "backend/go.sum",
+    "apps/web/src/i18n.ts",
+    "gateway/translations.mjs"
   ],
   "words": [
     "ABAC",
@@ -394,6 +396,18 @@
     "Nominatim",
     "xyznonexistentquery",
     "FIPS",
-    "Clickjacking"
+    "Clickjacking",
+    "geolocation",
+    "unstar",
+    "Unstar",
+    "subprocessors",
+    "jmap",
+    "JMAP",
+    "noreferrer",
+    "INSTREAM",
+    "CLAMAV",
+    "EHLO",
+    "HELO",
+    "ungranted"
   ]
 }

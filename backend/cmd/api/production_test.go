@@ -10,6 +10,9 @@ func TestProductionDeniesUnverifiedIdentityAndMutationRoutes(t *testing.T) {
 	// All unverified identity, mutation, and operational paths remain behind
 	// productionRoutes allowlist (404) until persistent storage and phase gates pass.
 	denyPaths := []string{
+		"/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/email/verify",
+		"/api/v1/auth/password/reset-request", "/api/v1/auth/password/reset-confirm",
+		"/api/v1/superplatform/mail", "/api/v1/superplatform/apps", "/api/v1/superplatform/developer",
 		"/api/v1/auth/challenge",
 		"/api/v1/auth/verify",
 		"/api/v1/auth/session",

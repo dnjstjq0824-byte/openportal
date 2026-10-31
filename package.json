@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "OpenPortal local verification tooling",
   "scripts": {
+    "dev:gateway": "node --env-file=.env gateway/server.mjs",
+    "provision:mail": "node --env-file=.env gateway/provision-mail.mjs",
+    "test:platform": "node --test tests/platform.integration.test.mjs tests/pages-worker.test.mjs tests/pages-worker-security.test.mjs tests/translations.test.mjs",
+    "test:platform:e2e": "playwright test --config playwright.platform.config.mjs",
     "test:db": "node scripts/test-database.mjs",
     "test:contracts": "node scripts/check-contracts.mjs",
     "test:e2e": "playwright test",
@@ -17,7 +21,9 @@
     "yaml": "2.8.3"
   },
   "dependencies": {
-    "pg": "8.16.3"
+    "nodemailer": "10.3.1",
+    "pg": "8.16.3",
+    "sanitize-html": "2.18.1"
   },
   "private": true
 }

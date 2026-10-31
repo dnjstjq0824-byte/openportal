@@ -58,8 +58,9 @@ try {
   await client.connect();
   await migrate(client);
   await migrate(client);
-  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n, 11);
-  console.log('PASS forward migrations (001..011) and repeat run');
+  const migrationCount = (await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n;
+  assert.equal(migrationCount, 12);
+  console.log('PASS forward migrations (001..012) and repeat run');
   const flags = await client.query("select name, enabled from control.feature_flags order by name");
   assert.equal(flags.rows.find(r => r.name === 'vertical.web')?.enabled, true);
   assert.equal(flags.rows.find(r => r.name === 'vertical.image')?.enabled, false);
@@ -146,10 +147,10 @@ try {
 
   const copy = resolve(dir, 'migration-fixtures');
   await cp('database/migrations', copy, {recursive:true});
-  await writeFile(resolve(copy, '012_failure.sql'), 'CREATE TABLE public.must_rollback(id int); SELECT 1/0;');
+  await writeFile(resolve(copy, '999_failure.sql'), 'CREATE TABLE public.must_rollback(id int); SELECT 1/0;');
   await assert.rejects(migrate(client, copy), e => e.code === '22012');
   assert.equal((await client.query("select to_regclass('public.must_rollback') as relation")).rows[0].relation,null);
-  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n,11);
+  assert.equal((await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n,migrationCount);
   console.log('PASS failed migration rolls back DDL and ledger');
   await writeFile(resolve(copy, '001_initial.sql'), '-- changed');
   await assert.rejects(migrate(client, copy), /checksum mismatch/);

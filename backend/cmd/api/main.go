@@ -2215,19 +2215,13 @@ func (a *app) routes() http.Handler {
 	return a.withGatewayHeaders(mux)
 }
 
-// productionRoutes exposes implemented public, vertical, and Open Scanner local authentication
-// endpoints. Internal and unverified mutation paths remain fail-closed behind 404
-// until persistent database backing and phase gate sign-offs are completed.
+// productionRoutes exposes the read-only index API. Browser accounts and mail
+// use the persistent web gateway; prototype handlers stay inaccessible here.
 func (a *app) productionRoutes() http.Handler {
 	internal := a.routes()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config",
-			"/api/v1/vertical/search", "/api/v1/vertical/news/syndicate", "/api/v1/vertical/shopping/feed",
-			"/api/v1/ads/click", "/api/v1/ads/reconcile", "/api/v1/ops/idp-verify",
-			"/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/email/verify",
-			"/api/v1/auth/password/reset-request", "/api/v1/auth/password/reset-confirm",
-			"/api/v1/superplatform/apps", "/api/v1/superplatform/mail", "/api/v1/superplatform/developer":
+		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest":
 			internal.ServeHTTP(w, r)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint unavailable", "code": "ENDPOINT_UNAVAILABLE"})

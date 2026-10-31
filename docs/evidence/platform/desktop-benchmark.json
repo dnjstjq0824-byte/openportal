@@ -1,0 +1,10 @@
+{
+  "scope": "local synthetic index, not external web coverage or production capacity",
+  "documents": 3,
+  "requests": 20,
+  "concurrency": 2,
+  "failures": 0,
+  "p50ms": 23.76260000000002,
+  "p95ms": 37.399100000000544,
+  "elapsedMs": 429.9549999999999
+}

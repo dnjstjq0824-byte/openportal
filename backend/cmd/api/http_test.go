@@ -861,11 +861,11 @@ func TestPhase9LaunchEndpoints(t *testing.T) {
 	}
 }
 
-func TestVerticalFederatedSearchAndAdsClickEndpoints(t *testing.T) {
+func TestPrototypeVerticalFederatedSearchAndAdsClickEndpoints(t *testing.T) {
 	a := &app{}
-	prodHandler := a.productionRoutes()
+	prodHandler := a.routes() // Prototype-only; production denial is tested separately.
 
-	// 1. Image vertical search via productionRoutes
+	// 1. Prototype image vertical handler (not publicly exposed).
 	{
 		req := httptest.NewRequest("GET", "/api/v1/vertical/search?vertical=image&q=검색엔진", nil)
 		w := httptest.NewRecorder()
@@ -943,9 +943,9 @@ func TestVerticalFederatedSearchAndAdsClickEndpoints(t *testing.T) {
 	}
 }
 
-func TestLocalAuthAndEmailVerificationHTTPEndpoints(t *testing.T) {
+func TestPrototypeLocalAuthAndEmailVerificationHTTPEndpoints(t *testing.T) {
 	a := &app{}
-	prodHandler := a.productionRoutes()
+	prodHandler := a.routes() // Memory fixture only; not the browser authentication system.
 
 	emailAddr := "newuser@open-scanner.org"
 	password := "SecureP@ssw0rd2026!"
@@ -1086,11 +1086,11 @@ func TestLocalAuthAndEmailVerificationHTTPEndpoints(t *testing.T) {
 	}
 }
 
-func TestSuperplatformHTTPEndpoints(t *testing.T) {
+func TestPrototypeSuperplatformHTTPEndpoints(t *testing.T) {
 	a := &app{
 		idStore: identity.NewStore(),
 	}
-	prodHandler := a.productionRoutes()
+	prodHandler := a.routes() // No production access to synthetic superplatform data.
 
 	// 1. GET /api/v1/superplatform/apps -> 200 OK
 	{

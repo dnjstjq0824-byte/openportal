@@ -1,0 +1,17 @@
+# Load into an operator-managed Prometheus/Alertmanager deployment.
+# This file is not evidence that monitoring or alert delivery is running.
+groups:
+  - name: openportal-gateway
+    rules:
+      - alert: OpenPortalGatewayUnavailable
+        expr: up{job="openportal-gateway"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: OpenPortal gateway is unreachable
+      - alert: OpenPortalServiceErrors
+        expr: sum by (family) (increase(openportal_requests_total{status=~"5.."}[5m])) > 5
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: OpenPortal dependency errors require investigation
