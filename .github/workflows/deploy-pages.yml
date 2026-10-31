@@ -28,7 +28,10 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install dependencies
+      - name: Install root dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install web dependencies
         run: npm ci --prefix apps/web
 
       - name: Typecheck
@@ -37,9 +40,17 @@ jobs:
       - name: Build web application
         run: npm run build --prefix apps/web
 
+      - name: Run Pages Worker contract tests
+        run: |
+          node tests/pages-worker.test.mjs
+          node tests/pages-worker-security.test.mjs
+          node tests/translations.test.mjs
+
       - name: Publish to Cloudflare Pages
+        if: ${{ env.HAVE_CLOUDFLARE_SECRET == 'true' }}
+        env:
+          HAVE_CLOUDFLARE_SECRET: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
         uses: cloudflare/wrangler-action@v3
-        continue-on-error: true
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}

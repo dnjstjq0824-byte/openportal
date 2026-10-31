@@ -1,0 +1,9 @@
+name = "openportal"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "apps/web/dist"
+
+[vars]
+PUBLIC_ORIGIN = "https://openportal.pages.dev"
+# Upstream Gateway configuration:
+# When WEB_GATEWAY_ORIGIN is configured, Pages worker forwards /api/v2/* requests to the persistent gateway.
+# WEB_GATEWAY_ORIGIN = "https://gateway.openportal.org"

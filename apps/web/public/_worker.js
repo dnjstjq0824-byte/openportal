@@ -44,7 +44,7 @@ export default {
       if (!upstream.headers.get('content-type')?.includes('application/json')) return json(502, 'INVALID_UPSTREAM_RESPONSE', id);
       const body = await upstream.json();
       if (!upstream.ok) return json(upstream.status, upstream.status === 429 ? 'RATE_LIMITED' : 'SEARCH_REQUEST_FAILED', id);
-      if (url.pathname === '/api/v1/search' && (!Array.isArray(body.hits) || !Number.isInteger(body.total) || typeof body.query !== 'string')) return json(502, 'INVALID_UPSTREAM_RESPONSE', id);
+      if (url.pathname === '/api/v1/search' && (!Array.isArray(body.hits) || (body.total !== null && !Number.isInteger(body.total)) || typeof body.query !== 'string')) return json(502, 'INVALID_UPSTREAM_RESPONSE', id);
       return Response.json(body, { headers: { 'Cache-Control': 'no-store', 'X-Request-ID': id, 'X-Content-Type-Options': 'nosniff' } });
     } catch {
       return json(502, 'SEARCH_UPSTREAM_UNAVAILABLE', id);

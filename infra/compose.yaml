@@ -52,17 +52,47 @@ services:
     depends_on:
       seed: {condition: service_completed_successfully}
       migrate: {condition: service_completed_successfully}
+  gateway:
+    profiles: ["app"]
+    image: node:24.19.0-bookworm-slim
+    working_dir: /workspace
+    volumes: ["..:/workspace", "gateway_modules:/workspace/node_modules"]
+    environment:
+      DATABASE_URL: postgres://openportal:local_dev_password_change_me@postgres:5432/openportal
+      SEARCH_BACKEND_URL: http://api:8080
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: 8090
+      PUBLIC_ORIGIN: http://127.0.0.1:5173
+    command: ["sh","-c","npm ci --omit=dev --ignore-scripts && node gateway/server.mjs"]
+    ports: ["127.0.0.1:8090:8090"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      api: {condition: service_started}
+  crawler:
+    profiles: ["crawler"]
+    build: ../backend
+    entrypoint: ["/crawler"]
+    command: ["--opensearch=http://opensearch:9200", "--index=documents_v1"]
+    environment:
+      OPENSEARCH_URL: "http://opensearch:9200"
+      DATABASE_URL: postgres://openportal:local_dev_password_change_me@postgres:5432/openportal
+    depends_on:
+      opensearch: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
   web:
     profiles: ["app"]
     image: node:24.19.0-bookworm-slim
     working_dir: /workspace
     volumes: ["../apps/web:/workspace", "web_modules:/workspace/node_modules"]
-    environment: {API_PROXY_TARGET: "http://api:8080"}
+    environment:
+      API_PROXY_TARGET: "http://api:8080"
+      GATEWAY_PROXY_TARGET: "http://gateway:8090"
     command: ["sh","-c","npm ci && npm run dev -- --host 0.0.0.0"]
     ports: ["127.0.0.1:5173:5173"]
-    depends_on: [api]
+    depends_on: [api, gateway]
 volumes:
   pgdata: {}
   osdata: {}
   migration_modules: {}
+  gateway_modules: {}
   web_modules: {}

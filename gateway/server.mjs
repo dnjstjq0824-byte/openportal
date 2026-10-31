@@ -18,6 +18,11 @@ export function configuration(env = process.env) {
   if (mailKey && mailKey.length !== 32) throw Error('MAIL_ENCRYPTION_KEY must be 32 bytes in base64');
   const searchOptions={searchProvider:env.SEARCH_PROVIDER||'opensearch',braveKey:env.BRAVE_SEARCH_API_KEY,braveApproved:env.BRAVE_API_TERMS_APPROVED==='true',braveDailyLimit:Number(env.BRAVE_DAILY_REQUEST_LIMIT||1000),braveRps:Number(env.BRAVE_REQUESTS_PER_SECOND||1)};
   if(!['opensearch','brave'].includes(searchOptions.searchProvider)||!Number.isInteger(searchOptions.braveDailyLimit)||searchOptions.braveDailyLimit<1||!Number.isInteger(searchOptions.braveRps)||searchOptions.braveRps<1)throw Error('Invalid search provider limits');
+  if (searchOptions.searchProvider === 'brave' && (!searchOptions.braveKey || !searchOptions.braveApproved)) {
+    if (!searchOptions.braveKey) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=brave configured but BRAVE_SEARCH_API_KEY is missing');
+    if (!searchOptions.braveApproved) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=brave configured but BRAVE_API_TERMS_APPROVED is not true');
+    if (production) throw Error('Production SEARCH_PROVIDER=brave requires BRAVE_SEARCH_API_KEY and BRAVE_API_TERMS_APPROVED=true');
+  }
   return { ...searchOptions, origin: origin.origin, production, ingressSecret: env.GATEWAY_SHARED_SECRET, databaseURL: env.DATABASE_URL, port: Number(env.GATEWAY_PORT || 8090), host: env.GATEWAY_HOST || '127.0.0.1', searchURL: env.SEARCH_BACKEND_URL || 'http://127.0.0.1:8080', smtpHost: env.SMTP_HOST, smtpPort: Number(env.SMTP_PORT || 587), smtpUser: env.SMTP_USER, smtpPassword: env.SMTP_PASSWORD, smtpFrom: env.SMTP_FROM, smtpSecure: env.SMTP_SECURE === 'true', jmapURL, mailKey, clamHost: env.CLAMAV_HOST, clamPort: Number(env.CLAMAV_PORT || 3310), rateSecret: env.RATE_LIMIT_SECRET || randomToken() };
 }
 function cookieMap(req) { return Object.fromEntries(String(req.headers.cookie || '').split(';').map(x => x.trim().split('=')).filter(x => x.length === 2)); }
@@ -174,15 +179,16 @@ export async function createGateway(config, dependencies = {}) {
         if(config.searchProvider==='brave'){
           if(!config.braveApproved||!config.braveKey)throw fail('SEARCH_NOT_CONFIGURED',503);
           await rate(req,'brave-daily',config.braveDailyLimit,86400,'global');await rate(req,'brave-per-second',config.braveRps,1,'global');
-          return respond(200,await braveSearch(config,q,page));
+          const braveRes = await braveSearch(config,q,page);
+          return respond(200,{...braveRes, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(braveRes.hasMore ?? braveRes.has_more)});
         }
         const target = new URL('/api/v1/search',config.searchURL); target.search = new URLSearchParams({q,page:String(page)}).toString();
         let upstream;
         try { upstream = await fetch(target,{redirect:'error',signal:AbortSignal.timeout(8000)}); } catch { throw fail('SEARCH_UNAVAILABLE',503); }
         if (!upstream.ok) throw fail(upstream.status===429?'RATE_LIMITED':'SEARCH_UNAVAILABLE',upstream.status===429?429:503);
         const data = await upstream.json();
-        if (!Array.isArray(data.hits) || !Number.isInteger(data.total)) throw fail('SEARCH_UNAVAILABLE',502);
-        return respond(200,{...data,source:'opensearch-index'});
+        if (!Array.isArray(data.hits) || (data.total !== null && !Number.isInteger(data.total))) throw fail('SEARCH_UNAVAILABLE',502);
+        return respond(200,{...data, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(data.has_more ?? (data.total !== null && page * 10 < data.total)), source:'opensearch-index'});
       }
       const account = await user(req); if (!account) throw fail('SESSION_REQUIRED',401);
       if (path === '/api/v2/account' && req.method === 'PATCH') {
