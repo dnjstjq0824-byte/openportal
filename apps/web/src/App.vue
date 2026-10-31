@@ -558,6 +558,256 @@ const recoveryCodes = ref<string[]>([]);
 const authStatus = ref('');
 
 // ============================================================================
+// Open Scanner Unified Account & Email Verification System (P0)
+// ============================================================================
+const showOpenAccountModal = ref(false);
+const openAccountTab = ref<'login' | 'register' | 'verify' | 'reset'>('login');
+const accountLoading = ref(false);
+const accountError = ref('');
+const accountSuccess = ref('');
+
+// Registration Form
+const regEmail = ref('');
+const regPassword = ref('');
+const regPasswordConfirm = ref('');
+const regDisplayName = ref('');
+const regAgreeTerms = ref(false);
+
+// Verification Form
+const verifyEmail = ref('');
+const verifyCode = ref('');
+
+// Login Form
+const loginEmail = ref('');
+const loginPassword = ref('');
+
+// Password Reset Form
+const resetEmail = ref('');
+const resetToken = ref('');
+const resetNewPassword = ref('');
+const resetStep = ref<'request' | 'confirm'>('request');
+
+function openScannerAccount(tab: 'login' | 'register' | 'verify' | 'reset' = 'login') {
+  openAccountTab.value = tab;
+  showOpenAccountModal.value = true;
+  showAccount.value = false;
+  showSettings.value = false;
+  showWaffle.value = false;
+  showProfileFlyout.value = false;
+  accountError.value = '';
+  accountSuccess.value = '';
+}
+
+function closeOpenAccountModal() {
+  showOpenAccountModal.value = false;
+  accountError.value = '';
+  accountSuccess.value = '';
+}
+
+async function submitLocalRegister() {
+  accountError.value = '';
+  accountSuccess.value = '';
+  if (!regEmail.value.trim() || !regPassword.value) {
+    accountError.value = '이메일과 비밀번호를 입력해 주세요.';
+    return;
+  }
+  if (regPassword.value.length < 8) {
+    accountError.value = '비밀번호는 최소 8자 이상이어야 합니다.';
+    return;
+  }
+  if (regPassword.value !== regPasswordConfirm.value) {
+    accountError.value = '비밀번호 확인이 일치하지 않습니다.';
+    return;
+  }
+  if (!regAgreeTerms.value) {
+    accountError.value = '이용약관 및 개인정보처리방침에 동의해 주세요.';
+    return;
+  }
+
+  accountLoading.value = true;
+  try {
+    const res = await fetch('/api/v1/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: regEmail.value.trim(),
+        password: regPassword.value,
+        display_name: regDisplayName.value.trim() || regEmail.value.split('@')[0],
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || '회원가입에 실패했습니다.');
+    }
+    verifyEmail.value = regEmail.value.trim();
+    if (data.code) {
+      verifyCode.value = data.code;
+    }
+    accountSuccess.value = '인증 이메일이 발송되었습니다! 6자리 코드를 입력하세요.';
+    openAccountTab.value = 'verify';
+    showOperatorToast(`[가입 신청 완료] ${regEmail.value} 인증 메일 발송`);
+  } catch (err: any) {
+    accountError.value = err.message || '오류가 발생했습니다.';
+  } finally {
+    accountLoading.value = false;
+  }
+}
+
+async function submitEmailVerify() {
+  accountError.value = '';
+  accountSuccess.value = '';
+  if (!verifyEmail.value.trim() || !verifyCode.value.trim()) {
+    accountError.value = '이메일과 6자리 인증 코드를 입력하세요.';
+    return;
+  }
+
+  accountLoading.value = true;
+  try {
+    const res = await fetch('/api/v1/auth/email/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: verifyEmail.value.trim(),
+        code: verifyCode.value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || '이메일 인증에 실패했습니다.');
+    }
+    loginEmail.value = verifyEmail.value.trim();
+    accountSuccess.value = '이메일 인증이 완료되었습니다! 이제 로그인할 수 있습니다.';
+    openAccountTab.value = 'login';
+    showOperatorToast(`[이메일 인증 통과] ${verifyEmail.value} 계정 활성화 완료`);
+  } catch (err: any) {
+    accountError.value = err.message || '인증 코드가 올바르지 않거나 만료되었습니다.';
+  } finally {
+    accountLoading.value = false;
+  }
+}
+
+async function submitLocalLogin() {
+  accountError.value = '';
+  accountSuccess.value = '';
+  if (!loginEmail.value.trim() || !loginPassword.value) {
+    accountError.value = '이메일과 비밀번호를 입력하세요.';
+    return;
+  }
+
+  accountLoading.value = true;
+  try {
+    const res = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: loginEmail.value.trim(),
+        password: loginPassword.value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.error && data.error.includes('not verified')) {
+        verifyEmail.value = loginEmail.value.trim();
+        openAccountTab.value = 'verify';
+        throw new Error('이메일 인증이 아직 완료되지 않았습니다. 인증 코드를 입력하세요.');
+      }
+      throw new Error(data.error || '로그인에 실패했습니다.');
+    }
+
+    sessionToken.value = data.token;
+    accountId.value = data.account_id;
+    accountEmail.value = data.email;
+    accountName.value = data.display_name || data.email;
+    authStatus.value = '인증 완료';
+
+    try {
+      localStorage.setItem('openportal.user_auth', JSON.stringify({
+        token: data.token,
+        account_id: data.account_id,
+        email: data.email,
+        display_name: data.display_name,
+      }));
+    } catch {}
+
+    showOpenAccountModal.value = false;
+    showOperatorToast(`[로그인 성공] ${data.email} 님 환영합니다.`);
+  } catch (err: any) {
+    accountError.value = err.message || '이메일 또는 비밀번호가 올바르지 않습니다.';
+  } finally {
+    accountLoading.value = false;
+  }
+}
+
+async function submitResetRequest() {
+  accountError.value = '';
+  accountSuccess.value = '';
+  if (!resetEmail.value.trim()) {
+    accountError.value = '이메일 주소를 입력하세요.';
+    return;
+  }
+
+  accountLoading.value = true;
+  try {
+    const res = await fetch('/api/v1/auth/password/reset-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: resetEmail.value.trim() }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || '비밀번호 재설정 요청에 실패했습니다.');
+    }
+    if (data.token) {
+      resetToken.value = data.token;
+    }
+    resetStep.value = 'confirm';
+    accountSuccess.value = '재설정 보안 토큰이 발송되었습니다. 새 비밀번호를 입력하세요.';
+  } catch (err: any) {
+    accountError.value = err.message || '오류가 발생했습니다.';
+  } finally {
+    accountLoading.value = false;
+  }
+}
+
+async function submitResetConfirm() {
+  accountError.value = '';
+  accountSuccess.value = '';
+  if (!resetToken.value.trim() || !resetNewPassword.value) {
+    accountError.value = '보안 토큰과 새 비밀번호를 입력하세요.';
+    return;
+  }
+  if (resetNewPassword.value.length < 8) {
+    accountError.value = '비밀번호는 최소 8자 이상이어야 합니다.';
+    return;
+  }
+
+  accountLoading.value = true;
+  try {
+    const res = await fetch('/api/v1/auth/password/reset-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: resetEmail.value.trim(),
+        token: resetToken.value.trim(),
+        new_password: resetNewPassword.value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || '비밀번호 변경에 실패했습니다.');
+    }
+    loginEmail.value = resetEmail.value.trim();
+    accountSuccess.value = '비밀번호가 성공적으로 변경되었습니다. 새 비밀번호로 로그인하세요.';
+    openAccountTab.value = 'login';
+    resetStep.value = 'request';
+  } catch (err: any) {
+    accountError.value = err.message || '토큰이 유효하지 않거나 만료되었습니다.';
+  } finally {
+    accountLoading.value = false;
+  }
+}
+
+// ============================================================================
 // Operator Control Tower State & Actions
 // ============================================================================
 
@@ -1494,9 +1744,10 @@ onMounted(async () => {
     <header class="app-header" :class="{ 'serp-header': hasSearch }">
       <div class="header-left">
         <!-- Brand Link -->
-        <a class="brand" href="/" @click.prevent="resetHome" aria-label="OpenPortal 검색 홈으로 이동">
+        <a class="brand" href="/" @click.prevent="resetHome" aria-label="Open Scanner 검색 홈으로 이동">
+          <span class="logo-scanner-icon">⚡</span>
           <span class="logo-text">
-            <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span><span class="l-g">P</span><span class="l-r">o</span><span class="l-b">r</span><span class="l-y">t</span><span class="l-g">a</span><span class="l-r">l</span>
+            <span class="l-b">O</span><span class="l-r">p</span><span class="l-y">e</span><span class="l-b">n</span> <span class="l-g">S</span><span class="l-r">c</span><span class="l-b">a</span><span class="l-y">n</span><span class="l-g">n</span><span class="l-r">e</span><span class="l-b">r</span>
           </span>
         </a>
 
@@ -1636,6 +1887,7 @@ onMounted(async () => {
           type="button"
           class="header-action-btn secondary"
           :aria-expanded="showSettings"
+          :aria-label="i18n.settingsBtn"
           @click="showSettings = !showSettings; showAccount = false; showWaffle = false; showProfileFlyout = false"
         >
           <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -1649,12 +1901,25 @@ onMounted(async () => {
           type="button"
           class="header-action-btn secondary"
           :aria-expanded="showAccount"
+          :aria-label="accountEmail ? accountEmail : '계정·보안'"
           @click="sessionToken ? navigateTo('/console') : (showAccount = !showAccount); showSettings = false; showWaffle = false; showProfileFlyout = false"
         >
           <svg class="header-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
           </svg>
           <span>{{ accountEmail ? accountEmail : '계정·보안' }}</span>
+        </button>
+
+        <!-- Open Scanner Official Account Button (When Logged Out) -->
+        <button
+          v-if="!sessionToken"
+          type="button"
+          class="os-account-btn"
+          aria-label="Open Scanner 통합 계정"
+          @click="openScannerAccount('login')"
+        >
+          <span class="os-btn-icon">⚡</span>
+          <span>Open Account</span>
         </button>
 
         <!-- Google-style Blue Sign-In Button (When Logged Out) -->
@@ -1746,6 +2011,254 @@ onMounted(async () => {
         </div>
         <div class="auth-action-buttons">
           <button type="button" class="auth-secondary-btn" @click="closeAuthModal">닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Open Scanner Official Account Modal (Registration, Email Verification, Login, Password Reset) -->
+    <div
+      v-if="showOpenAccountModal"
+      class="os-auth-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Open Scanner 통합 계정"
+      @click.self="closeOpenAccountModal"
+    >
+      <div class="os-auth-modal-card">
+        <div class="os-auth-modal-header">
+          <div class="os-brand-logo-small">
+            <span class="os-brand-icon">⚡</span>
+            <span class="os-brand-name">OPEN SCANNER</span>
+          </div>
+          <button type="button" class="os-close-modal-btn" aria-label="닫기" @click="closeOpenAccountModal">✕</button>
+        </div>
+
+        <nav class="os-auth-tabs" aria-label="계정 작업 선택">
+          <button
+            type="button"
+            class="os-tab-btn"
+            :class="{ active: openAccountTab === 'login' }"
+            @click="openAccountTab = 'login'; accountError = ''; accountSuccess = ''"
+          >
+            로그인
+          </button>
+          <button
+            type="button"
+            class="os-tab-btn"
+            :class="{ active: openAccountTab === 'register' }"
+            @click="openAccountTab = 'register'; accountError = ''; accountSuccess = ''"
+          >
+            회원가입
+          </button>
+          <button
+            type="button"
+            class="os-tab-btn"
+            :class="{ active: openAccountTab === 'verify' }"
+            @click="openAccountTab = 'verify'; accountError = ''; accountSuccess = ''"
+          >
+            이메일 인증
+          </button>
+          <button
+            type="button"
+            class="os-tab-btn"
+            :class="{ active: openAccountTab === 'reset' }"
+            @click="openAccountTab = 'reset'; accountError = ''; accountSuccess = ''"
+          >
+            비밀번호 찾기
+          </button>
+        </nav>
+
+        <div v-if="accountError" class="os-auth-alert error" role="alert">
+          {{ accountError }}
+        </div>
+        <div v-if="accountSuccess" class="os-auth-alert success" role="status">
+          {{ accountSuccess }}
+        </div>
+
+        <!-- TAB 1: LOGIN -->
+        <form v-if="openAccountTab === 'login'" class="os-auth-form" @submit.prevent="submitLocalLogin">
+          <div class="os-form-group">
+            <label for="os-login-email">이메일 주소</label>
+            <input
+              id="os-login-email"
+              v-model="loginEmail"
+              type="email"
+              placeholder="name@example.com"
+              required
+              autocomplete="email"
+            />
+          </div>
+          <div class="os-form-group">
+            <label for="os-login-password">비밀번호</label>
+            <input
+              id="os-login-password"
+              v-model="loginPassword"
+              type="password"
+              placeholder="비밀번호를 입력하세요"
+              required
+              autocomplete="current-password"
+            />
+          </div>
+          <button type="submit" class="os-primary-btn" :disabled="accountLoading">
+            {{ accountLoading ? '로그인 중…' : 'Open Scanner 로그인' }}
+          </button>
+          <div class="os-form-links">
+            <button type="button" class="os-link-btn" @click="openAccountTab = 'reset'">비밀번호를 잊으셨나요?</button>
+            <button type="button" class="os-link-btn" @click="openAccountTab = 'register'">새 계정 만들기</button>
+          </div>
+        </form>
+
+        <!-- TAB 2: REGISTER -->
+        <form v-if="openAccountTab === 'register'" class="os-auth-form" @submit.prevent="submitLocalRegister">
+          <div class="os-form-group">
+            <label for="os-reg-name">사용자 이름 / 닉네임</label>
+            <input
+              id="os-reg-name"
+              v-model="regDisplayName"
+              type="text"
+              placeholder="홍길동"
+              autocomplete="nickname"
+            />
+          </div>
+          <div class="os-form-group">
+            <label for="os-reg-email">이메일 주소</label>
+            <input
+              id="os-reg-email"
+              v-model="regEmail"
+              type="email"
+              placeholder="name@example.com"
+              required
+              autocomplete="email"
+            />
+          </div>
+          <div class="os-form-group">
+            <label for="os-reg-pass">비밀번호 (최소 8자 이상)</label>
+            <input
+              id="os-reg-pass"
+              v-model="regPassword"
+              type="password"
+              placeholder="영문, 숫자 포함 8자 이상"
+              required
+              minlength="8"
+              autocomplete="new-password"
+            />
+          </div>
+          <div class="os-form-group">
+            <label for="os-reg-confirm">비밀번호 확인</label>
+            <input
+              id="os-reg-confirm"
+              v-model="regPasswordConfirm"
+              type="password"
+              placeholder="비밀번호를 다시 입력하세요"
+              required
+              autocomplete="new-password"
+            />
+          </div>
+          <div class="os-checkbox-group">
+            <input id="os-reg-terms" v-model="regAgreeTerms" type="checkbox" required />
+            <label for="os-reg-terms">[필수] Open Scanner 이용약관 및 개인정보처리방침에 동의합니다.</label>
+          </div>
+          <button type="submit" class="os-primary-btn" :disabled="accountLoading">
+            {{ accountLoading ? '가입 처리 중…' : '회원가입 및 인증 메일 발송' }}
+          </button>
+          <div class="os-form-links">
+            <button type="button" class="os-link-btn" @click="openAccountTab = 'login'">이미 계정이 있으신가요? 로그인</button>
+          </div>
+        </form>
+
+        <!-- TAB 3: VERIFY EMAIL -->
+        <form v-if="openAccountTab === 'verify'" class="os-auth-form" @submit.prevent="submitEmailVerify">
+          <p class="os-form-desc">
+            가입하신 이메일(<code>{{ verifyEmail || '등록된 이메일' }}</code>)로 발송된 6자리 인증 PIN 코드를 입력하세요.
+          </p>
+          <div class="os-form-group">
+            <label for="os-verify-email">인증 이메일</label>
+            <input
+              id="os-verify-email"
+              v-model="verifyEmail"
+              type="email"
+              placeholder="name@example.com"
+              required
+            />
+          </div>
+          <div class="os-form-group">
+            <label for="os-verify-code">6자리 인증 PIN 코드</label>
+            <input
+              id="os-verify-code"
+              v-model="verifyCode"
+              type="text"
+              placeholder="123456"
+              maxlength="6"
+              required
+              class="pin-input"
+            />
+          </div>
+          <button type="submit" class="os-primary-btn" :disabled="accountLoading">
+            {{ accountLoading ? '검증 중…' : '이메일 소유권 인증 완료' }}
+          </button>
+          <div class="os-form-links">
+            <button type="button" class="os-link-btn" @click="openAccountTab = 'login'">로그인 화면으로</button>
+          </div>
+        </form>
+
+        <!-- TAB 4: PASSWORD RESET -->
+        <div v-if="openAccountTab === 'reset'" class="os-auth-form">
+          <form v-if="resetStep === 'request'" @submit.prevent="submitResetRequest">
+            <p class="os-form-desc">
+              가입 시 사용한 이메일을 입력하시면 비밀번호 재설정 보안 토큰을 전송해 드립니다.
+            </p>
+            <div class="os-form-group">
+              <label for="os-reset-email">가입 이메일</label>
+              <input
+                id="os-reset-email"
+                v-model="resetEmail"
+                type="email"
+                placeholder="name@example.com"
+                required
+              />
+            </div>
+            <button type="submit" class="os-primary-btn" :disabled="accountLoading">
+              {{ accountLoading ? '발송 중…' : '재설정 토큰 발송' }}
+            </button>
+            <div class="os-form-links">
+              <button type="button" class="os-link-btn" @click="resetStep = 'confirm'">이미 토큰이 있으신가요?</button>
+              <button type="button" class="os-link-btn" @click="openAccountTab = 'login'">로그인으로 돌아가기</button>
+            </div>
+          </form>
+
+          <form v-else @submit.prevent="submitResetConfirm">
+            <p class="os-form-desc">
+              이메일로 수신된 보안 토큰과 새로 사용할 비밀번호를 입력해 주세요.
+            </p>
+            <div class="os-form-group">
+              <label for="os-reset-token">보안 토큰</label>
+              <input
+                id="os-reset-token"
+                v-model="resetToken"
+                type="text"
+                placeholder="보안 토큰 입력"
+                required
+              />
+            </div>
+            <div class="os-form-group">
+              <label for="os-reset-newpass">새 비밀번호 (최소 8자 이상)</label>
+              <input
+                id="os-reset-newpass"
+                v-model="resetNewPassword"
+                type="password"
+                placeholder="새 비밀번호"
+                required
+                minlength="8"
+              />
+            </div>
+            <button type="submit" class="os-primary-btn" :disabled="accountLoading">
+              {{ accountLoading ? '변경 중…' : '비밀번호 재설정 완료' }}
+            </button>
+            <div class="os-form-links">
+              <button type="button" class="os-link-btn" @click="resetStep = 'request'">이메일 재입력</button>
+              <button type="button" class="os-link-btn" @click="openAccountTab = 'login'">로그인으로 돌아가기</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -3037,6 +3550,7 @@ onMounted(async () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     class="ai-citation-chip"
+                    :aria-label="'출처 ' + c.index"
                     :title="c.snippet"
                   >
                     <span class="citation-idx">[{{ c.index }}]</span>

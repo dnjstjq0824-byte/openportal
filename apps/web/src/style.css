@@ -1718,10 +1718,11 @@ main {
   }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 820px) {
   .app-header {
     padding: 10px 14px;
     flex-wrap: wrap;
+    gap: 8px;
   }
   .app-header.serp-header {
     padding: 10px 14px;
@@ -1739,6 +1740,8 @@ main {
   .header-actions {
     width: 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .home-search-panel {
     padding: 8vh 14px 30px;
@@ -1765,6 +1768,32 @@ main {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 6px 8px;
+  }
+  .header-actions {
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .header-action-btn {
+    padding: 5px 6px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .os-account-btn {
+    padding: 5px 6px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .g-signin-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 }
 
@@ -3525,6 +3554,277 @@ main {
   font-size: 14px;
   line-height: 1.55;
   color: var(--text);
+}
+
+/* ==========================================================================
+   Open Scanner — Unified Account, Identity & Modal System (P0)
+   ========================================================================== */
+.os-account-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+}
+
+.os-account-btn:hover {
+  background: linear-gradient(135deg, #1d4ed8, #6d28d9);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
+
+.os-btn-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Modal Overlay */
+.os-auth-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(11, 16, 32, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2500;
+  padding: 16px;
+  animation: os-fade-in 0.2s ease-out;
+}
+
+@keyframes os-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Modal Card */
+.os-auth-modal-card {
+  background: var(--surface);
+  color: var(--text);
+  width: 100%;
+  max-width: 440px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(11, 16, 32, 0.25), 0 0 0 1px rgba(226, 232, 240, 0.8);
+  padding: 28px 24px 32px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  animation: os-pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes os-pop-in {
+  from { transform: scale(0.96) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.os-auth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.os-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.os-brand-logo-small {
+  font-size: 20px;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.os-auth-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: #0b1020;
+  letter-spacing: -0.3px;
+}
+
+/* Tabs */
+.os-auth-tabs {
+  display: flex;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 20px;
+  gap: 8px;
+}
+
+.os-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.os-tab-btn:hover {
+  color: #2563eb;
+}
+
+.os-tab-btn.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+/* Alerts */
+.os-auth-alert {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+.os-auth-alert.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.os-auth-alert.success {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+/* Forms */
+.os-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.os-form-desc {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.os-form-desc code {
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #0f172a;
+  font-family: var(--font-family-mono);
+}
+
+.os-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.os-form-group label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.os-form-group input {
+  padding: 10px 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.os-form-group input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.pin-input {
+  letter-spacing: 6px;
+  font-size: 18px !important;
+  text-align: center;
+  font-weight: 700;
+}
+
+.os-form-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+}
+
+.os-form-check input[type="checkbox"] {
+  margin-top: 2px;
+  accent-color: #2563eb;
+}
+
+.os-primary-btn {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: 4px;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.os-primary-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+}
+
+.os-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.os-form-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.os-link-btn {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.os-link-btn:hover {
+  text-decoration: underline;
 }
 
 

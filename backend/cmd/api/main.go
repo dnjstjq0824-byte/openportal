@@ -21,6 +21,7 @@ import (
 	"example.com/openportal-search/backend/internal/ads"
 	"example.com/openportal-search/backend/internal/ai"
 	"example.com/openportal-search/backend/internal/config"
+	"example.com/openportal-search/backend/internal/email"
 	"example.com/openportal-search/backend/internal/identity"
 	"example.com/openportal-search/backend/internal/launch"
 	"example.com/openportal-search/backend/internal/ops"
@@ -33,6 +34,7 @@ type app struct {
 	initMu        sync.Mutex
 	c             *search.Client
 	idStore       *identity.Store
+	emailSvc      *email.Service
 	corsOrigin    string
 	abuseDetector *ranking.AbuseDetector
 	reranker      *ranking.Reranker
@@ -633,6 +635,160 @@ func (a *app) handleIdPVerify(w http.ResponseWriter, r *http.Request) {
 		"sign_count":      body.NewSignCount,
 		"mapped_roles":    roles,
 		"verified_at":     time.Now().Format(time.RFC3339),
+	})
+}
+
+func (a *app) ensureEmailService() *email.Service {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
+	if a.emailSvc == nil {
+		a.emailSvc = email.NewService(email.NewMemorySender(), "no-reply@open-scanner.org")
+	}
+	return a.emailSvc
+}
+
+func (a *app) handleLocalRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		Email       string `json:"email"`
+		Password    string `json:"password"`
+		DisplayName string `json:"display_name"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	acc, err := a.ensureStore().RegisterLocalAccount(body.Email, body.Password, body.DisplayName)
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	tok, err := a.ensureEmailService().SendRegistrationVerification(r.Context(), acc.Email, acc.DisplayName)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "failed to send verification email: " + err.Error()})
+		return
+	}
+	writeJSON(w, 201, map[string]any{
+		"status":     "pending_verification",
+		"account_id": acc.ID,
+		"email":      acc.Email,
+		"code":       tok.Code,
+		"message":    "인증 이메일이 발송되었습니다. 6자리 코드를 입력하여 가입을 완료하세요.",
+	})
+}
+
+func (a *app) handleEmailVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		Email string `json:"email"`
+		Code  string `json:"code"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	if err := a.ensureEmailService().VerifyRegistrationToken(body.Email, body.Code); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := a.ensureStore().VerifyAccountEmail(body.Email); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"status":  "verified",
+		"email":   body.Email,
+		"message": "이메일 인증이 완료되었습니다. 이제 로그인할 수 있습니다.",
+	})
+}
+
+func (a *app) handleLocalLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	sess, token, acc, err := a.ensureStore().AuthenticateLocal(body.Email, body.Password)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"status":       "authenticated",
+		"token":        token,
+		"session_id":   sess.ID,
+		"account_id":   acc.ID,
+		"email":        acc.Email,
+		"display_name": acc.DisplayName,
+		"roles":        acc.Roles,
+		"expires_at":   sess.ExpiresAt,
+	})
+}
+
+func (a *app) handlePasswordResetRequest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		Email string `json:"email"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	resetTok, err := a.ensureEmailService().SendPasswordReset(r.Context(), body.Email)
+	if err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"status":  "reset_email_sent",
+		"email":   body.Email,
+		"token":   resetTok.Token,
+		"message": "비밀번호 재설정 이메일이 발송되었습니다.",
+	})
+}
+
+func (a *app) handlePasswordResetConfirm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]string{"error": "method not allowed"})
+		return
+	}
+	var body struct {
+		Email       string `json:"email"`
+		Token       string `json:"token"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		writeJSON(w, 400, map[string]string{"error": "invalid JSON body"})
+		return
+	}
+	if err := a.ensureEmailService().VerifyPasswordResetToken(body.Email, body.Token); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := a.ensureStore().UpdatePassword(body.Email, body.NewPassword); err != nil {
+		writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"status":  "password_updated",
+		"email":   body.Email,
+		"message": "비밀번호가 안전하게 변경되었습니다. 새 비밀번호로 로그인하세요.",
 	})
 }
 
@@ -1842,6 +1998,11 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/v1/portal/config", a.cors(a.portalConfig))
 	// Authentication paths — challenge/verify are public entry points;
 	// session/revoke/MFA/recover require a valid session.
+	mux.HandleFunc("/api/v1/auth/register", a.cors(a.handleLocalRegister))
+	mux.HandleFunc("/api/v1/auth/login", a.cors(a.handleLocalLogin))
+	mux.HandleFunc("/api/v1/auth/email/verify", a.cors(a.handleEmailVerify))
+	mux.HandleFunc("/api/v1/auth/password/reset-request", a.cors(a.handlePasswordResetRequest))
+	mux.HandleFunc("/api/v1/auth/password/reset-confirm", a.cors(a.handlePasswordResetConfirm))
 	mux.HandleFunc("/api/v1/auth/challenge", a.cors(a.handleAuthChallenge))
 	mux.HandleFunc("/api/v1/auth/verify", a.cors(a.handleAuthVerify))
 	mux.HandleFunc("/api/v1/auth/session", a.cors(a.requireAuth(a.handleAuthSession)))
@@ -1894,7 +2055,9 @@ func (a *app) productionRoutes() http.Handler {
 		switch r.URL.Path {
 		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest", "/api/v1/portal/config",
 			"/api/v1/vertical/search", "/api/v1/vertical/news/syndicate", "/api/v1/vertical/shopping/feed",
-			"/api/v1/ads/click", "/api/v1/ads/reconcile", "/api/v1/ops/idp-verify":
+			"/api/v1/ads/click", "/api/v1/ads/reconcile", "/api/v1/ops/idp-verify",
+			"/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/email/verify",
+			"/api/v1/auth/password/reset-request", "/api/v1/auth/password/reset-confirm":
 			internal.ServeHTTP(w, r)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint unavailable", "code": "ENDPOINT_UNAVAILABLE"})

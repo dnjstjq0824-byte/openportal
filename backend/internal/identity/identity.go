@@ -18,13 +18,17 @@ import (
 )
 
 var (
-	ErrUnauthorized     = errors.New("authentication required")
-	ErrForbidden        = errors.New("access denied by default policy")
-	ErrNotFound         = errors.New("resource not found")
-	ErrInvalidChallenge = errors.New("invalid or expired authentication challenge")
-	ErrInvalidMFA       = errors.New("invalid MFA verification code")
-	ErrMFARequired      = errors.New("MFA verification required")
-	ErrInvalidInput     = errors.New("invalid input")
+	ErrUnauthorized        = errors.New("authentication required")
+	ErrForbidden           = errors.New("access denied by default policy")
+	ErrNotFound            = errors.New("resource not found")
+	ErrInvalidChallenge    = errors.New("invalid or expired authentication challenge")
+	ErrInvalidMFA          = errors.New("invalid MFA verification code")
+	ErrMFARequired         = errors.New("MFA verification required")
+	ErrInvalidInput        = errors.New("invalid input")
+	ErrAccountExists       = errors.New("identity: account with this email already exists")
+	ErrInvalidPassword     = errors.New("identity: invalid password (must be at least 8 characters)")
+	ErrInvalidCredentials  = errors.New("identity: invalid email or password")
+	ErrEmailUnverified     = errors.New("identity: email address not verified yet")
 )
 
 type Preferences struct {
@@ -102,6 +106,8 @@ type Store struct {
 	challenges     map[string]*Challenge
 	orgMembers     map[string]map[string]string // orgID -> accountID -> role
 	sites          map[string]*Site
+	passwordHashes map[string]string            // accountID -> pbkdf_sha256 hash
+	emailVerified  map[string]bool              // accountID -> isVerified
 	nowFunc        func() time.Time
 }
 
@@ -121,6 +127,8 @@ func NewStore() *Store {
 		challenges:     make(map[string]*Challenge),
 		orgMembers:     make(map[string]map[string]string),
 		sites:          make(map[string]*Site),
+		passwordHashes: make(map[string]string),
+		emailVerified:  make(map[string]bool),
 		nowFunc:        time.Now,
 	}
 	return s
@@ -631,3 +639,172 @@ func (s *Store) GetOrganizationSite(actorAccountID, orgID, siteID string) (*Site
 	cp := *site
 	return &cp, nil
 }
+
+func hashPasswordWithSalt(password string) (string, error) {
+	if len(password) < 8 {
+		return "", ErrInvalidPassword
+	}
+	salt := randomHex(16)
+	h := sha256.New()
+	h.Write([]byte(salt + password))
+	sum := h.Sum(nil)
+	for i := 0; i < 5000; i++ {
+		h.Reset()
+		h.Write(sum)
+		h.Write([]byte(salt))
+		sum = h.Sum(nil)
+	}
+	return fmt.Sprintf("pbkdf_sha256$%s$%s", salt, hex.EncodeToString(sum)), nil
+}
+
+func verifyPasswordHash(password, encoded string) bool {
+	parts := strings.Split(encoded, "$")
+	if len(parts) != 3 || parts[0] != "pbkdf_sha256" {
+		return false
+	}
+	salt := parts[1]
+	expectedHash := parts[2]
+	h := sha256.New()
+	h.Write([]byte(salt + password))
+	sum := h.Sum(nil)
+	for i := 0; i < 5000; i++ {
+		h.Reset()
+		h.Write(sum)
+		h.Write([]byte(salt))
+		sum = h.Sum(nil)
+	}
+	actualHash := hex.EncodeToString(sum)
+	return subtle.ConstantTimeCompare([]byte(expectedHash), []byte(actualHash)) == 1
+}
+
+// RegisterLocalAccount registers a new local account requiring email verification.
+func (s *Store) RegisterLocalAccount(email, password, displayName string) (*Account, error) {
+	cleanEmail := strings.ToLower(strings.TrimSpace(email))
+	if !strings.Contains(cleanEmail, "@") || strings.TrimSpace(password) == "" {
+		return nil, ErrInvalidInput
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.byEmail[cleanEmail]; exists {
+		return nil, ErrAccountExists
+	}
+	pHash, err := hashPasswordWithSalt(password)
+	if err != nil {
+		return nil, err
+	}
+
+	accID := "acc-" + randomHex(8)
+	acc := &Account{
+		ID:          accID,
+		Email:       cleanEmail,
+		DisplayName: strings.TrimSpace(displayName),
+		Status:      "pending_verification",
+		Locale:      "ko",
+		Roles:       []string{"user"},
+		MFAEnrolled: false,
+		CreatedAt:   s.nowFunc().UTC(),
+	}
+	if acc.DisplayName == "" {
+		acc.DisplayName = strings.Split(cleanEmail, "@")[0]
+	}
+
+	s.accounts[accID] = acc
+	s.byEmail[cleanEmail] = accID
+	s.passwordHashes[accID] = pHash
+	s.emailVerified[accID] = false
+
+	s.prefs[accID] = &Preferences{
+		AccountID:             accID,
+		SafeSearch:            "moderate",
+		Theme:                 "system",
+		Language:              "ko",
+		PersonalizedSearch:    false,
+		RecentSearchesOptIn:   false,
+		SearchCorrectionOptIn: true,
+		UpdatedAt:             s.nowFunc().UTC(),
+	}
+
+	cp := *acc
+	return &cp, nil
+}
+
+// VerifyAccountEmail marks an account as active after email token verification.
+func (s *Store) VerifyAccountEmail(email string) error {
+	cleanEmail := strings.ToLower(strings.TrimSpace(email))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	accID, exists := s.byEmail[cleanEmail]
+	if !exists {
+		return ErrNotFound
+	}
+	acc := s.accounts[accID]
+	if acc == nil {
+		return ErrNotFound
+	}
+	acc.Status = "active"
+	s.emailVerified[accID] = true
+	return nil
+}
+
+// AuthenticateLocal checks credentials and returns a session, raw bearer token, and Account.
+func (s *Store) AuthenticateLocal(email, password string) (*Session, string, *Account, error) {
+	cleanEmail := strings.ToLower(strings.TrimSpace(email))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	accID, exists := s.byEmail[cleanEmail]
+	if !exists {
+		return nil, "", nil, ErrInvalidCredentials
+	}
+	acc := s.accounts[accID]
+	if acc == nil {
+		return nil, "", nil, ErrInvalidCredentials
+	}
+	pHash, ok := s.passwordHashes[accID]
+	if !ok || !verifyPasswordHash(password, pHash) {
+		return nil, "", nil, ErrInvalidCredentials
+	}
+	if !s.emailVerified[accID] && acc.Status == "pending_verification" {
+		return nil, "", nil, ErrEmailUnverified
+	}
+
+	rawToken := "ops_sess_" + randomHex(32)
+	tHash := hashToken(rawToken)
+	sessID := "sess-" + randomHex(8)
+	sess := &Session{
+		ID:          sessID,
+		AccountID:   accID,
+		TokenHash:   tHash,
+		MFAVerified: !acc.MFAEnrolled,
+		ExpiresAt:   s.nowFunc().UTC().Add(30 * 24 * time.Hour),
+		CreatedAt:   s.nowFunc().UTC(),
+	}
+	s.sessions[tHash] = sess
+	s.sessionsByID[sessID] = sess
+
+	accCp := *acc
+	sessCp := *sess
+	return &sessCp, rawToken, &accCp, nil
+}
+
+// UpdatePassword updates an account's password.
+func (s *Store) UpdatePassword(email, newPassword string) error {
+	cleanEmail := strings.ToLower(strings.TrimSpace(email))
+	pHash, err := hashPasswordWithSalt(newPassword)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	accID, exists := s.byEmail[cleanEmail]
+	if !exists {
+		return ErrNotFound
+	}
+	s.passwordHashes[accID] = pHash
+	return nil
+}
+

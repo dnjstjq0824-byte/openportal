@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -941,3 +942,147 @@ func TestVerticalFederatedSearchAndAdsClickEndpoints(t *testing.T) {
 		}
 	}
 }
+
+func TestLocalAuthAndEmailVerificationHTTPEndpoints(t *testing.T) {
+	a := &app{}
+	prodHandler := a.productionRoutes()
+
+	emailAddr := "newuser@open-scanner.org"
+	password := "SecureP@ssw0rd2026!"
+	displayName := "오픈스캐너사용자"
+
+	// 1. Register local account -> 201
+	var verifyCode string
+	{
+		body := fmt.Sprintf(`{"email":%q,"password":%q,"display_name":%q}`, emailAddr, password, displayName)
+		req := httptest.NewRequest("POST", "/api/v1/auth/register", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 201 {
+			t.Fatalf("register failed: %d %s", w.Code, w.Body.String())
+		}
+		var regOut struct {
+			Status string `json:"status"`
+			Code   string `json:"code"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &regOut); err != nil || regOut.Status != "pending_verification" {
+			t.Fatalf("unexpected register output: %+v", regOut)
+		}
+		verifyCode = regOut.Code
+		if len(verifyCode) != 6 {
+			t.Fatalf("expected 6-digit PIN code, got %s", verifyCode)
+		}
+	}
+
+	// 2. Login before email verification fails -> 401
+	{
+		body := fmt.Sprintf(`{"email":%q,"password":%q}`, emailAddr, password)
+		req := httptest.NewRequest("POST", "/api/v1/auth/login", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 401 {
+			t.Fatalf("expected 401 for unverified login, got %d", w.Code)
+		}
+	}
+
+	// 3. Verify email with wrong code fails -> 400
+	{
+		body := fmt.Sprintf(`{"email":%q,"code":"000000"}`, emailAddr)
+		req := httptest.NewRequest("POST", "/api/v1/auth/email/verify", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 400 {
+			t.Fatalf("expected 400 for wrong verification code, got %d", w.Code)
+		}
+	}
+
+	// 4. Verify email with correct code -> 200
+	{
+		body := fmt.Sprintf(`{"email":%q,"code":%q}`, emailAddr, verifyCode)
+		req := httptest.NewRequest("POST", "/api/v1/auth/email/verify", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("email verify failed: %d %s", w.Code, w.Body.String())
+		}
+	}
+
+	// 5. Login after verification succeeds -> 200
+	var token string
+	{
+		body := fmt.Sprintf(`{"email":%q,"password":%q}`, emailAddr, password)
+		req := httptest.NewRequest("POST", "/api/v1/auth/login", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("login failed: %d %s", w.Code, w.Body.String())
+		}
+		var loginOut struct {
+			Status string `json:"status"`
+			Token  string `json:"token"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &loginOut); err != nil || loginOut.Status != "authenticated" {
+			t.Fatalf("unexpected login output: %+v", loginOut)
+		}
+		token = loginOut.Token
+		if len(token) == 0 {
+			t.Fatalf("empty token returned")
+		}
+	}
+
+	// 6. Request password reset -> 200
+	var resetToken string
+	{
+		body := fmt.Sprintf(`{"email":%q}`, emailAddr)
+		req := httptest.NewRequest("POST", "/api/v1/auth/password/reset-request", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("password reset request failed: %d %s", w.Code, w.Body.String())
+		}
+		var resetOut struct {
+			Status string `json:"status"`
+			Token  string `json:"token"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &resetOut)
+		resetToken = resetOut.Token
+		if len(resetToken) == 0 {
+			t.Fatalf("empty reset token")
+		}
+	}
+
+	// 7. Confirm password reset -> 200
+	newPass := "UpdatedP@ssw0rd2026!"
+	{
+		body := fmt.Sprintf(`{"email":%q,"token":%q,"new_password":%q}`, emailAddr, resetToken, newPass)
+		req := httptest.NewRequest("POST", "/api/v1/auth/password/reset-confirm", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("password reset confirm failed: %d %s", w.Code, w.Body.String())
+		}
+	}
+
+	// 8. Old password fails -> 401
+	{
+		body := fmt.Sprintf(`{"email":%q,"password":%q}`, emailAddr, password)
+		req := httptest.NewRequest("POST", "/api/v1/auth/login", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 401 {
+			t.Fatalf("expected 401 with old password, got %d", w.Code)
+		}
+	}
+
+	// 9. New password succeeds -> 200
+	{
+		body := fmt.Sprintf(`{"email":%q,"password":%q}`, emailAddr, newPass)
+		req := httptest.NewRequest("POST", "/api/v1/auth/login", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+		prodHandler.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("login with new password failed: %d %s", w.Code, w.Body.String())
+		}
+	}
+}
+
