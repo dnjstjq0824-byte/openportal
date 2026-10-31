@@ -195,11 +195,11 @@ const VERTICAL_DATASETS = {
   news: [
     {
       id: 'news-001',
-      title: '오픈포털, 독립 검색엔진 분산 크롤러 및 BM25 랭킹 시스템 정식 가동',
+      title: '오픈포털(OpenPortal), 독립 검색엔진 분산 크롤러 및 BM25 랭킹 시스템 정식 가동',
       publisher: '연합뉴스 IT / 테크',
       published_at: new Date().toISOString(),
       url: 'https://www.yna.co.kr/view/AKR20261026001',
-      summary: '글로벌 빅테크 상용 검색 의존을 탈피하는 차세대 독립 검색엔진 오픈포털이 분산 인덱서와 RFC 9309 준수 크롤러를 공개했다.',
+      summary: '글로벌 빅테크 상용 검색 의존을 탈피하는 차세대 독립 검색엔진 오픈포털(OpenPortal)이 분산 인덱서와 RFC 9309 준수 크롤러를 공개했다.',
     },
     {
       id: 'news-002',
@@ -215,10 +215,20 @@ const VERTICAL_DATASETS = {
       publisher: '전자신문',
       published_at: new Date(Date.now() - 7200000).toISOString(),
       url: 'https://www.etnews.com/202610260003',
-      summary: '할루시네이션(환각) 방지를 위한 엄격한 지식 기반 인용 프로토콜과 팩트체킹 검색 엔진 아키텍처가 공공 및 엔터프라이즈에 본격 도입된다.',
+      summary: '할루시네이션(환각) 방지를 위한 엄격한 지식 기반 인용 프로토콜과 팩트체킹 검색엔진 아키텍처가 공공 및 엔터프라이즈에 본격 도입된다.',
     },
   ],
   map: [
+    {
+      id: 'poi-openportal-hq',
+      name: '오픈포털 글로벌 검색엔진 연구소 (OpenPortal Search R&D Center)',
+      address: '서울특별시 강남구 테헤란로 427 (삼성동, 오픈스캐너 타워)',
+      category: '검색엔진 / AI 연구소 · OpenPortal HQ',
+      phone: '02-555-0100',
+      latitude: 37.5065,
+      longitude: 127.0536,
+      attribution: 'OpenStreetMap Contributors (ODbL 1.0)',
+    },
     {
       id: 'poi-001',
       name: '서울시청',
@@ -231,9 +241,9 @@ const VERTICAL_DATASETS = {
     },
     {
       id: 'poi-002',
-      name: '판교 테크노밸리 R&D 센터',
+      name: '판교 테크노밸리 검색엔진·AI R&D 센터',
       address: '경기도 성남시 분당구 판교역로 235',
-      category: '연구개발 / 테크센터',
+      category: '연구개발 / 검색엔진 테크센터 (OpenPortal Lab)',
       phone: '031-776-9000',
       latitude: 37.4005,
       longitude: 127.1118,
@@ -253,8 +263,8 @@ const VERTICAL_DATASETS = {
   shopping: [
     {
       id: 'shop-001',
-      title: 'Go 분산 시스템 엔지니어링 실전 가이드',
-      description: '초당 수만 건의 검색 트래픽을 처리하는 동시성 Go 아키텍처 완벽 해설',
+      title: 'Go 분산 검색엔진 시스템 엔지니어링 실전 가이드 (OpenPortal Edition)',
+      description: '초당 수만 건의 검색엔진 트래픽을 처리하는 동시성 Go 아키텍처 및 오픈포털 완벽 해설',
       price: 38000,
       currency: 'KRW',
       merchant_name: '교보문고',
@@ -264,8 +274,8 @@ const VERTICAL_DATASETS = {
     },
     {
       id: 'shop-002',
-      title: 'OpenSearch 2.x 대규모 검색 인덱싱과 랭킹 튜닝',
-      description: 'Okapi BM25 파라미터 최적화, Nori 한글 분석기 및 고성능 샤딩 전략',
+      title: 'OpenSearch 2.x 대규모 검색엔진 인덱싱과 랭킹 튜닝',
+      description: 'Okapi BM25 파라미터 최적화, Nori 한글 분석기 및 OpenPortal 고성능 샤딩 전략',
       price: 42000,
       currency: 'KRW',
       merchant_name: '예스24',
@@ -275,8 +285,8 @@ const VERTICAL_DATASETS = {
     },
     {
       id: 'shop-003',
-      title: '고성능 NVMe Enterprise SSD 3.84TB U.3',
-      description: '검색 역색인 분산 노드용 순차 읽기 7,000MB/s 엔터프라이즈 스토리지',
+      title: '고성능 NVMe Enterprise SSD 3.84TB U.3 (검색엔진 클러스터용)',
+      description: '검색엔진 역색인 분산 노드용 순차 읽기 7,000MB/s 엔터프라이즈 스토리지',
       price: 650000,
       currency: 'KRW',
       merchant_name: '컴퓨존',
