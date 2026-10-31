@@ -5,9 +5,72 @@ import { APIError, mutate, request, session } from './client';
 import { errors, locales, messages, type Locale } from './i18n';
 
 const locale=ref<Locale>('en'),route=ref(''),search=ref(''),page=ref(1);
-const result=ref<{total:number|null;has_more:boolean;elapsed_ms?:number;hits:{title:string;url:string;description:string;site_name?:string;source?:string}[]}|null>(null);
+const result=ref<{total:number|null;has_more:boolean;elapsed_ms?:number;corrected_query?:string;did_you_mean?:string;hits:{title:string;url:string;description:string;site_name?:string;source?:string}[]}|null>(null);
 const busy=ref(false),error=ref(''),notice=ref(''),user=ref<any>(null),ready=ref(false);
 const email=ref(''),password=ref(''),confirm=ref(''),displayName=ref(''),agree=ref(false),token=ref(''),theme=ref('system');
+const suggestions=ref<string[]>([]);
+const showSuggestions=ref(false);
+const activeSuggestionIndex=ref(-1);
+const recentSearches=ref<string[]>([]);
+try{recentSearches.value=JSON.parse(localStorage.getItem('openportal.recent_searches')||'[]');}catch{recentSearches.value=[];}
+
+const suggestionList=computed(()=>{
+  const current=search.value.trim().toLowerCase();
+  const list:{text:string;isRecent:boolean}[]=[];
+  const seen=new Set<string>();
+  if(current){
+    for(const r of recentSearches.value){
+      if(r.toLowerCase().includes(current)&&!seen.has(r)){list.push({text:r,isRecent:true});seen.add(r);if(list.length>=3)break;}
+    }
+  }else{
+    for(const r of recentSearches.value.slice(0,5)){list.push({text:r,isRecent:true});seen.add(r);}
+  }
+  for(const s of suggestions.value){
+    if(!seen.has(s)){list.push({text:s,isRecent:false});seen.add(s);if(list.length>=10)break;}
+  }
+  return list;
+});
+
+let suggestTimer:ReturnType<typeof setTimeout>|undefined;
+function onSearchInput(){
+  activeSuggestionIndex.value=-1;
+  const q=search.value.trim();
+  if(!q){suggestions.value=[];showSuggestions.value=recentSearches.value.length>0;return;}
+  showSuggestions.value=true;
+  clearTimeout(suggestTimer);
+  suggestTimer=setTimeout(async()=>{
+    try{const data=await request(`/suggest?${new URLSearchParams({q})}`);if(Array.isArray(data.suggestions))suggestions.value=data.suggestions;}catch{}
+  },150);
+}
+function onSearchFocus(){if(search.value.trim()||recentSearches.value.length>0)showSuggestions.value=true;}
+function onSearchBlur(){setTimeout(()=>{showSuggestions.value=false;},200);}
+function closeSuggestions(){showSuggestions.value=false;activeSuggestionIndex.value=-1;}
+function onSuggestDown(){
+  if(!showSuggestions.value){showSuggestions.value=true;return;}
+  const max=suggestionList.value.length;if(max===0)return;
+  activeSuggestionIndex.value=(activeSuggestionIndex.value+1)%max;
+  if(activeSuggestionIndex.value>=0&&activeSuggestionIndex.value<max)search.value=suggestionList.value[activeSuggestionIndex.value].text;
+}
+function onSuggestUp(){
+  if(!showSuggestions.value)return;
+  const max=suggestionList.value.length;if(max===0)return;
+  activeSuggestionIndex.value=(activeSuggestionIndex.value-1+max)%max;
+  if(activeSuggestionIndex.value>=0&&activeSuggestionIndex.value<max)search.value=suggestionList.value[activeSuggestionIndex.value].text;
+}
+function selectSuggestion(text:string){search.value=text;showSuggestions.value=false;submitSearch(1);}
+function removeRecent(text:string){
+  recentSearches.value=recentSearches.value.filter(x=>x!==text);
+  try{localStorage.setItem('openportal.recent_searches',JSON.stringify(recentSearches.value));}catch{}
+}
+function saveRecentSearch(q:string){
+  const trimmed=q.trim();if(!trimmed)return;
+  const filtered=recentSearches.value.filter(x=>x!==trimmed);
+  recentSearches.value=[trimmed,...filtered].slice(0,10);
+  try{localStorage.setItem('openportal.recent_searches',JSON.stringify(recentSearches.value));}catch{}
+}
+function applyCorrection(corrected:string){search.value=corrected;submitSearch(1);}
+function getHostname(urlStr:string):string{try{return new URL(urlStr).hostname;}catch{return urlStr;}}
+
 const t=computed(()=>messages[locale.value]);const errorText=computed(()=>errors[locale.value][error.value]||errors[locale.value].fallback);
 let controller:AbortController|undefined;let sequence=0;let refreshTimer:ReturnType<typeof setInterval>|undefined;
 const titles=computed(()=>({login:t.value.login,signup:t.value.signup,'forgot-password':t.value.reset,'reset-password':t.value.reset,'verify-email':t.value.verify,account:t.value.account,mail:t.value.mail,privacy:t.value.privacy,terms:t.value.terms} as Record<string,string>));
@@ -19,7 +82,7 @@ function safeReturn(value:string|null){
 function navigate(url:string,replace=false){history[replace?'replaceState':'pushState'](null,'',url);restore();}
 function link(event:MouseEvent,url:string){if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();navigate(url);}
 function changeLanguage(event:Event){const value=(event.target as HTMLSelectElement).value as Locale;localStorage.setItem('openportal.locale',value);navigate(`/${value}${route.value?'/'+route.value:''}${location.search}${location.hash}`);}
-function submitSearch(nextPage=1){if(!search.value.trim())return;const params=new URLSearchParams({q:search.value.trim()});if(nextPage>1)params.set('page',String(nextPage));navigate(`/${locale.value}/search?${params}`);}
+function submitSearch(nextPage=1){if(!search.value.trim())return;saveRecentSearch(search.value.trim());showSuggestions.value=false;const params=new URLSearchParams({q:search.value.trim()});if(nextPage>1)params.set('page',String(nextPage));navigate(`/${locale.value}/search?${params}`);}
 async function runSearch(){
   const own=++sequence;controller?.abort();controller=new AbortController();result.value=null;error.value='';
   if(!search.value.trim()){busy.value=false;return;}busy.value=true;
@@ -29,6 +92,8 @@ async function runSearch(){
       total:data.total,
       has_more:Boolean(data.has_more??data.hasMore??(data.total!==null&&page.value*10<data.total)),
       elapsed_ms:typeof data.elapsed_ms==='number'?data.elapsed_ms:undefined,
+      corrected_query:typeof data.corrected_query==='string'?data.corrected_query:(typeof data.did_you_mean==='string'?data.did_you_mean:undefined),
+      did_you_mean:typeof data.did_you_mean==='string'?data.did_you_mean:(typeof data.corrected_query==='string'?data.corrected_query:undefined),
       hits:data.hits.filter((x:any)=>{try{return typeof x.title==='string'&&typeof x.description==='string'&&['https:','http:'].includes(new URL(x.url).protocol);}catch{return false;}}).map((x:any)=>({
         title:x.title,
         url:x.url,
@@ -75,8 +140,8 @@ onUnmounted(()=>{controller?.abort();if(refreshTimer)clearInterval(refreshTimer)
         <details><summary>{{t.services}}</summary><div class="dropdown"><a :href="`/${locale}/mail`" @click="link($event,`/${locale}/mail`)">{{t.mail}}</a></div></details><details v-if="user"><summary class="account-button">{{user.display_name}}</summary><div class="dropdown"><a :href="`/${locale}/account`" @click="link($event,`/${locale}/account`)">{{t.account}}</a><button @click="logout">{{t.logout}}</button></div></details><a v-else class="button primary" :href="`/${locale}/login`" @click="link($event,`/${locale}/login`)">{{t.login}}</a></nav>
     </header>
     <main id="main-content" :class="{'home-main':route==='','mail-main':route==='mail'}">
-      <template v-if="isSearch"><section v-if="route===''" class="hero"><p class="eyebrow">OPENPORTAL</p><h1>{{t.tagline}}</h1><p>{{t.intro}}</p></section><form class="search-form" role="search" @submit.prevent="submitSearch()"><label class="sr-only" for="query">{{t.search}}</label><input id="query" v-model="search" type="search" :placeholder="t.searchPlaceholder" maxlength="512" enterkeyhint="search" autocomplete="off" required/><button class="button primary" type="submit">{{t.search}} <span aria-hidden="true">↗</span></button></form><p class="source-note">{{t.searchSource}}</p>
-        <section v-if="route==='search'" class="results" aria-live="polite" :aria-busy="busy"><p v-if="busy" role="status">{{t.loading}}</p><div v-else-if="error" class="alert" role="alert"><p>{{errorText}}</p><button class="button" @click="runSearch">{{t.retry}}</button></div><template v-else-if="result"><p class="result-count">{{result.total!==null?`${t.resultCount} · 약 ${new Intl.NumberFormat(locale).format(result.total)}건`:t.resultCount}}<span v-if="typeof result.elapsed_ms==='number'" class="elapsed-badge"> ({{result.elapsed_ms}}ms)</span></p><p v-if="!result.hits.length">{{t.empty}}</p><article v-for="hit in result.hits" :key="hit.url" class="hit"><a :href="hit.url" rel="noopener noreferrer"><span class="result-url">{{hit.url}}</span><h2>{{hit.title}}</h2></a><p>{{hit.description}}</p><p v-if="hit.source" class="source-tag">{{hit.source}}</p></article><nav v-if="result.has_more||(result.total!==null&&result.total>0)" class="pagination" :aria-label="t.resultCount"><button v-if="page>1" class="button" @click="submitSearch(page-1)">{{t.previous}}</button><span>{{new Intl.NumberFormat(locale).format(page)}}</span><button v-if="result.has_more||(result.total!==null&&page*10<result.total&&page<100)" class="button" @click="submitSearch(page+1)">{{t.next}}</button></nav></template></section>
+      <template v-if="isSearch"><section v-if="route===''" class="hero"><p class="eyebrow">OPENPORTAL</p><h1>{{t.tagline}}</h1><p>{{t.intro}}</p></section><form class="search-form" role="search" @submit.prevent="submitSearch()"><label class="sr-only" for="query">{{t.search}}</label><div class="search-input-wrapper"><input id="query" v-model="search" type="search" :placeholder="t.searchPlaceholder" maxlength="512" enterkeyhint="search" autocomplete="off" @input="onSearchInput" @focus="onSearchFocus" @blur="onSearchBlur" @keydown.down.prevent="onSuggestDown" @keydown.up.prevent="onSuggestUp" @keydown.esc="closeSuggestions" required/><ul v-if="showSuggestions && suggestionList.length" class="suggest-dropdown" role="listbox"><li v-for="(item, idx) in suggestionList" :key="item.text" :class="{active: idx === activeSuggestionIndex}" @mousedown.prevent="selectSuggestion(item.text)"><span class="suggest-icon" :class="{'recent-color': item.isRecent}"><svg v-if="item.isRecent" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="suggest-text">{{item.text}}</span><button v-if="item.isRecent" class="remove-recent-item-btn" @mousedown.stop.prevent="removeRecent(item.text)" :title="t.delete">✕</button></li></ul></div><button class="button primary" type="submit">{{t.search}} <span aria-hidden="true">↗</span></button></form><p class="source-note">{{t.searchSource}}</p>
+        <section v-if="route==='search'" class="results" aria-live="polite" :aria-busy="busy"><p v-if="busy" role="status">{{t.loading}}</p><div v-else-if="error" class="alert" role="alert"><p>{{errorText}}</p><button class="button" @click="runSearch">{{t.retry}}</button></div><template v-else-if="result"><div v-if="result.did_you_mean || result.corrected_query" class="did-you-mean"><span>{{t.didYouMean}}</span><a href="#" @click.prevent="applyCorrection(result.did_you_mean || result.corrected_query || '')">{{result.did_you_mean || result.corrected_query}}</a></div><p class="result-count">{{result.total!==null?`${t.resultCount} · 약 ${new Intl.NumberFormat(locale).format(result.total)}건`:t.resultCount}}<span v-if="typeof result.elapsed_ms==='number'" class="elapsed-badge"> ({{result.elapsed_ms}}ms)</span></p><p v-if="!result.hits.length">{{t.empty}}</p><article v-for="hit in result.hits" :key="hit.url" class="hit"><div class="hit-meta"><svg class="hit-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="hit-domain">{{getHostname(hit.url)}}</span></div><a :href="hit.url" rel="noopener noreferrer"><h2>{{hit.title}}</h2></a><p>{{hit.description}}</p><p v-if="hit.source" class="source-tag">{{hit.source}}</p></article><nav v-if="result.has_more||(result.total!==null&&result.total>0)" class="pagination" :aria-label="t.resultCount"><button v-if="page>1" class="button" @click="submitSearch(page-1)">{{t.previous}}</button><span>{{new Intl.NumberFormat(locale).format(page)}}</span><button v-if="result.has_more||(result.total!==null&&page*10<result.total&&page<100)" class="button" @click="submitSearch(page+1)">{{t.next}}</button></nav></template></section>
       </template>
       <MailView v-else-if="route==='mail'&&user" :locale="locale" :user="user" @expired="expired"/>
       <section v-else-if="['login','signup','forgot-password','reset-password','verify-email'].includes(route)" class="auth-card"><p class="eyebrow">OPENPORTAL</p><h1>{{titles[route]}}</h1><p v-if="!ready" role="status">{{t.loading}}</p><form v-else @submit.prevent="authSubmit" class="form-stack"><label v-if="['login','signup','forgot-password'].includes(route)">{{t.email}}<input v-model="email" type="email" autocomplete="email" required maxlength="254"/></label><label v-if="route==='signup'">{{t.displayName}}<input v-model="displayName" autocomplete="nickname" required maxlength="80"/></label><label v-if="['login','signup','reset-password'].includes(route)">{{t.password}}<input v-model="password" :aria-label="t.password" type="password" :autocomplete="route==='login'?'current-password':'new-password'" :minlength="route==='login'?1:12" maxlength="1024" required/><small v-if="route!=='login'">{{t.passwordHint}}</small></label><label v-if="['signup','reset-password'].includes(route)">{{t.confirmPassword}}<input v-model="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="1024" required/></label><label v-if="route==='signup'" class="checkbox"><input v-model="agree" type="checkbox" required/>{{t.agree}}</label><p v-if="['verify-email','reset-password'].includes(route)&&!token&&!notice">{{t.invalidLink}}</p><button class="button primary" :disabled="busy||(['verify-email','reset-password'].includes(route)&&!token)" type="submit">{{busy?t.loading:titles[route]}}</button></form>

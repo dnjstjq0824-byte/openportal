@@ -38,6 +38,9 @@ func TestSuggestCorrection(t *testing.T) {
 		{"gksrmf", "한글"},
 		{"openprotal", "OpenPortal"},
 		{"검섹엔진", "검색엔진"},
+		{"검색엔짇", "검색엔진"}, // Levenshtein dist 1
+		{"크롤렁", "크롤러"},   // Levenshtein dist 1
+		{"databse", "database"}, // Levenshtein dist 1
 		{"normal text", ""},
 	}
 

@@ -54,7 +54,48 @@ var defaultRewrites = map[string]string{
 	"serach engine": "search engine",
 }
 
-// SuggestCorrection returns a suggested query correction if the normalized query matches known Korean/English typo or QWERTY-Hangul patterns.
+var knownCorpusTerms = []string{
+	"검색엔진", "오픈포털", "인덱싱", "크롤러", "랭킹", "역색인",
+	"형태소", "데이터베이스", "아키텍처", "OpenPortal",
+	"search engine", "crawler", "indexer", "ranking", "database",
+}
+
+func levenshteinRunes(a, b []rune) int {
+	la, lb := len(a), len(b)
+	if la == 0 {
+		return lb
+	}
+	if lb == 0 {
+		return la
+	}
+	dp := make([]int, lb+1)
+	for j := 0; j <= lb; j++ {
+		dp[j] = j
+	}
+	for i := 1; i <= la; i++ {
+		prev := dp[0]
+		dp[0] = i
+		for j := 1; j <= lb; j++ {
+			temp := dp[j]
+			cost := 0
+			if a[i-1] != b[j-1] {
+				cost = 1
+			}
+			minVal := dp[j] + 1
+			if dp[j-1]+1 < minVal {
+				minVal = dp[j-1] + 1
+			}
+			if prev+cost < minVal {
+				minVal = prev + cost
+			}
+			dp[j] = minVal
+			prev = temp
+		}
+	}
+	return dp[lb]
+}
+
+// SuggestCorrection returns a suggested query correction if the normalized query matches known Korean/English typo or QWERTY-Hangul patterns, or has Levenshtein distance <= 2 with corpus terms.
 func SuggestCorrection(normalizedQuery string) string {
 	key := strings.ToLower(strings.TrimSpace(normalizedQuery))
 	if corr, ok := defaultRewrites[key]; ok && !strings.EqualFold(corr, normalizedQuery) {
@@ -63,6 +104,29 @@ func SuggestCorrection(normalizedQuery string) string {
 	if corr, ok := defaultRewrites[normalizedQuery]; ok && corr != normalizedQuery {
 		return corr
 	}
+
+	// Levenshtein edit distance check for terms >= 3 runes
+	qRunes := []rune(key)
+	if len(qRunes) >= 3 {
+		bestDist := 3 // looking for <= 2
+		bestCandidate := ""
+		for _, term := range knownCorpusTerms {
+			tRunes := []rune(strings.ToLower(term))
+			diff := len(qRunes) - len(tRunes)
+			if diff < -2 || diff > 2 {
+				continue
+			}
+			dist := levenshteinRunes(qRunes, tRunes)
+			if dist > 0 && dist <= 2 && dist < bestDist {
+				bestDist = dist
+				bestCandidate = term
+			}
+		}
+		if bestCandidate != "" && !strings.EqualFold(bestCandidate, normalizedQuery) {
+			return bestCandidate
+		}
+	}
+
 	return ""
 }
 

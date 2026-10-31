@@ -6,7 +6,7 @@ import nodemailer from 'nodemailer';
 import { randomToken, digest, equal, hashPassword, verifyPassword } from './security.mjs';
 import { emailText } from './translations.mjs';
 import { MailClient, MAX_ATTACHMENT, fail } from './mail.mjs';
-import {braveSearch} from './search.mjs';
+import { braveSearch, bingSearch, hybridSearch } from './search.mjs';
 
 export function configuration(env = process.env) {
   const origin = new URL(env.PUBLIC_ORIGIN || 'http://127.0.0.1:5173');
@@ -16,12 +16,31 @@ export function configuration(env = process.env) {
   if (jmapURL && new URL(jmapURL).protocol !== 'https:' && !(env.NODE_ENV === 'test' && new URL(jmapURL).hostname === '127.0.0.1')) throw Error('JMAP requires HTTPS');
   const mailKey = env.MAIL_ENCRYPTION_KEY ? Buffer.from(env.MAIL_ENCRYPTION_KEY, 'base64') : null;
   if (mailKey && mailKey.length !== 32) throw Error('MAIL_ENCRYPTION_KEY must be 32 bytes in base64');
-  const searchOptions={searchProvider:env.SEARCH_PROVIDER||'opensearch',braveKey:env.BRAVE_SEARCH_API_KEY,braveApproved:env.BRAVE_API_TERMS_APPROVED==='true',braveDailyLimit:Number(env.BRAVE_DAILY_REQUEST_LIMIT||1000),braveRps:Number(env.BRAVE_REQUESTS_PER_SECOND||1)};
-  if(!['opensearch','brave'].includes(searchOptions.searchProvider)||!Number.isInteger(searchOptions.braveDailyLimit)||searchOptions.braveDailyLimit<1||!Number.isInteger(searchOptions.braveRps)||searchOptions.braveRps<1)throw Error('Invalid search provider limits');
+  const searchProvider = env.SEARCH_PROVIDER || 'opensearch';
+  const validProviders = ['opensearch', 'local', 'brave', 'bing', 'hybrid'];
+  if (!validProviders.includes(searchProvider)) throw Error('Invalid search provider');
+  const searchOptions = {
+    searchProvider,
+    braveKey: env.BRAVE_SEARCH_API_KEY,
+    braveApproved: env.BRAVE_API_TERMS_APPROVED === 'true',
+    braveDailyLimit: Number(env.BRAVE_DAILY_REQUEST_LIMIT || 1000),
+    braveRps: Number(env.BRAVE_REQUESTS_PER_SECOND || 1),
+    bingKey: env.BING_SEARCH_API_KEY,
+    bingApproved: env.BING_API_TERMS_APPROVED === 'true',
+    bingDailyLimit: Number(env.BING_DAILY_REQUEST_LIMIT || 1000),
+    bingRps: Number(env.BING_REQUESTS_PER_SECOND || 3),
+  };
+  if (!Number.isInteger(searchOptions.braveDailyLimit) || searchOptions.braveDailyLimit < 1 || !Number.isInteger(searchOptions.braveRps) || searchOptions.braveRps < 1) throw Error('Invalid search provider limits');
+  if (!Number.isInteger(searchOptions.bingDailyLimit) || searchOptions.bingDailyLimit < 1 || !Number.isInteger(searchOptions.bingRps) || searchOptions.bingRps < 1) throw Error('Invalid search provider limits');
   if (searchOptions.searchProvider === 'brave' && (!searchOptions.braveKey || !searchOptions.braveApproved)) {
     if (!searchOptions.braveKey) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=brave configured but BRAVE_SEARCH_API_KEY is missing');
     if (!searchOptions.braveApproved) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=brave configured but BRAVE_API_TERMS_APPROVED is not true');
     if (production) throw Error('Production SEARCH_PROVIDER=brave requires BRAVE_SEARCH_API_KEY and BRAVE_API_TERMS_APPROVED=true');
+  }
+  if (searchOptions.searchProvider === 'bing' && (!searchOptions.bingKey || !searchOptions.bingApproved)) {
+    if (!searchOptions.bingKey) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=bing configured but BING_SEARCH_API_KEY is missing');
+    if (!searchOptions.bingApproved) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=bing configured but BING_API_TERMS_APPROVED is not true');
+    if (production) throw Error('Production SEARCH_PROVIDER=bing requires BING_SEARCH_API_KEY and BING_API_TERMS_APPROVED=true');
   }
   return { ...searchOptions, origin: origin.origin, production, ingressSecret: env.GATEWAY_SHARED_SECRET, databaseURL: env.DATABASE_URL, port: Number(env.GATEWAY_PORT || 8090), host: env.GATEWAY_HOST || '127.0.0.1', searchURL: env.SEARCH_BACKEND_URL || 'http://127.0.0.1:8080', smtpHost: env.SMTP_HOST, smtpPort: Number(env.SMTP_PORT || 587), smtpUser: env.SMTP_USER, smtpPassword: env.SMTP_PASSWORD, smtpFrom: env.SMTP_FROM, smtpSecure: env.SMTP_SECURE === 'true', jmapURL, mailKey, clamHost: env.CLAMAV_HOST, clamPort: Number(env.CLAMAV_PORT || 3310), rateSecret: env.RATE_LIMIT_SECRET || randomToken() };
 }
@@ -172,23 +191,63 @@ export async function createGateway(config, dependencies = {}) {
         const seconds=Math.max(0,Math.floor((new Date(rotated.rows[0].expires_at)-Date.now())/1000));
         res.setHeader('Set-Cookie',cookie(sessionName,token,seconds));return respond(200,{refreshed:true});
       }
+      if (path === '/api/v2/suggest' && req.method === 'GET') {
+        await rate(req, 'suggest', 120, 60);
+        const q = url.searchParams.get('q')?.trim() || '';
+        if (!q) return respond(200, { query: '', suggestions: [] });
+        try {
+          const target = new URL('/api/v1/suggest', config.searchURL);
+          target.search = new URLSearchParams({ q }).toString();
+          const upstream = await fetch(target, { redirect: 'error', signal: AbortSignal.timeout(3000) });
+          if (upstream.ok) {
+            const data = await upstream.json();
+            const suggestions = Array.isArray(data.suggestions) ? data.suggestions.slice(0, 10) : [];
+            return respond(200, { query: q, suggestions, corrected_query: data.corrected_query || undefined });
+          }
+        } catch {
+          // Graceful fallback for suggestions
+        }
+        return respond(200, { query: q, suggestions: [] });
+      }
       if (path === '/api/v2/search' && req.method === 'GET') {
         await rate(req,'search',60,60);
         const q = url.searchParams.get('q')?.trim(); const page = Number(url.searchParams.get('page') || 1);
+        const safeSearch = url.searchParams.get('safe_search') || 'moderate';
         if (!q || [...q].length>512 || !Number.isInteger(page) || page<1 || page>100) throw fail('INVALID_QUERY');
-        if(config.searchProvider==='brave'){
-          if(!config.braveApproved||!config.braveKey)throw fail('SEARCH_NOT_CONFIGURED',503);
-          await rate(req,'brave-daily',config.braveDailyLimit,86400,'global');await rate(req,'brave-per-second',config.braveRps,1,'global');
-          const braveRes = await braveSearch(config,q,page);
-          return respond(200,{...braveRes, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(braveRes.hasMore ?? braveRes.has_more)});
+        if (!['strict', 'moderate', 'off'].includes(safeSearch)) throw fail('INVALID_INPUT', 400);
+
+        if (config.searchProvider === 'brave') {
+          if (!config.braveApproved || !config.braveKey) throw fail('SEARCH_NOT_CONFIGURED', 503);
+          await rate(req, 'brave-daily', config.braveDailyLimit, 86400, 'global');
+          await rate(req, 'brave-per-second', config.braveRps, 1, 'global');
+          const braveRes = await braveSearch(config, q, page, { safeSearch });
+          return respond(200, { ...braveRes, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(braveRes.hasMore ?? braveRes.has_more), safe_search: safeSearch });
         }
-        const target = new URL('/api/v1/search',config.searchURL); target.search = new URLSearchParams({q,page:String(page)}).toString();
+        if (config.searchProvider === 'bing') {
+          if (!config.bingApproved || !config.bingKey) throw fail('SEARCH_NOT_CONFIGURED', 503);
+          await rate(req, 'bing-daily', config.bingDailyLimit, 86400, 'global');
+          await rate(req, 'bing-per-second', config.bingRps, 1, 'global');
+          const bingRes = await bingSearch(config, q, page, { safeSearch });
+          return respond(200, { ...bingRes, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(bingRes.hasMore ?? bingRes.has_more), safe_search: safeSearch });
+        }
+        if (config.searchProvider === 'hybrid') {
+          const hybridRes = await hybridSearch(config, q, page, { safeSearch });
+          return respond(200, { ...hybridRes, elapsed_ms: Math.round(performance.now() - started), safe_search: safeSearch });
+        }
+        const target = new URL('/api/v1/search', config.searchURL);
+        target.search = new URLSearchParams({ q, page: String(page), safe_search: safeSearch }).toString();
         let upstream;
         try { upstream = await fetch(target,{redirect:'error',signal:AbortSignal.timeout(8000)}); } catch { throw fail('SEARCH_UNAVAILABLE',503); }
         if (!upstream.ok) throw fail(upstream.status===429?'RATE_LIMITED':'SEARCH_UNAVAILABLE',upstream.status===429?429:503);
         const data = await upstream.json();
         if (!Array.isArray(data.hits) || (data.total !== null && !Number.isInteger(data.total))) throw fail('SEARCH_UNAVAILABLE',502);
-        return respond(200,{...data, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(data.has_more ?? (data.total !== null && page * 10 < data.total)), source:'opensearch-index'});
+        return respond(200, {
+          ...data,
+          elapsed_ms: Math.round(performance.now() - started),
+          has_more: Boolean(data.has_more ?? (data.total !== null && page * 10 < data.total)),
+          source: 'opensearch-index',
+          safe_search: safeSearch,
+        });
       }
       const account = await user(req); if (!account) throw fail('SESSION_REQUIRED',401);
       if (path === '/api/v2/account' && req.method === 'PATCH') {
