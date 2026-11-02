@@ -806,13 +806,36 @@ onUnmounted(() => {
         </div>
 
         <div class="serp-content">
-          <!-- Loading State -->
-          <p v-if="busy" role="status" style="color:var(--muted)">{{ t.loading }}</p>
+          <!-- Loading State (Pulse Skeleton) -->
+          <div v-if="busy" class="serp-skeleton-wrap" role="status" :aria-label="t.loading">
+            <div v-for="i in 3" :key="i" class="serp-skeleton-card">
+              <div class="skeleton-line skeleton-url"></div>
+              <div class="skeleton-line skeleton-title"></div>
+              <div class="skeleton-line skeleton-snippet"></div>
+              <div class="skeleton-line skeleton-snippet-short"></div>
+            </div>
+          </div>
 
-          <!-- Error State with Retry Button -->
-          <div v-else-if="error" class="auth-notice-alert error" role="alert">
-            <p>{{ errorText }}</p>
-            <button type="button" class="btn-home-gray" style="margin-top:10px" @click="runSearch">{{ t.retry }}</button>
+          <!-- Error State with Sky Bubble Error Card -->
+          <div v-else-if="error" class="serp-error-card" role="alert">
+            <div class="serp-error-icon-box">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div class="serp-error-body">
+              <h3 class="serp-error-title">{{ t.searchErrorTitle }}</h3>
+              <p class="serp-error-desc">{{ errorText }}</p>
+              <div class="serp-error-badge">
+                <span>{{ t.errorCode }}: {{ error }}</span>
+              </div>
+              <div class="serp-error-actions">
+                <button type="button" class="btn-primary" @click="runSearch">{{ t.retry }}</button>
+                <a :href="`/${locale}`" class="btn-home-gray" @click="link($event, `/${locale}`)">{{ t.backHome }}</a>
+              </div>
+            </div>
           </div>
 
           <!-- Results State -->
@@ -833,7 +856,17 @@ onUnmounted(() => {
 
             <!-- 0 Results Dedicated Screen (A-07) -->
             <div v-if="!result.hits.length" class="empty-result-card">
-              <p class="empty-title">{{ t.empty }}</p>
+              <div class="empty-result-header">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="empty-search-icon" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+                <p class="empty-title">
+                  <span v-if="search"><strong>"{{ search }}"</strong> {{ t.emptyForQuery }}</span>
+                  <span v-else>{{ t.empty }}</span>
+                </p>
+              </div>
               <ul class="empty-tips-list">
                 <li>{{ t.emptyTipSpelling }}</li>
                 <li>{{ t.emptyTipGeneral }}</li>
