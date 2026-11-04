@@ -1,0 +1,51 @@
+import type { Locale } from './i18n';
+const en = {
+  eyebrow: 'A clearer way to discover', homeTitle: 'Follow your curiosity.', homeIntro: 'Search the web, keep your place, and move on to what matters.',
+  homeAside: 'Your next step, in one place.', mailDescription: 'Open your connected mailbox with your OpenScanner account.', settingsDescription: 'Choose your language, appearance and search preferences.', privacyDescription: 'Understand what is stored and stay in control.',
+  web: 'Web search', sourceIndex: 'Connected search index', sourceExternal: 'External search API', sourceHybrid: 'Combined search sources', sourceNote: 'Coverage depends on the connected source. External results are shown in their original language.', partial: 'Some search sources are unavailable. Results may be incomplete.',
+  authIntro: 'One account for your connected services.', signupIntro: 'Start with an email address you control.', forgotIntro: 'We will send a reset link if the account exists.', verifyIntro: 'Confirm the email address for your account.', resetIntro: 'Choose a new password for your account.',
+  settingsIntro: 'Make this space work for you.', rememberSearches: 'Save recent searches on this device', historyHint: 'Off by default. Turning this off removes searches saved on this device.', clearHistory: 'Clear saved searches', preferencesSaved: 'Your preferences are saved on this device.',
+  authUnavailable: 'The account service is temporarily unavailable. Please try again shortly.', showPassword: 'Show password', hidePassword: 'Hide password', help: 'Search tips', resultsTitle: 'Explore the results.',
+  aboutBody: 'OpenScanner connects search, account and mailbox services in one interface. Search coverage depends on the configured index or licensed API. Mail requires a connected mailbox provider.',
+  howBody: 'Your query is sent to the configured search index or licensed search API. Each result links to its source. This interface does not claim to index the entire web. Search history is saved on this device only when you enable it.',
+  noHistory: 'No recent searches saved.', recent: 'Recent searches', searchHelp: 'Enter a query and press Enter, or use the search button.', unknownCount: 'Search results',
+  searchButton: 'Search', loginTitle: 'Welcome back', loginIntro: 'Sign in with the email address you verified.', signupTitle: 'Create your OpenScanner account', authTabs: 'Sign in or create an account',
+  benefitMail: 'Open your connected mailbox with one account', benefitVerify: 'Email verification before your first sign-in', benefitHash: 'Passwords are stored only as one-way hashes', benefitHistory: 'Search history stays off unless you turn it on',
+  strength: 'Password strength', strengthWeak: 'Too short', strengthFair: 'Fair', strengthGood: 'Good', strengthStrong: 'Strong',
+  reqLength: 'At least 12 characters (required)', reqVariety: 'Mix of letters, numbers and symbols (recommended)', passwordsMatch: 'Passwords match', passwordsDiffer: 'Passwords do not match yet',
+  checkInbox: 'Check your inbox', sentTo: 'Sent to', backToLogin: 'Back to sign in', useDifferentEmail: 'Use a different email address',
+};
+type Copy = { [K in keyof typeof en]: string };
+const ko: Copy = {
+  eyebrow: '더 명확하게 발견하는 방법', homeTitle: '궁금함을 따라, 더 넓게.', homeIntro: '웹에서 정보를 찾고, 하던 흐름을 이어가며, 중요한 일에 집중하세요.',
+  homeAside: '다음 할 일까지, 한곳에서.', mailDescription: 'OpenScanner 계정으로 연결된 메일함을 여세요.', settingsDescription: '언어, 화면 테마와 검색 환경을 선택하세요.', privacyDescription: '어떤 정보가 저장되는지 확인하고 직접 관리하세요.',
+  web: '웹 검색', sourceIndex: '연결된 검색 색인', sourceExternal: '외부 검색 API', sourceHybrid: '통합 검색 공급원', sourceNote: '검색 범위는 연결된 공급원에 따라 다릅니다. 외부 검색 결과는 원문 언어로 표시합니다.', partial: '일부 검색 공급원에 연결하지 못했습니다. 결과가 제한될 수 있습니다.',
+  authIntro: '연결된 서비스를 하나의 계정으로.', signupIntro: '직접 확인할 수 있는 이메일 주소로 시작하세요.', forgotIntro: '계정이 존재하면 재설정 링크를 보내드립니다.', verifyIntro: '계정에 사용할 이메일 주소를 확인하세요.', resetIntro: '계정에 사용할 새 비밀번호를 입력하세요.',
+  settingsIntro: '나에게 맞는 검색 공간을 만드세요.', rememberSearches: '이 기기에 최근 검색어 저장', historyHint: '기본값은 꺼짐입니다. 끄면 이 기기에 저장된 검색어를 삭제합니다.', clearHistory: '저장된 검색어 삭제', preferencesSaved: '설정은 이 기기에 저장됩니다.',
+  authUnavailable: '계정 서비스에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도하세요.', showPassword: '비밀번호 표시', hidePassword: '비밀번호 숨기기', help: '검색 도움말', resultsTitle: '필요한 정보를 찾아보세요.',
+  aboutBody: 'OpenScanner는 검색, 계정과 메일함 서비스를 하나의 화면으로 연결합니다. 검색 범위는 설정된 색인이나 정식 API에 따라 다르며, 메일은 별도 메일함 제공업체 연결이 필요합니다.',
+  howBody: '검색어를 설정된 검색 색인 또는 정식 검색 API로 전달하고 결과마다 원문 링크를 제공합니다. 웹 전체를 색인한다고 주장하지 않습니다. 최근 검색어는 사용자가 켠 경우에만 이 기기에 저장합니다.',
+  noHistory: '저장된 최근 검색어가 없습니다.', recent: '최근 검색어', searchHelp: '검색어를 입력하고 Enter 또는 검색 버튼을 누르세요.', unknownCount: '검색 결과',
+  searchButton: '검색', loginTitle: '다시 오신 것을 환영합니다', loginIntro: '인증을 완료한 이메일 주소로 로그인하세요.', signupTitle: 'OpenScanner 계정 만들기', authTabs: '로그인 또는 회원가입',
+  benefitMail: '하나의 계정으로 연결된 메일함 이용', benefitVerify: '첫 로그인 전에 이메일 주소 인증', benefitHash: '비밀번호는 복원할 수 없는 해시로만 저장', benefitHistory: '검색 기록은 직접 켜기 전까지 저장하지 않음',
+  strength: '비밀번호 강도', strengthWeak: '너무 짧음', strengthFair: '보통', strengthGood: '좋음', strengthStrong: '강함',
+  reqLength: '12자 이상 (필수)', reqVariety: '영문·숫자·기호 혼합 (권장)', passwordsMatch: '비밀번호가 일치합니다', passwordsDiffer: '비밀번호가 아직 일치하지 않습니다',
+  checkInbox: '받은편지함을 확인하세요', sentTo: '보낸 주소', backToLogin: '로그인으로 돌아가기', useDifferentEmail: '다른 이메일 주소 사용',
+};
+const th: Copy = {
+  eyebrow: 'ค้นพบอย่างชัดเจนยิ่งขึ้น', homeTitle: 'ค้นพบไปกับความอยากรู้', homeIntro: 'ค้นหาข้อมูลบนเว็บ ทำสิ่งที่ค้างไว้ต่อ และมุ่งไปที่สิ่งสำคัญ',
+  homeAside: 'ก้าวต่อไปของคุณ รวมไว้ในที่เดียว', mailDescription: 'เปิดกล่องจดหมายที่เชื่อมต่อด้วยบัญชี OpenScanner', settingsDescription: 'เลือกภาษา ธีม และการตั้งค่าการค้นหา', privacyDescription: 'ตรวจสอบข้อมูลที่จัดเก็บและจัดการได้ด้วยตัวคุณเอง',
+  web: 'ค้นหาเว็บ', sourceIndex: 'ดัชนีค้นหาที่เชื่อมต่อ', sourceExternal: 'API ค้นหาภายนอก', sourceHybrid: 'แหล่งค้นหาแบบผสม', sourceNote: 'ขอบเขตขึ้นอยู่กับแหล่งข้อมูลที่เชื่อมต่อ ผลลัพธ์ภายนอกแสดงในภาษาต้นฉบับ', partial: 'แหล่งค้นหาบางส่วนไม่พร้อมใช้งาน ผลลัพธ์อาจไม่ครบถ้วน',
+  authIntro: 'บัญชีเดียวสำหรับบริการที่เชื่อมต่อ', signupIntro: 'เริ่มด้วยอีเมลที่คุณเป็นเจ้าของ', forgotIntro: 'เราจะส่งลิงก์ตั้งรหัสผ่านใหม่หากมีบัญชีนี้อยู่', verifyIntro: 'ยืนยันที่อยู่อีเมลสำหรับบัญชีของคุณ', resetIntro: 'เลือกรหัสผ่านใหม่สำหรับบัญชีของคุณ',
+  settingsIntro: 'ปรับพื้นที่นี้ให้เหมาะกับคุณ', rememberSearches: 'บันทึกการค้นหาล่าสุดบนอุปกรณ์นี้', historyHint: 'ปิดไว้เป็นค่าเริ่มต้น การปิดจะลบการค้นหาที่บันทึกบนอุปกรณ์นี้', clearHistory: 'ลบการค้นหาที่บันทึก', preferencesSaved: 'บันทึกการตั้งค่าไว้บนอุปกรณ์นี้',
+  authUnavailable: 'บริการบัญชีไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งภายหลัง', showPassword: 'แสดงรหัสผ่าน', hidePassword: 'ซ่อนรหัสผ่าน', help: 'เคล็ดลับการค้นหา', resultsTitle: 'สำรวจผลการค้นหา',
+  aboutBody: 'OpenScanner เชื่อมต่อบริการค้นหา บัญชี และกล่องจดหมายไว้ในหน้าจอเดียว ขอบเขตการค้นหาขึ้นอยู่กับดัชนีหรือ API ที่กำหนด อีเมลต้องเชื่อมต่อกับผู้ให้บริการกล่องจดหมายแยกต่างหาก',
+  howBody: 'ส่งคำค้นไปยังดัชนีหรือ API ค้นหาที่กำหนดและแสดงลิงก์ต้นฉบับในแต่ละผลลัพธ์ หน้าจอนี้ไม่ได้อ้างว่าจัดทำดัชนีทั้งเว็บ ประวัติการค้นหาจะบันทึกบนอุปกรณ์นี้เมื่อคุณเปิดใช้งานเท่านั้น',
+  noHistory: 'ยังไม่มีการค้นหาล่าสุดที่บันทึกไว้', recent: 'การค้นหาล่าสุด', searchHelp: 'ป้อนคำค้นแล้วกด Enter หรือปุ่มค้นหา', unknownCount: 'ผลการค้นหา',
+  searchButton: 'ค้นหา', loginTitle: 'ยินดีต้อนรับกลับมา', loginIntro: 'เข้าสู่ระบบด้วยอีเมลที่ยืนยันแล้ว', signupTitle: 'สร้างบัญชี OpenScanner', authTabs: 'เข้าสู่ระบบหรือสร้างบัญชี',
+  benefitMail: 'ใช้กล่องจดหมายที่เชื่อมต่อด้วยบัญชีเดียว', benefitVerify: 'ยืนยันอีเมลก่อนเข้าสู่ระบบครั้งแรก', benefitHash: 'จัดเก็บรหัสผ่านเป็นแฮชที่ย้อนกลับไม่ได้เท่านั้น', benefitHistory: 'ไม่บันทึกประวัติการค้นหาจนกว่าคุณจะเปิดใช้งาน',
+  strength: 'ความแข็งแรงของรหัสผ่าน', strengthWeak: 'สั้นเกินไป', strengthFair: 'พอใช้', strengthGood: 'ดี', strengthStrong: 'แข็งแรง',
+  reqLength: 'อย่างน้อย 12 ตัวอักษร (จำเป็น)', reqVariety: 'ผสมตัวอักษร ตัวเลข และสัญลักษณ์ (แนะนำ)', passwordsMatch: 'รหัสผ่านตรงกัน', passwordsDiffer: 'รหัสผ่านยังไม่ตรงกัน',
+  checkInbox: 'ตรวจสอบกล่องจดหมายของคุณ', sentTo: 'ส่งไปที่', backToLogin: 'กลับไปเข้าสู่ระบบ', useDifferentEmail: 'ใช้อีเมลอื่น',
+};
+export const designMessages: Record<Locale, Copy> = { en, ko, th };

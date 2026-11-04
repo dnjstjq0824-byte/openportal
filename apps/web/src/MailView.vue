@@ -14,7 +14,7 @@ const { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, 
     <!-- Header Bar -->
     <header class="mail-heading">
       <div class="mail-heading-left">
-        <p class="eyebrow">OpenScan</p>
+        <p class="eyebrow">OpenScanner</p>
         <h1>{{ t.mail }}</h1>
       </div>
       <div class="mail-heading-right">
