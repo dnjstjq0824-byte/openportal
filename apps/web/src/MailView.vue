@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useMailbox } from './useMailbox';
 import type { Locale } from './i18n';
+import { designMessages } from './design-copy';
 const props = defineProps<{ locale: Locale; user: any }>();
 const emit = defineEmits<{ expired: []; dirtyChange: [dirty: boolean] }>();
 const { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, mutationBusy,
@@ -98,7 +99,7 @@ const { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, 
             type="search"
             :placeholder="t.searchMail"
           />
-          <button type="submit" class="button">{{ t.search }}</button>
+          <button type="submit" class="button">{{ designMessages[locale].searchButton }}</button>
         </form>
 
         <p v-if="listBusy" role="status" class="mail-status-msg">{{ t.loading }}</p>

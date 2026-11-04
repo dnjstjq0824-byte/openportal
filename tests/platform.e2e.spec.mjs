@@ -25,23 +25,30 @@ test('real local index: Enter, URL state, refresh, history and language switchin
   timings.sort((a,b)=>a-b);await writeFile(`docs/evidence/platform/${testInfo.project.name}-benchmark.json`,JSON.stringify({scope:'local synthetic index, not external web coverage or production capacity',documents:3,requests:20,concurrency:2,failures,p50ms:timings[9],p95ms:timings[18],elapsedMs:performance.now()-started},null,2));expect(failures).toBe(0);
 });
 
-test('actual PostgreSQL + SMTP: signup, verification, session, protected return, mail adapter and reset',async({page},testInfo)=>{
-  const email=`browser-${randomBytes(6).toString('hex')}@example.test`;const password=randomBytes(18).toString('base64url');
+test('actual PostgreSQL + SMTP: hosted signup wizard, recovery email, session, mail adapter and reset',async({page},testInfo)=>{
+  const username=`browser.${randomBytes(4).toString('hex')}`;const email=`${username}@openscanner.test`;const recovery=`owner-${randomBytes(4).toString('hex')}@example.test`;const password=randomBytes(18).toString('base64url');
+  await stack.pool.query('delete from webapp.rate_limits');
   await page.goto('/en/mail');await expect(page).toHaveURL(/\/en\/login\?returnTo=/);await page.getByRole('link',{name:'Create account',exact:true}).click();
-  await page.getByLabel('Email address',{exact:true}).fill(email);await page.getByLabel('Display name').fill('Browser tester');await page.getByLabel('Password',{exact:true}).fill(password);await page.getByLabel('Confirm password').fill(password);await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Create account',exact:true}).click();
-  await expect(page.getByRole('status')).toContainText('verification link');const token=stack.smtp.tokenFor(email,'verify');
-  await page.goto(`/en/verify-email#token=${token}`);await page.getByRole('button',{name:'Verify email',exact:true}).click();await expect(page.getByRole('status')).toContainText('Email verified');expect(page.url()).not.toContain(token);
-  await stack.provision(email);await page.goto('/en/mail');await expect(page).toHaveURL(/\/en\/login/);
-  await page.getByLabel('Email address',{exact:true}).first().fill(email);await page.getByLabel('Password',{exact:true}).fill(password);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/\/en\/mail$/);await expect(page.getByRole('button',{name:'Compose',exact:true})).toBeVisible();
+  const nextStep=()=>page.getByRole('button',{name:'Next',exact:true}).click();
+  await page.getByLabel('Last name (optional)').fill('Tester');await page.getByLabel('First name',{exact:true}).fill('Browser');await nextStep();
+  await page.getByLabel('Year',{exact:true}).fill('1990');await page.getByLabel('Month',{exact:true}).selectOption('5');await page.getByLabel('Day',{exact:true}).fill('17');await page.getByLabel('Gender',{exact:true}).selectOption('unspecified');await nextStep();
+  await page.getByLabel('Username',{exact:true}).fill(username);await expect(page.locator('.availability.available')).toBeVisible();await nextStep();
+  await page.getByLabel('Password',{exact:true}).fill(password);await page.getByLabel('Confirm password').fill(password);await nextStep();
+  await page.getByLabel('Recovery email (optional)').fill(recovery);await page.getByLabel('Phone number (optional)').fill('2025550123');await nextStep();
+  await expect(page.getByText(email,{exact:true})).toBeVisible();await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Create account',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Your account is ready'})).toBeVisible();await expect(page.getByText(email,{exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'Open mailbox',exact:true}).click();await expect(page).toHaveURL(/\/en\/mail$/);await expect(page.getByRole('button',{name:'Compose',exact:true})).toBeVisible();
+  const verify=stack.smtp.tokenFor(recovery,'verify');await page.goto(`/en/verify-email#token=${verify}`);await page.getByRole('button',{name:'Verify email',exact:true}).click();await expect(page.getByRole('status')).toContainText('Email verified');expect(page.url()).not.toContain(verify);
+  await page.goto('/en/mail');
   await page.reload();await expect(page.getByRole('button',{name:'Compose',exact:true})).toBeVisible();await expect(page.locator('.site-header').getByRole('link',{name:'Sign in',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Compose',exact:true}).click();await page.getByLabel('To',{exact:true}).fill('recipient@example.test');await page.getByLabel('Subject',{exact:true}).fill('Browser protocol test');await page.getByLabel('Message',{exact:true}).fill('Protocol simulator message');
   await page.getByLabel('Attach file',{exact:true}).setInputFiles({name:'note.txt',mimeType:'text/plain',buffer:Buffer.from('Browser attachment')});await expect(page.getByText('note.txt',{exact:false})).toBeVisible();
   await page.getByRole('button',{name:'Send',exact:true}).click();await expect(page.getByRole('status')).toContainText('accepted');
   await page.getByRole('button',{name:/^Sent/}).click();await expect(page.getByRole('button',{name:/Browser protocol test/})).toBeVisible();await page.getByRole('button',{name:/Browser protocol test/}).click();await expect(page.getByRole('heading',{name:'Browser protocol test'})).toBeVisible();
   await page.screenshot({path:`docs/evidence/platform/${testInfo.project.name}-mail.png`,fullPage:true});
-  await page.locator('.header-nav details').last().locator('summary').click();await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.goto('/en/forgot-password');await page.getByLabel('Email address',{exact:true}).fill(email);await page.getByRole('button',{name:'Reset password',exact:true}).click();await expect(page.getByRole('status')).toContainText('reset link');
-  const reset=stack.smtp.tokenFor(email,'reset');const next=randomBytes(18).toString('base64url');await page.goto(`/en/reset-password#token=${reset}`);await page.getByLabel('Password',{exact:true}).fill(next);await page.getByLabel('Confirm password').fill(next);await page.getByRole('button',{name:'Reset password',exact:true}).click();await expect(page.getByRole('status')).toContainText('Password updated');
-  await page.goto('/en/login?returnTo=https://attacker.invalid/');await page.getByLabel('Email address',{exact:true}).first().fill(email);await page.getByLabel('Password',{exact:true}).fill(next);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/127\.0\.0\.1:5173\/en\/mail$/);
+  await page.locator('.header-nav details').last().locator('summary').click();await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.goto('/en/forgot-password');await page.getByLabel('Email or username',{exact:true}).fill(username);await page.getByRole('button',{name:'Reset password',exact:true}).click();await expect(page.getByRole('status')).toContainText('reset link');
+  const reset=stack.smtp.tokenFor(recovery,'reset');const next=randomBytes(18).toString('base64url');await page.goto(`/en/reset-password#token=${reset}`);await page.getByLabel('Password',{exact:true}).fill(next);await page.getByLabel('Confirm password').fill(next);await page.getByRole('button',{name:'Reset password',exact:true}).click();await expect(page.getByRole('status')).toContainText('Password updated');
+  await page.goto('/en/login?returnTo=https://attacker.invalid/');await page.getByLabel('Email or username',{exact:true}).fill(username);await page.getByLabel('Password',{exact:true}).fill(next);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/127\.0\.0\.1:5173\/en\/mail$/);
 });
 
 test('responsive public routes do not overflow at required widths',async({page})=>{

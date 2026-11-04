@@ -10,19 +10,16 @@ test.beforeAll(async () => { test.setTimeout(60000); stack = await startStack({ 
 test.afterAll(async () => { if (stack) await stack.close(); });
 
 async function account(page) {
-  const email = `mail-ui-${randomBytes(6).toString('hex')}@example.test`;
+  // Hosted signup creates the mailbox (JMAP simulator) and the session in one request.
+  const username = `mail.ui.${randomBytes(4).toString('hex')}`;
   const password = randomBytes(18).toString('base64url');
+  await stack.pool.query('delete from webapp.rate_limits');
   const session = await page.request.get('/api/v2/session');
   const { csrf } = await session.json();
   const headers = { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': csrf };
-  const signup = await page.request.post('/api/v2/auth/signup', { headers, data: { email, password, displayName: 'Mail tester', locale: 'en', agree: true } });
-  expect(signup.status()).toBe(202);
-  const verify = await page.request.post('/api/v2/auth/verify', { headers, data: { token: stack.smtp.tokenFor(email, 'verify') } });
-  expect(verify.status()).toBe(200);
-  const provider = await stack.provision(email);
-  const login = await page.request.post('/api/v2/auth/login', { headers, data: { email, password } });
-  expect(login.status()).toBe(200);
-  return provider;
+  const signup = await page.request.post('/api/v2/auth/signup', { headers, data: { givenName: 'Mail', familyName: 'Tester', birthDate: '1990-01-01', gender: 'unspecified', username, password, locale: 'en', agree: true } });
+  expect(signup.status()).toBe(201);
+  return stack.jmap.mailboxFor(`${username}@openscanner.test`);
 }
 
 test('latest selected message wins and invalid provider dates do not crash the reader', async ({ page }, testInfo) => {

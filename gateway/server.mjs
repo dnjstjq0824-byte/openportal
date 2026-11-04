@@ -3,10 +3,11 @@ import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import pg from 'pg';
 import nodemailer from 'nodemailer';
-import { randomToken, digest, equal, hashPassword, verifyPassword } from './security.mjs';
+import { randomToken, digest, equal, hashPassword, verifyPassword, seal } from './security.mjs';
 import { emailText } from './translations.mjs';
 import { MailClient, MAX_ATTACHMENT, fail, withMessageLock } from './mail.mjs';
 import { braveSearch, bingSearch, hybridSearch } from './search.mjs';
+import { normalizeUsername, usernameProblem, usernameCandidates, normalizeDomain, parseProfile, displayNameFor } from './signup.mjs';
 
 export function configuration(env = process.env) {
   const origin = new URL(env.PUBLIC_ORIGIN || 'http://127.0.0.1:5173');
@@ -42,7 +43,9 @@ export function configuration(env = process.env) {
     if (!searchOptions.bingApproved) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=bing configured but BING_API_TERMS_APPROVED is not true');
     if (production) throw Error('Production SEARCH_PROVIDER=bing requires BING_SEARCH_API_KEY and BING_API_TERMS_APPROVED=true');
   }
-  return { ...searchOptions, origin: origin.origin, production, ingressSecret: env.GATEWAY_SHARED_SECRET, databaseURL: env.DATABASE_URL, port: Number(env.GATEWAY_PORT || 8090), host: env.GATEWAY_HOST || '127.0.0.1', searchURL: env.SEARCH_BACKEND_URL || 'http://127.0.0.1:8080', smtpHost: env.SMTP_HOST, smtpPort: Number(env.SMTP_PORT || 587), smtpUser: env.SMTP_USER, smtpPassword: env.SMTP_PASSWORD, smtpFrom: env.SMTP_FROM, smtpSecure: env.SMTP_SECURE === 'true', jmapURL, mailKey, clamHost: env.CLAMAV_HOST, clamPort: Number(env.CLAMAV_PORT || 3310), rateSecret: env.RATE_LIMIT_SECRET || randomToken() };
+  // Hosted mailbox domain for username@domain signup. Non-production defaults to the reserved .test TLD.
+  const mailDomain = env.MAIL_DOMAIN ? normalizeDomain(env.MAIL_DOMAIN) : (production ? null : 'openscanner.test');
+  return { ...searchOptions, mailDomain, origin: origin.origin, production, ingressSecret: env.GATEWAY_SHARED_SECRET, databaseURL: env.DATABASE_URL, port: Number(env.GATEWAY_PORT || 8090), host: env.GATEWAY_HOST || '127.0.0.1', searchURL: env.SEARCH_BACKEND_URL || 'http://127.0.0.1:8080', smtpHost: env.SMTP_HOST, smtpPort: Number(env.SMTP_PORT || 587), smtpUser: env.SMTP_USER, smtpPassword: env.SMTP_PASSWORD, smtpFrom: env.SMTP_FROM, smtpSecure: env.SMTP_SECURE === 'true', jmapURL, mailKey, clamHost: env.CLAMAV_HOST, clamPort: Number(env.CLAMAV_PORT || 3310), rateSecret: env.RATE_LIMIT_SECRET || randomToken() };
 }
 function cookieMap(req) { return Object.fromEntries(String(req.headers.cookie || '').split(';').map(x => x.trim().split('=')).filter(x => x.length === 2)); }
 async function readBody(req, max = 600000) {
@@ -64,6 +67,9 @@ const selectLocale = value => ['ko','th','en'].includes(value) ? value : 'en';
 
 export async function createGateway(config, dependencies = {}) {
   const pool = dependencies.pool || new pg.Pool({ connectionString: config.databaseURL, max: 10 });
+  // Mailbox provisioner: { createMailbox({address,displayName}) -> {token}, deleteMailbox({address}) }.
+  // No production adapter exists yet, so hosted signup fails closed unless one is injected.
+  const provisioner = dependencies.provisioner || null;
   const sender = dependencies.sender || (config.smtpHost && config.smtpFrom ? nodemailer.createTransport({ host: config.smtpHost, port: config.smtpPort, secure: config.smtpSecure, requireTLS: config.production && !config.smtpSecure, auth: config.smtpUser ? { user: config.smtpUser, pass: config.smtpPassword } : undefined, connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 12000, logger: false, debug: false }) : null);
   config={...config,...(config.searchProvider?{}:{searchProvider:'opensearch'})};
   const dummy = await hashPassword(randomToken());
@@ -80,17 +86,28 @@ export async function createGateway(config, dependencies = {}) {
   }
   async function user(req) {
     const token = cookieMap(req)[sessionName]; if (!token) return null;
-    const result = await pool.query('update webapp.sessions s set last_seen_at=now() from webapp.accounts a where s.account_id=a.id and s.token_hash=$1 and s.expires_at>now() and s.last_seen_at>now()-interval \'30 minutes\' and a.verified_at is not null returning a.id,a.email,a.display_name,a.locale,s.expires_at', [digest(token)]);
+    const result = await pool.query('update webapp.sessions s set last_seen_at=now() from webapp.accounts a where s.account_id=a.id and s.token_hash=$1 and s.expires_at>now() and s.last_seen_at>now()-interval \'30 minutes\' and a.verified_at is not null returning a.id,a.email,a.display_name,a.locale,a.username,a.recovery_email,(a.recovery_email_verified_at is not null) as recovery_email_verified,s.expires_at', [digest(token)]);
     return result.rows[0] || null;
   }
-  async function sendAction(account, purpose) {
+  async function startSession(res, accountId) {
+    const token = randomToken();
+    await pool.query('insert into webapp.sessions(token_hash,account_id,expires_at) values($1,$2,now()+interval \'7 days\')', [digest(token), accountId]);
+    res.setHeader('Set-Cookie', cookie(sessionName, token, 7 * 86400));
+  }
+  // Hosted accounts sign in with "username" or "username@domain"; legacy accounts use their email.
+  const loginAddress = value => {
+    const input = String(value || '').trim().toLowerCase();
+    if (!input.includes('@') && config.mailDomain) { const name = normalizeUsername(input); if (usernameProblem(name) === 'format') throw fail('INVALID_INPUT'); return `${name}@${config.mailDomain}`; }
+    return normalizeEmail(input);
+  };
+  async function sendAction(account, purpose, to = account.email) {
     if (!sender) throw fail('EMAIL_NOT_CONFIGURED', 503);
     const token = randomToken();
     await pool.query('insert into webapp.action_tokens(token_hash,account_id,purpose,expires_at) values($1,$2,$3,now()+interval \'30 minutes\')', [digest(token), account.id, purpose]);
     const strings = emailText[account.locale];
     const link = `${config.origin}/${account.locale}/${purpose === 'verify' ? 'verify-email' : 'reset-password'}#token=${token}`;
     try {
-      const result = await sender.sendMail({ from: config.smtpFrom, to: account.email, subject: strings[purpose], text: `${strings[purpose + 'Body']}\n\n${link}` });
+      const result = await sender.sendMail({ from: config.smtpFrom, to, subject: strings[purpose], text: `${strings[purpose + 'Body']}\n\n${link}` });
       if (!result.accepted?.length) throw Error();
     } catch {
       await pool.query('delete from webapp.action_tokens where token_hash=$1', [digest(token)]);
@@ -105,7 +122,8 @@ export async function createGateway(config, dependencies = {}) {
       const result = await connection.query('delete from webapp.action_tokens where token_hash=$1 and purpose=$2 and expires_at>now() returning account_id', [digest(body.token), purpose]);
       if (!result.rows.length) throw fail('INVALID_TOKEN');
       const id = result.rows[0].account_id;
-      if (purpose === 'verify') await connection.query('update webapp.accounts set verified_at=now() where id=$1', [id]);
+      // Hosted accounts are active at creation; "verify" confirms their recovery email.
+      if (purpose === 'verify') await connection.query('update webapp.accounts set verified_at=coalesce(verified_at,now()),recovery_email_verified_at=case when recovery_email is not null then now() else recovery_email_verified_at end where id=$1', [id]);
       else {
         await connection.query('update webapp.accounts set password_hash=$1 where id=$2', [passwordHash, id]);
         await connection.query('delete from webapp.sessions where account_id=$1', [id]);
@@ -125,7 +143,7 @@ export async function createGateway(config, dependencies = {}) {
       if (path === '/healthz') return respond(200, { status: 'ok' });
       if(config.production&&!equal(config.ingressSecret,req.headers['x-gateway-key']))throw fail('NOT_FOUND',404);
       if(config.production)req.clientIp=String(req.headers['x-gateway-client-ip']||req.socket.remoteAddress).slice(0,80);
-      if (path === '/readyz') { await pool.query('select 1'); return respond(200, { status: 'ready', smtpConfigured: !!sender, mailConfigured: !!config.jmapURL }); }
+      if (path === '/readyz') { await pool.query('select 1'); return respond(200, { status: 'ready', smtpConfigured: !!sender, mailConfigured: !!config.jmapURL, mailProvisioning: !!(provisioner && config.mailDomain) }); }
       if(path==='/metrics'&&req.method==='GET'){
         let output='';for(const[key,value]of metrics){const[family,status]=key.split(':');output+=`openportal_requests_total{family="${family}",status="${status}"} ${value.count}\nopenportal_request_duration_seconds_sum{family="${family}",status="${status}"} ${value.milliseconds/1000}\n`;}
         res.writeHead(200,{'Content-Type':'text/plain; version=0.0.4'});return res.end(output);
@@ -141,43 +159,84 @@ export async function createGateway(config, dependencies = {}) {
         const csrf = /^[A-Za-z0-9_-]{43}$/.test(previousCSRF||'')?previousCSRF:randomToken(); res.setHeader('Set-Cookie', cookie(csrfName, csrf, 3600));
         return respond(200, { user: await user(req), csrf });
       }
+      if (path === '/api/v2/auth/username' && req.method === 'GET') {
+        await rate(req, 'username-check', 60, 900);
+        if (!config.mailDomain) throw fail('MAIL_PROVISIONING_UNAVAILABLE', 503);
+        const username = normalizeUsername(url.searchParams.get('name')); const problem = usernameProblem(username);
+        if (problem) return respond(200, { available: false, reason: problem, domain: config.mailDomain, suggestions: [] });
+        const address = `${username}@${config.mailDomain}`;
+        const taken = (await pool.query('select 1 from webapp.accounts where email=$1 or username=$2', [address, username])).rowCount > 0;
+        let suggestions = [];
+        if (taken) {
+          const candidates = usernameCandidates(username, 6);
+          const used = new Set((await pool.query('select username from webapp.accounts where username = any($1)', [candidates])).rows.map(row => row.username));
+          suggestions = candidates.filter(name => !used.has(name)).slice(0, 3);
+        }
+        return respond(200, { available: !taken, reason: taken ? 'taken' : null, address, domain: config.mailDomain, suggestions });
+      }
       if (path === '/api/v2/auth/signup' && req.method === 'POST') {
-        const body = await readJSON(req); const email = normalizeEmail(body.email);
-        await rate(req, 'signup', 5, 3600); await rate(req, 'send', 3, 3600, email);
-        if (!sender) throw fail('EMAIL_NOT_CONFIGURED', 503);
+        const body = await readJSON(req);
+        await rate(req, 'signup', 5, 3600);
+        if (!config.mailDomain || !provisioner || !config.mailKey) throw fail('MAIL_PROVISIONING_UNAVAILABLE', 503);
+        if (body.agree !== true) throw fail('INVALID_INPUT');
+        const username = normalizeUsername(body.username); const problem = usernameProblem(username);
+        if (problem) throw fail(problem === 'reserved' ? 'USERNAME_RESERVED' : 'INVALID_USERNAME');
+        const profile = parseProfile(body, normalizeEmail, config.mailDomain);
         const passwordHash = await hashPassword(body.password);
-        const displayName = String(body.displayName || '').trim().slice(0,80);
-        if (!displayName || body.agree !== true) throw fail('INVALID_INPUT');
-        const result = await pool.query('insert into webapp.accounts(email,display_name,password_hash,locale) values($1,$2,$3,$4) on conflict(email) do nothing returning id,email,locale', [email,displayName,passwordHash,selectLocale(body.locale)]);
-        if (result.rows[0]) await sendAction(result.rows[0], 'verify');
-        return respond(202, { accepted: true });
+        const locale = selectLocale(body.locale); const address = `${username}@${config.mailDomain}`; const displayName = displayNameFor(profile, locale);
+        // Account row and mailbox are created together: any failure rolls back the row and deletes the mailbox.
+        const connection = await pool.connect(); let mailboxCreated = false, accountId;
+        try {
+          await connection.query('begin');
+          const inserted = await connection.query('insert into webapp.accounts(email,username,display_name,password_hash,locale,verified_at,given_name,family_name,birth_date,gender,gender_custom,pronoun,recovery_email,recovery_phone) values($1,$2,$3,$4,$5,now(),$6,$7,$8,$9,$10,$11,$12,$13) on conflict do nothing returning id',
+            [address, username, displayName, passwordHash, locale, profile.givenName, profile.familyName, profile.birthDate, profile.gender, profile.genderCustom, profile.pronoun, profile.recoveryEmail, profile.recoveryPhone]);
+          if (!inserted.rows.length) throw fail('USERNAME_TAKEN', 409);
+          accountId = inserted.rows[0].id;
+          let mailbox;
+          try { mailbox = await provisioner.createMailbox({ address, displayName }); } catch { throw fail('MAIL_PROVISIONING_FAILED', 502); }
+          mailboxCreated = true;
+          if (!mailbox || typeof mailbox.token !== 'string' || !mailbox.token) throw fail('MAIL_PROVISIONING_FAILED', 502);
+          await connection.query('insert into webapp.mail_connections(account_id,token_ciphertext) values($1,$2)', [accountId, seal(mailbox.token, config.mailKey)]);
+          await connection.query('commit');
+        } catch (error) {
+          await connection.query('rollback');
+          if (mailboxCreated) { try { await provisioner.deleteMailbox({ address }); } catch { console.error(JSON.stringify({ event: 'mailbox_compensation_failed', requestId, code: 'ORPHAN_MAILBOX' })); } }
+          throw error;
+        } finally { connection.release(); }
+        await startSession(res, accountId);
+        let recoveryEmail = profile.recoveryEmail ? 'not_sent' : 'none';
+        if (profile.recoveryEmail && sender) {
+          try { await rate(req, 'send', 3, 3600, profile.recoveryEmail); await sendAction({ id: accountId, locale }, 'verify', profile.recoveryEmail); recoveryEmail = 'sent'; } catch { /* account stays usable; resend from the account page */ }
+        }
+        return respond(201, { created: true, email: address, recoveryEmail });
       }
       if (path === '/api/v2/auth/resend' && req.method === 'POST') {
-        const body = await readJSON(req); const email = normalizeEmail(body.email);
-        await rate(req,'send',3,3600,email);
-        if (!sender) throw fail('EMAIL_NOT_CONFIGURED',503);
-        const account = (await pool.query('select id,email,locale from webapp.accounts where email=$1 and verified_at is null', [email])).rows[0];
-        if (account) await sendAction(account,'verify');
-        return respond(202,{accepted:true});
+        // Re-sends the recovery-email confirmation for the signed-in account.
+        const account = await user(req); if (!account) throw fail('SESSION_REQUIRED', 401);
+        if (!account.recovery_email || account.recovery_email_verified) return respond(202, { accepted: true });
+        await rate(req, 'send', 3, 3600, account.recovery_email);
+        if (!sender) throw fail('EMAIL_NOT_CONFIGURED', 503);
+        await sendAction(account, 'verify', account.recovery_email);
+        return respond(202, { accepted: true });
       }
       if (path === '/api/v2/auth/verify' && req.method === 'POST') { await rate(req,'verify',10); await consumeToken(await readJSON(req),'verify'); return respond(200,{verified:true}); }
       if (path === '/api/v2/auth/forgot-password' && req.method === 'POST') {
-        const body = await readJSON(req); const email = normalizeEmail(body.email); await rate(req,'send',3,3600,email);
+        const body = await readJSON(req); const email = loginAddress(body.email ?? body.identifier); await rate(req,'send',3,3600,email);
         if (!sender) throw fail('EMAIL_NOT_CONFIGURED',503);
-        const account = (await pool.query('select id,email,locale from webapp.accounts where email=$1 and verified_at is not null',[email])).rows[0];
-        if (account) await sendAction(account,'reset');
+        const account = (await pool.query('select id,email,locale,username,recovery_email,recovery_email_verified_at from webapp.accounts where email=$1 and verified_at is not null',[email])).rows[0];
+        // Hosted mailboxes cannot receive their own reset while locked out: use the verified recovery email.
+        const destination = !account ? null : account.username ? (account.recovery_email_verified_at ? account.recovery_email : null) : account.email;
+        if (destination) await sendAction(account,'reset',destination);
         return respond(202,{accepted:true});
       }
       if (path === '/api/v2/auth/reset-password' && req.method === 'POST') { await rate(req,'reset',10); const body = await readJSON(req); const passwordHash = await hashPassword(body.password); await consumeToken(body,'reset',passwordHash); res.setHeader('Set-Cookie',cookie(sessionName,'',0)); return respond(200,{reset:true}); }
       if (path === '/api/v2/auth/login' && req.method === 'POST') {
-        const body = await readJSON(req); const email = normalizeEmail(body.email);
+        const body = await readJSON(req); const email = loginAddress(body.email ?? body.identifier);
         await rate(req,'login',20); await rate(req,'login-email',8,900,email);
         const account = (await pool.query('select * from webapp.accounts where email=$1',[email])).rows[0];
         const valid = await verifyPassword(body.password,account?.password_hash || dummy);
         if (!account || !valid || !account.verified_at) throw fail('INVALID_CREDENTIALS',401);
-        const token = randomToken();
-        await pool.query('insert into webapp.sessions(token_hash,account_id,expires_at) values($1,$2,now()+interval \'7 days\')',[digest(token),account.id]);
-        res.setHeader('Set-Cookie',cookie(sessionName,token,7*86400)); return respond(200,{authenticated:true});
+        await startSession(res, account.id); return respond(200,{authenticated:true});
       }
       if (path === '/api/v2/auth/logout' && req.method === 'POST') {
         await pool.query('delete from webapp.sessions where token_hash=$1',[digest(cookieMap(req)[sessionName] || '')]);
@@ -259,7 +318,10 @@ export async function createGateway(config, dependencies = {}) {
         await rate(req,'delete',5); if (!await verifyPassword(body.password,stored.password_hash)) throw fail('INVALID_CREDENTIALS',401);
         // Provider mailbox deletion requires provider-specific operations. Do not
         // erase the link and falsely claim downstream data was deleted.
-        if ((await pool.query('select 1 from webapp.mail_connections where account_id=$1',[account.id])).rows.length) throw fail('PROVIDER_DELETION_REQUIRED',409);
+        if ((await pool.query('select 1 from webapp.mail_connections where account_id=$1',[account.id])).rows.length) {
+          if (!provisioner || !account.username) throw fail('PROVIDER_DELETION_REQUIRED',409);
+          try { await provisioner.deleteMailbox({ address: account.email }); } catch { throw fail('PROVIDER_DELETION_FAILED',502); }
+        }
         await pool.query('delete from webapp.accounts where id=$1',[account.id]); res.setHeader('Set-Cookie',cookie(sessionName,'',0)); return respond(200,{deleted:true});
       }
       if (path.startsWith('/api/v2/mail/')) {

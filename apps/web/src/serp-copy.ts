@@ -1,0 +1,44 @@
+import type { Locale } from './i18n';
+
+const en = {
+  web: 'Web', verticals: 'Search types', about: 'About {n} results', exact: '{n} results', seconds: '({s} seconds)', pageOf: 'Page {n}',
+  loading: 'Searching…', endOfResults: 'You have reached the end of the results.',
+  noResultsLead: 'No documents matched “{q}”.', tryInstead: 'Try one of these', searchOnly: 'Search only “{w}”', relaxSafe: 'Set SafeSearch to Moderate', didYouMean: 'Did you mean',
+  noMoreTitle: 'No more results on this page', noMoreBody: 'Results for this search end before page {n}.', firstPage: 'Back to page 1',
+  emptyTitle: 'Enter something to search', emptyBody: 'Type a word, a question or a site name in the box above.',
+  offlineTitle: 'You are offline', offlineBody: 'Check your internet connection. The search runs again automatically when you are back online.',
+  rateTitle: 'Too many searches in a short time', rateBody: 'Please wait a moment before searching again. This limit protects the service from automated traffic.',
+  timeoutTitle: 'The search is taking too long', timeoutBody: 'The search source did not respond in time. Try again, or use fewer words.',
+  invalidTitle: 'Check your search', invalidBody: 'The search is too long or the page number is out of range. Shorten it and try again.',
+  unavailableTitle: 'Search is temporarily unavailable', unavailableBody: 'We could not reach the search source. Your query was not lost; try again in a moment.',
+  errorCode: 'Error code', retry: 'Try again', home: 'Go to home', tips: 'Search tips',
+};
+type SerpCopy = { [K in keyof typeof en]: string };
+const ko: SerpCopy = {
+  web: '웹', verticals: '검색 유형', about: '검색 결과 약 {n}개', exact: '검색 결과 {n}개', seconds: '({s}초)', pageOf: '{n}페이지',
+  loading: '검색 중…', endOfResults: '마지막 검색 결과입니다.',
+  noResultsLead: '‘{q}’와(과) 일치하는 문서를 찾지 못했습니다.', tryInstead: '이렇게 검색해 보세요', searchOnly: '‘{w}’만 검색', relaxSafe: '세이프서치를 보통으로 변경', didYouMean: '이것을 찾으셨나요?',
+  noMoreTitle: '이 페이지에는 더 이상 결과가 없습니다', noMoreBody: '이 검색어의 결과는 {n}페이지 전에 끝납니다.', firstPage: '1페이지로 이동',
+  emptyTitle: '검색어를 입력하세요', emptyBody: '위 검색창에 단어, 질문 또는 사이트 이름을 입력하세요.',
+  offlineTitle: '인터넷에 연결되어 있지 않습니다', offlineBody: '네트워크 연결을 확인하세요. 다시 연결되면 자동으로 검색합니다.',
+  rateTitle: '짧은 시간에 검색이 너무 많습니다', rateBody: '잠시 후 다시 검색하세요. 자동화된 요청으로부터 서비스를 보호하기 위한 제한입니다.',
+  timeoutTitle: '검색 응답이 늦어지고 있습니다', timeoutBody: '검색 공급원이 제때 응답하지 않았습니다. 다시 시도하거나 검색어를 줄여 보세요.',
+  invalidTitle: '검색어를 확인하세요', invalidBody: '검색어가 너무 길거나 페이지 번호가 범위를 벗어났습니다. 줄여서 다시 시도하세요.',
+  unavailableTitle: '검색 서비스를 일시적으로 사용할 수 없습니다', unavailableBody: '검색 공급원에 연결하지 못했습니다. 입력한 검색어는 그대로 있으니 잠시 후 다시 시도하세요.',
+  errorCode: '오류 코드', retry: '다시 시도', home: '홈으로', tips: '검색 도움말',
+};
+const th: SerpCopy = {
+  web: 'เว็บ', verticals: 'ประเภทการค้นหา', about: 'ประมาณ {n} ผลลัพธ์', exact: '{n} ผลลัพธ์', seconds: '({s} วินาที)', pageOf: 'หน้า {n}',
+  loading: 'กำลังค้นหา…', endOfResults: 'นี่คือผลการค้นหาสุดท้าย',
+  noResultsLead: 'ไม่พบเอกสารที่ตรงกับ “{q}”', tryInstead: 'ลองค้นหาแบบนี้', searchOnly: 'ค้นหาเฉพาะ “{w}”', relaxSafe: 'ตั้งค่าค้นหาปลอดภัยเป็นปานกลาง', didYouMean: 'คุณหมายถึง',
+  noMoreTitle: 'ไม่มีผลลัพธ์เพิ่มเติมในหน้านี้', noMoreBody: 'ผลการค้นหานี้สิ้นสุดก่อนหน้า {n}', firstPage: 'กลับไปหน้า 1',
+  emptyTitle: 'ป้อนสิ่งที่ต้องการค้นหา', emptyBody: 'พิมพ์คำ คำถาม หรือชื่อเว็บไซต์ในช่องด้านบน',
+  offlineTitle: 'คุณออฟไลน์อยู่', offlineBody: 'ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต ระบบจะค้นหาอีกครั้งโดยอัตโนมัติเมื่อกลับมาออนไลน์',
+  rateTitle: 'ค้นหาบ่อยเกินไปในเวลาสั้นๆ', rateBody: 'โปรดรอสักครู่ก่อนค้นหาอีกครั้ง ข้อจำกัดนี้ช่วยป้องกันบริการจากการใช้งานอัตโนมัติ',
+  timeoutTitle: 'การค้นหาใช้เวลานานเกินไป', timeoutBody: 'แหล่งค้นหาไม่ตอบสนองทันเวลา ลองอีกครั้งหรือใช้คำน้อยลง',
+  invalidTitle: 'ตรวจสอบคำค้นหา', invalidBody: 'คำค้นยาวเกินไปหรือหมายเลขหน้าไม่ถูกต้อง โปรดย่อแล้วลองอีกครั้ง',
+  unavailableTitle: 'บริการค้นหาไม่พร้อมใช้งานชั่วคราว', unavailableBody: 'เชื่อมต่อแหล่งค้นหาไม่ได้ คำค้นของคุณยังอยู่ โปรดลองอีกครั้งในอีกสักครู่',
+  errorCode: 'รหัสข้อผิดพลาด', retry: 'ลองอีกครั้ง', home: 'ไปหน้าหลัก', tips: 'เคล็ดลับการค้นหา',
+};
+export const serpMessages: Record<Locale, SerpCopy> = { en, ko, th };
+export const fill = (template: string, values: Record<string, string | number>) => template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));

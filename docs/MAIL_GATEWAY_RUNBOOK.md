@@ -60,6 +60,7 @@ npm.cmd run dev --prefix apps/web
 | 검색 | `SEARCH_PROVIDER` | 현재 소스의 제공자 선택 설정. API별 계약·할당량·과금과 실제 접속은 별도 검증해야 한다. |
 | SMTP | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | 실제 인증메일 SMTP 서버. 465의 implicit TLS 사용 시 secure=true, STARTTLS 방식은 제공업체 설정에 따른다. 운영에서는 TLS가 필요하다. |
 | SMTP | `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | 발송 계정과 허가된 발신 주소. 계정 발급·도메인 인증은 제공업체 설정이다. |
+| 메일 | `MAIL_DOMAIN` | 가입 시 생성하는 `아이디@도메인`의 도메인. 비운영 기본값은 예약 TLD인 `openscanner.test`. 운영에서는 소유·DNS 설정을 마친 도메인을 명시해야 한다. 메일함 생성 어댑터(`createGateway` 의 `provisioner`)가 없으면 가입은 `MAIL_PROVISIONING_UNAVAILABLE`로 거부된다. |
 | 메일 | `MAIL_JMAP_URL` | HTTPS JMAP session URL. 현재 어댑터는 session/API/upload/download가 같은 origin인 제공업체를 요구한다. |
 | 메일 | `MAIL_ENCRYPTION_KEY` | base64로 인코딩한 32바이트 키. DB에 저장하는 메일함 토큰을 암호화한다. 안전하게 백업하고 무작정 교체하지 않는다. |
 | 검사 | `CLAMAV_HOST`, `CLAMAV_PORT` | 실제 ClamAV INSTREAM 검사기. 기본 포트 3310. |

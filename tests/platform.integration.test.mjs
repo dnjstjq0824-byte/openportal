@@ -8,27 +8,69 @@ import {createGateway} from '../gateway/server.mjs';
 import {safeReturn} from '../gateway/security.mjs';
 
 let stack,base,csrf,cookies='';const origin='http://127.0.0.1:5173';
-const email='integration@example.test';const password=randomBytes(18).toString('base64url');
-async function api(path,body,method=body?'POST':'GET',extra={}){
-  const response=await fetch(base+'/api/v2'+path,{method,headers:{cookie:cookies,origin,'x-csrf-token':csrf||'','content-type':'application/json',...extra},body:body?JSON.stringify(body):undefined});
+const username='integration.user';const email=`${username}@openscanner.test`;const recovery='owner@example.test';
+let password=randomBytes(18).toString('base64url');
+const profile=(overrides={})=>({givenName:'통합',familyName:'테스트',birthDate:'1990-05-17',gender:'custom',genderCustom:'Non-binary',pronoun:'other',username,password,recoveryEmail:recovery,recoveryPhone:'+82 10-1234-5678',locale:'ko',agree:true,...overrides});
+async function api(path,body,method=body?'POST':'GET',extra={},target=base){
+  const response=await fetch(target+'/api/v2'+path,{method,headers:{cookie:cookies,origin,'x-csrf-token':csrf||'','content-type':'application/json',...extra},body:body?JSON.stringify(body):undefined});
   for(const cookie of response.headers.getSetCookie()){const part=cookie.split(';')[0];const name=part.split('=')[0];cookies=cookies.split('; ').filter(x=>x&&!x.startsWith(name+'=')).concat(part).join('; ');}
   const data=await response.json();return {status:response.status,data,response};
 }
+const resetLimits=()=>stack.pool.query('delete from webapp.rate_limits');
+const yearsAgo=years=>{const d=new Date();d.setUTCFullYear(d.getUTCFullYear()-years);return d.toISOString().slice(0,10);};
 before(async()=>{stack=await startStack({gatewayPort:0});base=`http://127.0.0.1:${stack.gateway.server.address().port}`;csrf=(await api('/session')).data.csrf;});
 after(async()=>{if(stack)await stack.close();});
-test('registration persists a scrypt hash and sends a token only through real loopback SMTP',async()=>{
-  const result=await api('/auth/signup',{email,password,displayName:'Integration',locale:'ko',agree:true});assert.equal(result.status,202);assert.deepEqual(result.data,{accepted:true});
-  const account=(await stack.pool.query('select * from webapp.accounts where email=$1',[email])).rows[0];assert.match(account.password_hash,/^scrypt\$32768\$/);assert.ok(!account.password_hash.includes(password));assert.equal(account.verified_at,null);assert.equal(stack.smtp.messages.length,1);
-  assert.equal((await api('/auth/login',{email,password})).status,401);
+test('hosted signup creates the account and username@domain mailbox together and signs in',async()=>{
+  const check=await api('/auth/username?name='+encodeURIComponent('Integration.User'));assert.equal(check.status,200);assert.equal(check.data.available,true);assert.equal(check.data.address,email);
+  const result=await api('/auth/signup',profile());assert.equal(result.status,201);assert.deepEqual(result.data,{created:true,email,recoveryEmail:'sent'});
+  assert.match(result.response.headers.get('set-cookie'),/HttpOnly/);assert.ok(!('token' in result.data));
+  const account=(await stack.pool.query('select * from webapp.accounts where email=$1',[email])).rows[0];
+  assert.match(account.password_hash,/^scrypt\$32768\$/);assert.ok(!account.password_hash.includes(password));assert.ok(account.verified_at);
+  assert.equal(account.username,username);assert.equal(account.display_name,'테스트통합');assert.equal(account.gender,'custom');assert.equal(account.gender_custom,'Non-binary');assert.equal(account.pronoun,'other');
+  assert.equal(account.recovery_phone,'+821012345678');assert.equal(account.recovery_email,recovery);assert.equal(account.recovery_email_verified_at,null);
+  assert.equal((await stack.pool.query('select 1 from webapp.mail_connections where account_id=$1',[account.id])).rowCount,1);assert.ok(stack.jmap.mailboxFor(email));
+  assert.equal(stack.smtp.messages.length,1);assert.equal(stack.smtp.messages[0].to,recovery);
+  const current=await api('/session');csrf=current.data.csrf;assert.equal(current.data.user.email,email);assert.equal(current.data.user.username,username);assert.equal(current.data.user.recovery_email_verified,false);
+  const taken=await api('/auth/username?name='+username);assert.equal(taken.data.available,false);assert.equal(taken.data.reason,'taken');assert.ok(taken.data.suggestions.length>0);
+  const duplicate=await api('/auth/signup',profile());assert.equal(duplicate.status,409);assert.equal(duplicate.data.code,'USERNAME_TAKEN');
 });
-test('verification tokens are one-time; login sets HttpOnly SameSite cookies',async()=>{
-  const token=stack.smtp.tokenFor(email,'verify');assert.equal((await api('/auth/verify',{token})).status,200);assert.equal((await api('/auth/verify',{token})).status,400);
-  const login=await api('/auth/login',{email,password});assert.equal(login.status,200);const cookie=login.response.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/SameSite=Lax/);assert.ok(!('token'in login.data));
-  const current=await api('/session');csrf=current.data.csrf;assert.equal(current.data.user.email,email);
+test('signup validation: reserved/format usernames, minimum age, consent and recovery domain create nothing',async()=>{
+  await resetLimits();const before=(await stack.pool.query('select count(*)::int as n from webapp.accounts')).rows[0].n;
+  assert.equal((await api('/auth/username?name=postmaster')).data.reason,'reserved');assert.equal((await api('/auth/username?name=ab')).data.reason,'format');
+  assert.equal((await api('/auth/signup',profile({username:'postmaster'}))).data.code,'USERNAME_RESERVED');
+  assert.equal((await api('/auth/signup',profile({username:'bad..name'}))).data.code,'INVALID_USERNAME');
+  const young=await api('/auth/signup',profile({username:'young.person',birthDate:yearsAgo(13)}));assert.equal(young.status,403);assert.equal(young.data.code,'AGE_REQUIREMENT');
+  assert.equal((await api('/auth/signup',profile({username:'no.consent',agree:false}))).data.code,'INVALID_INPUT');
+  await resetLimits();
+  assert.equal((await api('/auth/signup',profile({username:'same.domain',recoveryEmail:'x@openscanner.test'}))).data.code,'RECOVERY_EMAIL_SAME_DOMAIN');
+  assert.equal((await api('/auth/signup',profile({username:'bad.phone',recoveryPhone:'12345'}))).data.code,'INVALID_PHONE');
+  assert.equal((await api('/auth/signup',profile({username:'no.gender',gender:'custom',genderCustom:''}))).data.code,'INVALID_INPUT');
+  assert.equal((await stack.pool.query('select count(*)::int as n from webapp.accounts')).rows[0].n,before);
 });
-test('cross-origin mutations are rejected and unconfigured mail does not invent messages',async()=>{
+test('mailbox provisioning failure rolls back the account; no provisioner fails closed',async()=>{
+  await resetLimits();stack.provisioner.failNext=true;
+  const failed=await api('/auth/signup',profile({username:'rollback.user'}));assert.equal(failed.status,502);assert.equal(failed.data.code,'MAIL_PROVISIONING_FAILED');
+  assert.equal((await stack.pool.query('select 1 from webapp.accounts where username=$1',['rollback.user'])).rowCount,0);
+  const closed=await createGateway(stack.config,{pool:stack.pool});const port=await listen(closed.server);
+  try{const response=await api('/auth/signup',profile({username:'closed.user'}),'POST',{},`http://127.0.0.1:${port}`);assert.equal(response.status,503);assert.equal(response.data.code,'MAIL_PROVISIONING_UNAVAILABLE');}
+  finally{await closed.close();}
+  assert.equal((await stack.pool.query('select 1 from webapp.accounts where username=$1',['closed.user'])).rowCount,0);
+});
+test('recovery email verification is one-time; login accepts the username or the full address',async()=>{
+  await resetLimits();const token=stack.smtp.tokenFor(recovery,'verify');assert.equal((await api('/auth/verify',{token})).status,200);assert.equal((await api('/auth/verify',{token})).status,400);
+  assert.ok((await stack.pool.query('select recovery_email_verified_at from webapp.accounts where email=$1',[email])).rows[0].recovery_email_verified_at);
+  for(const identifier of [username,email.toUpperCase()]){
+    assert.equal((await api('/auth/logout',{})).status,200);
+    const login=await api('/auth/login',{email:identifier,password});assert.equal(login.status,200);const cookie=login.response.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/SameSite=Lax/);
+  }
+  const current=await api('/session');csrf=current.data.csrf;assert.equal(current.data.user.email,email);assert.equal(current.data.user.recovery_email_verified,true);
+});
+test('cross-origin mutations are rejected and a missing mail connection does not invent messages',async()=>{
   assert.equal((await api('/auth/logout',{},'POST',{origin:'https://attacker.invalid'})).status,403);
-  const result=await api('/mail/mailboxes');assert.equal(result.status,503);assert.equal(result.data.code,'MAIL_NOT_PROVISIONED');
+  const account=(await stack.pool.query('select id from webapp.accounts where email=$1',[email])).rows[0];
+  const saved=(await stack.pool.query('delete from webapp.mail_connections where account_id=$1 returning token_ciphertext',[account.id])).rows[0];
+  try{const result=await api('/mail/mailboxes');assert.equal(result.status,503);assert.equal(result.data.code,'MAIL_NOT_PROVISIONED');}
+  finally{await stack.pool.query('insert into webapp.mail_connections(account_id,token_ciphertext) values($1,$2)',[account.id,saved.token_ciphertext]);}
 });
 test('session rotation revokes the previous cookie and state survives gateway restart',async()=>{
   const old=cookies;assert.equal((await api('/auth/refresh',{})).status,200);assert.notEqual(cookies,old);
@@ -38,7 +80,7 @@ test('session rotation revokes the previous cookie and state survives gateway re
 });
 let provider,messageId;
 test('JMAP protocol simulator: folder/read/update/draft/send and HTML isolation',async()=>{
-  provider=await stack.provision(email);messageId=stack.jmap.receive(provider.token,{});
+  provider=stack.jmap.mailboxFor(email);messageId=stack.jmap.receive(provider.token,{});
   const boxes=await api('/mail/mailboxes');assert.equal(boxes.status,200);assert.equal(boxes.data.mailboxes.length,6);
   const list=await api(`/mail/messages?mailbox=${provider.id}-inbox`);assert.equal(list.data.messages[0].id,messageId);
   const message=await api('/mail/messages/'+messageId);assert.equal(message.status,200);assert.doesNotMatch(message.data.html,/script|img|tracker/);assert.match(message.data.html,/<p>Hello<\/p>/);
@@ -100,17 +142,19 @@ test('scanned upload is account-bound; ungranted blobs cannot be attached',async
   const download=await fetch(base+`/api/v2/mail/attachments/${draft.data.id}/${uploaded.blobId}`,{headers:{cookie:cookies}});assert.equal(download.status,200);assert.equal(await download.text(),'Attachment protocol fixture');assert.match(download.headers.get('content-disposition'),/attachment/);
   assert.equal((await api('/mail/drafts',{to:'recipient@example.test',attachments:[{blobId:'foreign'}]})).status,422);
 });
-test('reset invalidates existing sessions and rejects weak-password token consumption',async()=>{
-  assert.equal((await api('/auth/forgot-password',{email})).status,202);const token=stack.smtp.tokenFor(email,'reset');
+test('reset goes to the verified recovery email, invalidates sessions and rejects weak passwords',async()=>{
+  await resetLimits();assert.equal((await api('/auth/forgot-password',{email:username})).status,202);const token=stack.smtp.tokenFor(recovery,'reset');
   assert.equal((await api('/auth/reset-password',{token,password:'short'})).status,400);
   const next=randomBytes(18).toString('base64url');assert.equal((await api('/auth/reset-password',{token,password:next})).status,200);
   const current=await api('/session');csrf=current.data.csrf;assert.equal(current.data.user,null);
   assert.equal((await api('/auth/login',{email,password})).status,401);
-  assert.equal((await api('/auth/login',{email,password:next})).status,200);
+  assert.equal((await api('/auth/login',{email:username,password:next})).status,200);password=next;
+  csrf=(await api('/session')).data.csrf;
 });
 test('generic account responses, login throttling and redirect rejection',async()=>{
-  const existing=await api('/auth/signup',{email,password,displayName:'Existing',locale:'ko',agree:true});assert.equal(existing.status,202);assert.deepEqual(existing.data,{accepted:true});
+  await resetLimits();const sentBefore=stack.smtp.messages.length;
   assert.deepEqual((await api('/auth/forgot-password',{email:'missing@example.test'})).data,{accepted:true});
+  assert.deepEqual((await api('/auth/forgot-password',{email:'nobody.here'})).data,{accepted:true});assert.equal(stack.smtp.messages.length,sentBefore);
   for(let i=0;i<9;i++)await api('/auth/login',{email:'unknown@example.test',password});
   assert.equal((await api('/auth/login',{email:'unknown@example.test',password})).status,429);
   for(const input of ['https://evil.invalid/','//evil.invalid/','/\\evil.invalid/','/ko/login'])assert.equal(safeReturn(input,'ko'),'/ko/mail');
@@ -131,4 +175,12 @@ test('production ingress requires the operator secret and sets secure host cooki
     const session=await fetch(address+'/api/v2/session',{headers:{'x-gateway-key':secret}});assert.equal(session.status,200);assert.match(session.headers.get('set-cookie'),/__Host-op_csrf=.*; Secure/);
     const metrics=await fetch(address+'/metrics',{headers:{'x-gateway-key':secret}});assert.equal(metrics.status,200);assert.match(await metrics.text(),/openportal_requests_total/);
   }finally{await production.close();}
+});
+test('account deletion removes the hosted mailbox through the provisioner',async()=>{
+  await resetLimits();const secret=randomBytes(18).toString('base64url');const name='delete.me.now';const address=`${name}@openscanner.test`;
+  assert.equal((await api('/auth/signup',profile({username:name,password:secret,recoveryEmail:undefined,recoveryPhone:undefined,gender:'unspecified'}))).status,201);
+  csrf=(await api('/session')).data.csrf;
+  assert.equal((await api('/account',{password:secret},'DELETE')).status,200);
+  assert.ok(stack.provisioner.deleted.includes(address));assert.equal(stack.jmap.mailboxFor(address),null);
+  assert.equal((await stack.pool.query('select 1 from webapp.accounts where email=$1',[address])).rowCount,0);
 });

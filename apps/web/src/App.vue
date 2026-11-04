@@ -4,6 +4,10 @@ import MailView from './MailView.vue';
 import SearchBox from './SearchBox.vue';
 import BrandMark from './BrandMark.vue';
 import ScanArt from './ScanArt.vue';
+import SignupWizard from './SignupWizard.vue';
+import ScanState from './ScanState.vue';
+import { fill, serpMessages } from './serp-copy';
+import { signupErrors, signupMessages } from './signup-copy';
 import { designMessages } from './design-copy';
 import { APIError, mutate, request, session } from './client';
 import { errors, locales, messages, folderLabels, type Locale } from './i18n';
@@ -113,9 +117,34 @@ const t = computed(() => messages[locale.value]);
 const copy = computed(() => designMessages[locale.value]);
 const authTitle = computed(() => route.value === 'login' ? copy.value.loginTitle : route.value === 'signup' ? copy.value.signupTitle : titles.value[route.value]);
 const authBenefits = computed(() => [copy.value.benefitMail, copy.value.benefitVerify, copy.value.benefitHash, copy.value.benefitHistory]);
-const authIntro = computed(() => route.value === 'login' ? copy.value.loginIntro : route.value === 'signup' ? copy.value.signupIntro : route.value === 'forgot-password' ? copy.value.forgotIntro : route.value === 'verify-email' ? copy.value.verifyIntro : route.value === 'reset-password' ? copy.value.resetIntro : copy.value.authIntro);
+const authIntro = computed(() => route.value === 'login' ? signupMessages[locale.value].loginIntro : route.value === 'signup' ? copy.value.signupIntro : route.value === 'forgot-password' ? signupMessages[locale.value].forgotIntro : route.value === 'verify-email' ? copy.value.verifyIntro : route.value === 'reset-password' ? copy.value.resetIntro : copy.value.authIntro);
 const sourceLabel = computed(() => result.value?.source === 'brave-api' || result.value?.source === 'bing-api' ? copy.value.sourceExternal : result.value?.source === 'hybrid-rrf' ? copy.value.sourceHybrid : copy.value.sourceIndex);
-const errorText = computed(() => errors[locale.value][error.value] || errors[locale.value].fallback);
+const signupCopy = computed(() => signupMessages[locale.value]);
+const serp = computed(() => serpMessages[locale.value]);
+type SearchErrorKind = 'offline' | 'rate' | 'timeout' | 'invalid' | 'unavailable';
+const errorKind = computed<SearchErrorKind>(() => ({ OFFLINE: 'offline', RATE_LIMITED: 'rate', SEARCH_TIMEOUT: 'timeout', INVALID_QUERY: 'invalid', INVALID_INPUT: 'invalid' } as Record<string, SearchErrorKind>)[error.value] || 'unavailable');
+const serpError = computed(() => {
+  const copy = serp.value;
+  return { offline: { title: copy.offlineTitle, body: copy.offlineBody }, rate: { title: copy.rateTitle, body: copy.rateBody }, timeout: { title: copy.timeoutTitle, body: copy.timeoutBody }, invalid: { title: copy.invalidTitle, body: copy.invalidBody }, unavailable: { title: copy.unavailableTitle, body: copy.unavailableBody } }[errorKind.value];
+});
+const queryWords = computed(() => [...new Set(search.value.trim().split(/\s+/).filter(Boolean))]);
+// Text-only highlighting of query terms (no v-html); terms are regex-escaped.
+function highlight(text: string) {
+  const terms = queryWords.value.map(term => term.toLowerCase()).filter(term => term.length >= 2).slice(0, 8);
+  if (!terms.length) return [{ text, hit: false }];
+  const pattern = new RegExp(`(${terms.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+  return text.split(pattern).filter(Boolean).map(part => ({ text: part, hit: terms.includes(part.toLowerCase()) }));
+}
+function crumbs(value: string) {
+  try {
+    const url = new URL(value);
+    const parts = url.pathname.split('/').filter(Boolean).slice(0, 3).map(part => { try { return decodeURIComponent(part); } catch { return part; } });
+    return [url.hostname.replace(/^www\./, ''), ...parts].join(' › ');
+  } catch { return value; }
+}
+function relaxSafeSearch() { preferredSafeSearch.value = 'moderate'; safeSearch.value = 'moderate'; persist('openportal.safe_search', 'moderate'); submitSearch(1); }
+function onOnline() { if (route.value === 'search' && error.value === 'OFFLINE') runSearch(); }
+const errorText = computed(() => (signupErrors[locale.value] as Record<string, string>)[error.value] || errors[locale.value][error.value] || errors[locale.value].fallback);
 let controller: AbortController | undefined;
 let sequence = 0;
 let refreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -270,7 +299,7 @@ async function runSearch() {
     };
   } catch (e) {
     if (own === sequence && !controller?.signal.aborted) {
-      error.value = e instanceof APIError ? e.code : 'SEARCH_UNAVAILABLE';
+      error.value = !navigator.onLine ? 'OFFLINE' : (e as { name?: string })?.name === 'TimeoutError' ? 'SEARCH_TIMEOUT' : e instanceof APIError ? e.code : 'SEARCH_UNAVAILABLE';
     }
   } finally {
     if (own === sequence) busy.value = false;
@@ -395,11 +424,15 @@ async function authSubmit() {
   }
 }
 
+async function onSignupCreated() {
+  try { user.value = await session(); } catch { /* session refresh retried by the refresh timer */ }
+}
+
 async function resend() {
   busy.value = true;
   try {
-    await mutate('/auth/resend', { email: email.value });
-    notice.value = t.value.signupNotice;
+    await mutate('/auth/resend', {});
+    error.value = ""; notice.value = signupCopy.value.doneRecoverySent;
   } catch (e) {
     error.value = e instanceof APIError ? e.code : 'fallback';
   } finally {
@@ -469,6 +502,7 @@ onMounted(async () => {
   ready.value = true;
   restore();
   window.addEventListener('popstate', onHistoryNavigation);
+  window.addEventListener('online', onOnline);
   refreshTimer = setInterval(async () => {
     if (user.value) {
       try {
@@ -484,6 +518,7 @@ onUnmounted(() => {
   controller?.abort();
   if (refreshTimer) clearInterval(refreshTimer);
   window.removeEventListener('popstate', onHistoryNavigation);
+  window.removeEventListener('online', onOnline);
 });
 </script>
 
@@ -524,16 +559,74 @@ onUnmounted(() => {
       </section>
 
       <section v-else-if="route==='search'" class="serp-shell" :aria-busy="busy">
-        <div class="search-toolbar"><div><p class="eyebrow">{{copy.web}}</p><h1>{{copy.resultsTitle}}</h1></div><label class="safe-control">{{t.safeSearch}}<select :aria-label="t.safeSearch" :value="safeSearch" @change="changeSafeSearch"><option value="moderate">{{t.safeSearchModerate}}</option><option value="strict">{{t.safeSearchStrict}}</option><option value="off">{{t.safeSearchOff}}</option></select></label></div>
-        <div v-if="busy" class="search-state loading-state" role="status"><span class="loader" aria-hidden="true"></span><p>{{t.loading}}</p><div v-for="item in 3" :key="item" class="skeleton" aria-hidden="true"><i></i><b></b><span></span></div></div>
-        <div v-else-if="error" class="search-state error-card" role="alert"><span class="state-symbol" aria-hidden="true">!</span><h2>{{t.searchErrorTitle}}</h2><p>{{errorText}}</p><div class="actions"><button class="button primary" @click="runSearch">{{t.retry}}</button><a class="button" :href="`/${locale}`" @click="link($event,`/${locale}`)">{{t.backHome}}</a></div></div>
+        <h1 class="sr-only">{{search?`${search} · ${serp.web}`:serp.emptyTitle}}</h1>
+        <div class="serp-toolbar">
+          <nav class="serp-tabs" :aria-label="serp.verticals"><a :href="currentAddress" aria-current="page" @click.prevent><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.8"/><path d="m13.2 13.2 3.3 3.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>{{serp.web}}</a></nav>
+          <label class="safe-control"><span>{{t.safeSearch}}</span><select :aria-label="t.safeSearch" :value="safeSearch" @change="changeSafeSearch"><option value="moderate">{{t.safeSearchModerate}}</option><option value="strict">{{t.safeSearchStrict}}</option><option value="off">{{t.safeSearchOff}}</option></select></label>
+        </div>
+
+        <div v-if="!search.trim()" class="serp-state">
+          <ScanState kind="empty"/>
+          <h2>{{serp.emptyTitle}}</h2><p>{{serp.emptyBody}}</p>
+          <ul class="tip-list"><li>{{t.emptyTipGeneral}}</li><li>{{t.emptyTipFewer}}</li></ul>
+        </div>
+
+        <div v-else-if="busy" class="serp-loading">
+          <p class="sr-only" role="status">{{serp.loading}}</p>
+          <div class="results-meta skeleton-line" aria-hidden="true"><i></i></div>
+          <div v-for="item in 5" :key="item" class="skeleton-hit" aria-hidden="true"><span class="sk-domain"><i class="sk-dot"></i><i></i></span><b></b><span class="sk-text"></span><span class="sk-text short"></span></div>
+        </div>
+
+        <div v-else-if="error" class="serp-state" :class="`state-${errorKind}`" role="alert">
+          <ScanState :kind="errorKind"/>
+          <h2>{{serpError.title}}</h2><p>{{serpError.body}}</p>
+          <div class="actions">
+            <button v-if="errorKind!=='invalid'" class="button primary" @click="runSearch">{{serp.retry}}</button>
+            <a class="button" :href="`/${locale}`" @click="link($event,`/${locale}`)">{{serp.home}}</a>
+          </div>
+          <p v-if="errorKind==='unavailable'||errorKind==='timeout'" class="error-code">{{serp.errorCode}}: <code>{{error}}</code></p>
+        </div>
+
         <template v-else-if="result">
-          <div class="results-meta"><span>{{result.total===null?copy.unknownCount:`${t.resultCount} ${new Intl.NumberFormat(locale).format(result.total)}`}}</span><span class="source-badge">{{sourceLabel}}</span></div>
-          <p v-if="result.degraded" class="notice" role="status">{{copy.partial}}</p>
-          <p v-if="result.corrected_query&&result.corrected_query!==search" class="correction">{{t.didYouMean}} <button class="text-button" @click="applyCorrection(result.corrected_query)">{{result.corrected_query}}</button></p>
-          <div v-if="!result.hits.length" class="search-state empty-state"><span class="state-symbol" aria-hidden="true">⌕</span><h2>{{t.empty}}</h2><ul><li>{{t.emptyTipSpelling}}</li><li>{{t.emptyTipGeneral}}</li><li>{{t.emptyTipFewer}}</li></ul></div>
-          <div v-else class="results-list"><article v-for="hit in result.hits" :key="hit.url" class="hit"><a class="result-link" :href="hit.url" rel="noopener noreferrer"><span class="result-domain"><span class="domain-mark" aria-hidden="true">{{getHostname(hit.url).slice(0,1).toUpperCase()}}</span>{{getHostname(hit.url)}}</span><h2>{{hit.title}}</h2></a><p class="result-url">{{hit.url}}</p><p class="result-description">{{hit.description}}</p></article></div>
-          <nav v-if="result.hits.length||page>1" class="pagination" :aria-label="t.resultCount"><button v-if="page>1" class="button" @click="submitSearch(page-1)">← {{t.previous}}</button><span>{{new Intl.NumberFormat(locale).format(page)}}</span><button v-if="result.has_more&&page<100" class="button" @click="submitSearch(page+1)">{{t.next}} →</button></nav>
+          <div v-if="result.hits.length" class="results-meta">
+            <span>{{result.total===null?copy.unknownCount:fill(serp.about,{n:new Intl.NumberFormat(locale).format(result.total)})}}<template v-if="result.elapsed_ms!==undefined">{{' '+fill(serp.seconds,{s:new Intl.NumberFormat(locale,{maximumFractionDigits:2,minimumFractionDigits:2}).format(result.elapsed_ms/1000)})}}</template><template v-if="page>1">{{' · '+fill(serp.pageOf,{n:page})}}</template></span>
+            <span class="source-badge">{{sourceLabel}}</span>
+          </div>
+          <p v-if="result.degraded" class="notice partial-notice" role="status"><span aria-hidden="true">◐</span> {{copy.partial}}</p>
+          <p v-if="result.corrected_query&&result.corrected_query!==search&&result.hits.length" class="correction">{{serp.didYouMean}} <button class="text-button" @click="applyCorrection(result.corrected_query)"><strong>{{result.corrected_query}}</strong></button></p>
+
+          <div v-if="!result.hits.length&&page>1" class="serp-state">
+            <ScanState kind="end"/>
+            <h2>{{serp.noMoreTitle}}</h2><p>{{fill(serp.noMoreBody,{n:page})}}</p>
+            <div class="actions"><button class="button primary" @click="submitSearch(1)">{{serp.firstPage}}</button></div>
+          </div>
+          <div v-else-if="!result.hits.length" class="serp-state no-results">
+            <ScanState kind="none"/>
+            <h2>{{t.empty}}</h2>
+            <p>{{fill(serp.noResultsLead,{q:search})}}</p>
+            <div v-if="result.corrected_query&&result.corrected_query!==search" class="did-you-mean">{{serp.didYouMean}} <button class="text-button" @click="applyCorrection(result.corrected_query)"><strong>{{result.corrected_query}}</strong></button></div>
+            <div v-if="queryWords.length>1||safeSearch==='strict'" class="alternatives"><p class="alt-title">{{serp.tryInstead}}</p>
+              <div class="alt-chips"><button v-for="word in queryWords.slice(0,3)" v-show="queryWords.length>1" :key="word" class="chip" @click="search=word;submitSearch()">{{fill(serp.searchOnly,{w:word})}}</button><button v-if="safeSearch==='strict'" class="chip" @click="relaxSafeSearch">{{serp.relaxSafe}}</button></div>
+            </div>
+            <div class="tip-card"><p class="alt-title">{{serp.tips}}</p><ul class="tip-list"><li>{{t.emptyTipSpelling}}</li><li>{{t.emptyTipGeneral}}</li><li>{{t.emptyTipFewer}}</li></ul></div>
+          </div>
+
+          <ol v-else class="results-list">
+            <li v-for="hit in result.hits" :key="hit.url" class="hit">
+              <a class="result-link" :href="hit.url" rel="noopener noreferrer">
+                <span class="result-domain"><span class="domain-mark" aria-hidden="true">{{getHostname(hit.url).replace(/^www\./,'').slice(0,1).toUpperCase()}}</span><span class="domain-text"><span class="site-name">{{hit.site_name||getHostname(hit.url).replace(/^www\./,'')}}</span><span class="result-url">{{crumbs(hit.url)}}</span></span></span>
+                <h2>{{hit.title}}</h2>
+              </a>
+              <p class="result-description"><template v-for="(part,index) in highlight(hit.description)" :key="index"><mark v-if="part.hit">{{part.text}}</mark><template v-else>{{part.text}}</template></template></p>
+            </li>
+          </ol>
+
+          <nav v-if="result.hits.length&&(page>1||result.has_more)" class="pagination" :aria-label="t.resultCount">
+            <button class="button" :disabled="page<=1" @click="submitSearch(page-1)"><span aria-hidden="true">←</span> {{t.previous}}</button>
+            <span class="page-indicator" aria-current="page">{{fill(serp.pageOf,{n:new Intl.NumberFormat(locale).format(page)})}}</span>
+            <button class="button" :disabled="!result.has_more||page>=100" @click="submitSearch(page+1)">{{t.next}} <span aria-hidden="true">→</span></button>
+          </nav>
+          <p v-if="result.hits.length&&!result.has_more" class="end-of-results">{{serp.endOfResults}}</p>
           <p class="source-note">{{copy.sourceNote}}</p>
         </template>
       </section>
@@ -559,22 +652,14 @@ onUnmounted(() => {
           </nav>
           <a v-else class="auth-back" :href="`/${locale}/login`" @click="link($event,`/${locale}/login`)"><span aria-hidden="true">←</span> {{copy.backToLogin}}</a>
 
-          <div v-if="route==='signup'&&sentTo" class="auth-sent">
-            <span class="auth-sent-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg></span>
-            <h1>{{copy.checkInbox}}</h1>
-            <p role="status">{{notice}}</p>
-            <p class="auth-sent-to"><span>{{copy.sentTo}}</span><strong>{{sentTo}}</strong></p>
-            <a class="button primary full-width" :href="`/${locale}/login`" @click="link($event,`/${locale}/login`)">{{copy.backToLogin}}</a>
-            <button type="button" class="text-button" @click="sentTo='';notice=''">{{copy.useDifferentEmail}}</button>
-          </div>
+          <SignupWizard v-if="route==='signup'" :locale="locale" @created="onSignupCreated" @navigate="navigate($event)"/>
 
           <template v-else>
             <header class="auth-header"><h1>{{authTitle}}</h1><p>{{authIntro}}</p></header>
             <p v-if="!ready" role="status">{{t.loading}}</p>
             <form v-else class="auth-form" @submit.prevent="authSubmit">
-              <div v-if="['login','signup','forgot-password'].includes(route)" class="form-group"><label for="auth-email">{{t.email}}</label><input id="auth-email" v-model="email" type="email" autocomplete="email" inputmode="email" maxlength="254" required/></div>
-              <div v-if="route==='signup'" class="form-group"><label for="auth-name">{{t.displayName}}</label><input id="auth-name" v-model="displayName" autocomplete="nickname" maxlength="80" required/></div>
-              <div v-if="['login','signup','reset-password'].includes(route)" class="form-group">
+              <div v-if="['login','forgot-password'].includes(route)" class="form-group"><label for="auth-email">{{signupCopy.loginId}}</label><input id="auth-email" v-model="email" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254" required/></div>
+              <div v-if="['login','reset-password'].includes(route)" class="form-group">
                 <div class="label-row"><label for="auth-password">{{t.password}}</label><a v-if="route==='login'" class="forgot-link" :href="`/${locale}/forgot-password`" @click="link($event,`/${locale}/forgot-password`)">{{t.forgot}}</a></div>
                 <div class="password-field">
                   <input id="auth-password" v-model="password" :type="showPassword?'text':'password'" :autocomplete="route==='login'?'current-password':'new-password'" :minlength="route==='login'?1:12" maxlength="1024" :aria-describedby="needsNewPassword?'password-help':undefined" required/>
@@ -591,17 +676,25 @@ onUnmounted(() => {
                 </div>
               </div>
               <div v-if="needsNewPassword" class="form-group"><label for="auth-confirm">{{t.confirmPassword}}</label><input id="auth-confirm" v-model="confirm" :type="showPassword?'text':'password'" autocomplete="new-password" minlength="12" maxlength="1024" aria-describedby="confirm-help" required/><small id="confirm-help" class="match-hint" :class="confirmState" aria-live="polite">{{confirmState==='match'?'✓ '+copy.passwordsMatch:confirmState==='differ'?copy.passwordsDiffer:''}}</small></div>
-              <label v-if="route==='signup'" class="checkbox-row"><input v-model="agree" type="checkbox" required/><span>{{t.agree}} <a :href="`/${locale}/terms`" target="_blank" rel="noopener">{{t.terms}}</a> · <a :href="`/${locale}/privacy`" target="_blank" rel="noopener">{{t.privacy}}</a></span></label>
               <p v-if="['verify-email','reset-password'].includes(route)&&!token&&!notice" class="notice">{{t.invalidLink}}</p>
               <button class="button primary full-width auth-submit" type="submit" :disabled="busy||(['verify-email','reset-password'].includes(route)&&!token)">{{busy?t.loading:titles[route]}}</button>
             </form>
-            <details v-if="route==='login'" class="resend-panel"><summary>{{t.resend}}</summary><form @submit.prevent="resend"><label for="resend-email">{{t.email}}</label><input id="resend-email" v-model="email" type="email" autocomplete="email" required/><button class="button" :disabled="busy">{{t.resend}}</button></form></details>
             <p v-if="notice" class="notice" role="status">{{notice}}</p><p v-if="error" class="alert" role="alert">{{errorText}}</p><p v-else-if="sessionUnavailable" class="source-note">{{copy.authUnavailable}}</p>
           </template>
         </div>
       </section>
 
-      <section v-else-if="route==='account'&&user" class="account-panel"><div class="page-heading"><p class="eyebrow">OPENSCANNER / {{t.account}}</p><h1>{{t.account}}</h1><p>{{user.email}}</p></div><form class="auth-form" @submit.prevent="saveAccount"><div class="form-group"><label for="account-name">{{t.displayName}}</label><input id="account-name" v-model="displayName" maxlength="80" required/></div><button class="button primary" :disabled="busy">{{t.save}}</button></form><hr/><details class="danger-panel"><summary>{{t.deleteAccount}}</summary><p>{{t.deleteWarning}}</p><form class="auth-form" @submit.prevent="deleteAccount"><label for="delete-password">{{t.password}}</label><input id="delete-password" v-model="password" type="password" autocomplete="current-password" required/><button class="button danger" :disabled="busy">{{t.deleteAccount}}</button></form></details><p v-if="notice" class="notice" role="status">{{notice}}</p><p v-if="error" class="alert" role="alert">{{errorText}}</p></section>
+      <section v-else-if="route==='account'&&user" class="account-panel">
+        <div class="page-heading"><p class="eyebrow">OPENSCANNER / {{t.account}}</p><h1>{{t.account}}</h1><p>{{user.display_name}}</p></div>
+        <dl class="review-list account-facts">
+          <div><dt>{{signupCopy.mailAddress}}</dt><dd><strong>{{user.email}}</strong></dd></div>
+          <div v-if="user.username"><dt>{{signupCopy.recoveryStatus}}</dt><dd>{{user.recovery_email||signupCopy.none}} <span v-if="user.recovery_email" class="status-pill" :class="{ok:user.recovery_email_verified}">{{user.recovery_email_verified?signupCopy.verified:signupCopy.unverified}}</span></dd><button v-if="user.recovery_email&&!user.recovery_email_verified" type="button" class="text-button" :disabled="busy" @click="resend">{{signupCopy.resendRecovery}}</button></div>
+        </dl>
+        <form class="auth-form" @submit.prevent="saveAccount"><div class="form-group"><label for="account-name">{{t.displayName}}</label><input id="account-name" v-model="displayName" maxlength="80" required/></div><button class="button primary" :disabled="busy">{{t.save}}</button></form>
+        <hr/>
+        <details class="danger-panel"><summary>{{t.deleteAccount}}</summary><p>{{t.deleteWarning}}</p><form class="auth-form" @submit.prevent="deleteAccount"><label for="delete-password">{{t.password}}</label><input id="delete-password" v-model="password" type="password" autocomplete="current-password" required/><button class="button danger" :disabled="busy">{{t.deleteAccount}}</button></form></details>
+        <p v-if="notice" class="notice" role="status">{{notice}}</p><p v-if="error" class="alert" role="alert">{{errorText}}</p>
+      </section>
 
       <section v-else-if="route==='settings'" class="settings-page"><div class="page-heading"><p class="eyebrow">OPENSCANNER / {{t.settings}}</p><h1>{{t.settings}}</h1><p>{{copy.settingsIntro}}</p></div><div class="settings-card"><label class="setting-row"><span><strong>{{t.language}}</strong></span><select :aria-label="t.language" :value="locale" @change="changeLanguage"><option value="ko">한국어</option><option value="th">ไทย</option><option value="en">English</option></select></label><label class="setting-row"><span><strong>{{t.theme}}</strong></span><select :aria-label="t.theme" v-model="theme"><option value="system">{{t.system}}</option><option value="light">{{t.light}}</option><option value="dark">{{t.dark}}</option></select></label><label class="setting-row"><strong>{{t.safeSearch}}</strong><select :aria-label="t.safeSearch" :value="safeSearch" @change="changeSafeSearch"><option value="moderate">{{t.safeSearchModerate}}</option><option value="strict">{{t.safeSearchStrict}}</option><option value="off">{{t.safeSearchOff}}</option></select></label><label class="setting-row history-setting"><span><strong>{{copy.rememberSearches}}</strong><small>{{copy.historyHint}}</small></span><input v-model="recentOptIn" type="checkbox"/></label><button class="button" @click="clearHistory">{{copy.clearHistory}}</button><p class="source-note">{{copy.preferencesSaved}}</p></div></section>
 
