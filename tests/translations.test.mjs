@@ -7,4 +7,8 @@ test('all supported product and error dictionaries have exactly the same nonempt
   const source=await readFile('apps/web/src/i18n.ts','utf8');const js=ts.transpile(source,{module:ts.ModuleKind.ESNext});
   const {messages,errors,locales,folderLabels}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
   for(const group of [messages,errors,emailText,folderLabels])for(const locale of locales){assert.deepEqual(Object.keys(group[locale]).sort(),Object.keys(group.en).sort());for(const value of Object.values(group[locale]))assert.equal(typeof value==='string'&&value.trim().length>0,true);}
+  for(const [file,exports] of [['design-copy.ts',['designMessages']],['signup-copy.ts',['signupMessages','signupErrors']],['serp-copy.ts',['serpMessages']],['signup-status-copy.ts',['signupStatusMessages']],['foundation-copy.ts',['foundationMessages']]]){
+    const source=await readFile('apps/web/src/'+file,'utf8');const js=ts.transpile(source,{module:ts.ModuleKind.ESNext});const resources=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+    for(const name of exports)for(const locale of locales){assert.deepEqual(Object.keys(resources[name][locale]).sort(),Object.keys(resources[name].en).sort());for(const value of Object.values(resources[name][locale]))assert.equal(typeof value==='string'&&value.trim().length>0,true);}
+  }
 });

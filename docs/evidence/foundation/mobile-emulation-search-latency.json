@@ -1,0 +1,9 @@
+{
+  "scope": "local synthetic index; not global coverage or production capacity",
+  "matchingDocuments": 13,
+  "requests": 20,
+  "concurrency": 2,
+  "failures": 0,
+  "p50ms": 20.21519999999873,
+  "p95ms": 34.624299999999494
+}

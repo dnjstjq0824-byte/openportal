@@ -9,6 +9,7 @@ import ScanState from './ScanState.vue';
 import { fill, serpMessages } from './serp-copy';
 import { signupErrors, signupMessages } from './signup-copy';
 import { designMessages } from './design-copy';
+import { foundationMessages } from './foundation-copy';
 import { APIError, mutate, request, session } from './client';
 import { errors, locales, messages, folderLabels, type Locale } from './i18n';
 
@@ -25,6 +26,7 @@ const result = ref<{
   did_you_mean?: string;
   source?: string;
   degraded?: boolean;
+  corpus_kind?: string;
   hits: { title: string; url: string; description: string; site_name?: string; source?: string }[];
 } | null>(null);
 
@@ -115,6 +117,8 @@ function getHostname(urlStr: string): string {
 
 const t = computed(() => messages[locale.value]);
 const copy = computed(() => designMessages[locale.value]);
+const foundation = computed(() => foundationMessages[locale.value]);
+const developmentIndex = computed(() => result.value && !['brave-api','bing-api'].includes(result.value.source||'') && result.value.corpus_kind !== 'approved-web');
 const authTitle = computed(() => route.value === 'login' ? copy.value.loginTitle : route.value === 'signup' ? copy.value.signupTitle : titles.value[route.value]);
 const authBenefits = computed(() => [copy.value.benefitMail, copy.value.benefitVerify, copy.value.benefitHash, copy.value.benefitHistory]);
 const authIntro = computed(() => route.value === 'login' ? signupMessages[locale.value].loginIntro : route.value === 'signup' ? copy.value.signupIntro : route.value === 'forgot-password' ? signupMessages[locale.value].forgotIntro : route.value === 'verify-email' ? copy.value.verifyIntro : route.value === 'reset-password' ? copy.value.resetIntro : copy.value.authIntro);
@@ -266,6 +270,7 @@ async function runSearch() {
     result.value = {
       source: typeof data.source === 'string' ? data.source : undefined,
       degraded: data.degraded === true,
+      corpus_kind: typeof data.corpus_kind === 'string' ? data.corpus_kind : undefined,
       total: data.total,
       has_more: Boolean(data.has_more ?? data.hasMore ?? (data.total !== null && page.value * 10 < data.total)),
       elapsed_ms: typeof data.elapsed_ms === 'number' ? data.elapsed_ms : undefined,
@@ -592,6 +597,7 @@ onUnmounted(() => {
             <span>{{result.total===null?copy.unknownCount:fill(serp.about,{n:new Intl.NumberFormat(locale).format(result.total)})}}<template v-if="result.elapsed_ms!==undefined">{{' '+fill(serp.seconds,{s:new Intl.NumberFormat(locale,{maximumFractionDigits:2,minimumFractionDigits:2}).format(result.elapsed_ms/1000)})}}</template><template v-if="page>1">{{' · '+fill(serp.pageOf,{n:page})}}</template></span>
             <span class="source-badge">{{sourceLabel}}</span>
           </div>
+          <p v-if="developmentIndex" class="notice corpus-notice" role="note">{{foundation.developmentIndex}}</p>
           <p v-if="result.degraded" class="notice partial-notice" role="status"><span aria-hidden="true">◐</span> {{copy.partial}}</p>
           <p v-if="result.corrected_query&&result.corrected_query!==search&&result.hits.length" class="correction">{{serp.didYouMean}} <button class="text-button" @click="applyCorrection(result.corrected_query)"><strong>{{result.corrected_query}}</strong></button></p>
 

@@ -356,6 +356,12 @@ ol.results-list { list-style: none; margin: 4px 0 0; padding: 0; }
 .wizard-count { flex-shrink: 0; font-weight: 650; }
 .wizard-bar { flex: 1; height: 4px; border-radius: 4px; background: var(--hover); overflow: hidden; }
 .wizard-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--brand-blue), var(--brand-violet)); transition: width .25s ease; }
+.wizard-bar[data-step="1"] i { width: 16.6667%; }
+.wizard-bar[data-step="2"] i { width: 33.3333%; }
+.wizard-bar[data-step="3"] i { width: 50%; }
+.wizard-bar[data-step="4"] i { width: 66.6667%; }
+.wizard-bar[data-step="5"] i { width: 83.3333%; }
+.wizard-bar[data-step="6"] i { width: 100%; }
 .wizard .auth-header h1:focus { outline: none; }
 .wizard > .alert { margin-bottom: 18px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }

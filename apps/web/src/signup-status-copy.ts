@@ -1,0 +1,6 @@
+import type { Locale } from './i18n';
+export const signupStatusMessages: Record<Locale, { passwordTooLong:string; calendarHint:string; unknownResult:string; developmentService:string }> = {
+  ko:{passwordTooLong:'비밀번호가 너무 깁니다. 조금 짧게 입력하세요.',calendarHint:'연도는 양력 기준으로 입력하세요.',unknownResult:'계정 생성 결과를 확인하지 못했습니다. 다시 가입하기 전에 입력한 아이디로 로그인을 시도하세요.',developmentService:'개발·검수용 메일 서비스입니다. 실제 개인정보나 다른 서비스에서 사용하는 비밀번호를 입력하지 마세요. 외부 메일 송수신은 검증 전입니다.'},
+  th:{passwordTooLong:'รหัสผ่านยาวเกินไป โปรดใช้รหัสผ่านที่สั้นลง',calendarHint:'ป้อนปีตามปฏิทินคริสต์ศักราช (ค.ศ.)',unknownResult:'ยังยืนยันผลการสร้างบัญชีไม่ได้ โปรดลองเข้าสู่ระบบด้วยชื่อผู้ใช้ก่อนสมัครซ้ำ',developmentService:'นี่คือบริการอีเมลสำหรับการพัฒนาและทดสอบ อย่าป้อนข้อมูลส่วนบุคคลจริงหรือรหัสผ่านที่ใช้กับบริการอื่น ยังไม่ได้ตรวจสอบการรับส่งอีเมลภายนอก'},
+  en:{passwordTooLong:'This password is too long. Use a shorter password.',calendarHint:'Enter the year using the Gregorian calendar.',unknownResult:'The account creation result could not be confirmed. Try signing in with your username before signing up again.',developmentService:'This is a development mailbox service. Do not enter real personal information or passwords used elsewhere. External email delivery has not been verified.'},
+};

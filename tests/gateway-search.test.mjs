@@ -7,6 +7,11 @@ test('normalizeURL strips trailing slashes, downcases hostname, and handles port
   assert.equal(normalizeURL('https://example.org/'), 'https://example.org');
   assert.equal(normalizeURL('http://Test.Com:8080/deep/link/'), 'http://test.com:8080/deep/link');
 });
+test('different query strings remain different searchable documents', () => {
+  assert.notEqual(normalizeURL('https://example.org/item?id=1'), normalizeURL('https://example.org/item?id=2'));
+  const merged = rrfMerge([{url:'https://example.org/item?id=1',title:'First',description:'A'}],[{url:'https://example.org/item?id=2',title:'Second',description:'B'}]);
+  assert.equal(merged.length,2);
+});
 
 test('rrfMerge applies reciprocal rank formula, combines ranks, and dedupes URLs', () => {
   const localHits = [
@@ -54,31 +59,11 @@ test('braveSearch correctly handles API response and query parameter limits', as
   assert.equal(res.source, 'brave-api');
 });
 
-test('bingSearch correctly formats request and parses webPages structure', async () => {
-  const mockConfig = { bingApproved: true, bingKey: 'test-key-bing' };
-  const mockFetcher = async (url, opts) => {
-    assert.equal(opts.headers['Ocp-Apim-Subscription-Key'], 'test-key-bing');
-    const u = new URL(url);
-    assert.equal(u.searchParams.get('safeSearch'), 'Strict');
-    return new Response(JSON.stringify({
-      webPages: {
-        totalEstimatedMatches: 150,
-        value: [
-          { name: 'Bing Page 1', url: 'https://bing-example.com/a', snippet: 'Snippet A' },
-        ],
-      },
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  };
-
-  const res = await bingSearch(mockConfig, 'bing query', 1, { fetcher: mockFetcher, safeSearch: 'strict' });
-  assert.equal(res.query, 'bing query');
-  assert.equal(res.total, 150);
-  assert.equal(res.hits.length, 1);
-  assert.equal(res.hits[0].title, 'Bing Page 1');
-  assert.equal(res.hits[0].description, 'Snippet A');
-  assert.equal(res.source, 'bing-api');
+test('retired Bing adapter never makes a network request', async () => {
+  let called = false;
+  await assert.rejects(bingSearch({bingApproved:true,bingKey:'test-key'},'query',1,{fetcher:()=>{called=true;}}), error=>error.code === 'SEARCH_PROVIDER_RETIRED' || error.message === 'SEARCH_PROVIDER_RETIRED');
+  assert.equal(called,false);
 });
-
 test('hybridSearch merges local backend and external API using RRF', async () => {
   const mockConfig = {
     searchURL: 'http://127.0.0.1:8080',
@@ -114,5 +99,10 @@ test('hybridSearch merges local backend and external API using RRF', async () =>
   assert.equal(res.hits.length, 2);
   assert.equal(res.hits[0].url, 'https://shared.org/item');
   assert.equal(res.hits[0].title, 'Local Shared'); // Local metadata preserved
+});
+test('hybrid pagination retains external next pages and does not invent a combined total', async () => {
+  const result=await hybridSearch({searchURL:'http://127.0.0.1:8080',braveApproved:true,braveKey:'protocol-fixture'},'test',1,{fetcher:async url=>String(url).includes('/api/v1/search')?Response.json({query:'test',total:1,has_more:false,hits:[]}):Response.json({query:{original:'test',more_results_available:true},web:{results:[]}})});
+  assert.equal(result.total,null);
+  assert.equal(result.hasMore,true);
 });
 

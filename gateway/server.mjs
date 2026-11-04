@@ -6,7 +6,7 @@ import nodemailer from 'nodemailer';
 import { randomToken, digest, equal, hashPassword, verifyPassword, seal } from './security.mjs';
 import { emailText } from './translations.mjs';
 import { MailClient, MAX_ATTACHMENT, fail, withMessageLock } from './mail.mjs';
-import { braveSearch, bingSearch, hybridSearch } from './search.mjs';
+import { braveSearch, hybridSearch, readSearchJSON } from './search.mjs';
 import { normalizeUsername, usernameProblem, usernameCandidates, normalizeDomain, parseProfile, displayNameFor } from './signup.mjs';
 
 export function configuration(env = process.env) {
@@ -18,30 +18,25 @@ export function configuration(env = process.env) {
   const mailKey = env.MAIL_ENCRYPTION_KEY ? Buffer.from(env.MAIL_ENCRYPTION_KEY, 'base64') : null;
   if (mailKey && mailKey.length !== 32) throw Error('MAIL_ENCRYPTION_KEY must be 32 bytes in base64');
   const searchProvider = env.SEARCH_PROVIDER || 'opensearch';
-  const validProviders = ['opensearch', 'local', 'brave', 'bing', 'hybrid'];
+  const corpusKind=env.SEARCH_CORPUS_KIND||'development';
+  if(!['development','approved-web'].includes(corpusKind))throw Error('Invalid search corpus kind');
+  if(corpusKind==='approved-web'&&env.SEARCH_CORPUS_REVIEWED!=='true')throw Error('Approved web corpus requires an operator rights/provenance review');
+  if (searchProvider === 'bing') throw Error('The public Bing Search API is retired; configure a supported search provider');
+  const validProviders = ['opensearch', 'local', 'brave', 'hybrid'];
   if (!validProviders.includes(searchProvider)) throw Error('Invalid search provider');
   const searchOptions = {
     searchProvider,
+    corpusKind,
     braveKey: env.BRAVE_SEARCH_API_KEY,
     braveApproved: env.BRAVE_API_TERMS_APPROVED === 'true',
     braveDailyLimit: Number(env.BRAVE_DAILY_REQUEST_LIMIT || 1000),
     braveRps: Number(env.BRAVE_REQUESTS_PER_SECOND || 1),
-    bingKey: env.BING_SEARCH_API_KEY,
-    bingApproved: env.BING_API_TERMS_APPROVED === 'true',
-    bingDailyLimit: Number(env.BING_DAILY_REQUEST_LIMIT || 1000),
-    bingRps: Number(env.BING_REQUESTS_PER_SECOND || 3),
   };
   if (!Number.isInteger(searchOptions.braveDailyLimit) || searchOptions.braveDailyLimit < 1 || !Number.isInteger(searchOptions.braveRps) || searchOptions.braveRps < 1) throw Error('Invalid search provider limits');
-  if (!Number.isInteger(searchOptions.bingDailyLimit) || searchOptions.bingDailyLimit < 1 || !Number.isInteger(searchOptions.bingRps) || searchOptions.bingRps < 1) throw Error('Invalid search provider limits');
   if (searchOptions.searchProvider === 'brave' && (!searchOptions.braveKey || !searchOptions.braveApproved)) {
     if (!searchOptions.braveKey) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=brave configured but BRAVE_SEARCH_API_KEY is missing');
     if (!searchOptions.braveApproved) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=brave configured but BRAVE_API_TERMS_APPROVED is not true');
     if (production) throw Error('Production SEARCH_PROVIDER=brave requires BRAVE_SEARCH_API_KEY and BRAVE_API_TERMS_APPROVED=true');
-  }
-  if (searchOptions.searchProvider === 'bing' && (!searchOptions.bingKey || !searchOptions.bingApproved)) {
-    if (!searchOptions.bingKey) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=bing configured but BING_SEARCH_API_KEY is missing');
-    if (!searchOptions.bingApproved) console.warn('[GATEWAY_CONFIG] WARNING: SEARCH_PROVIDER=bing configured but BING_API_TERMS_APPROVED is not true');
-    if (production) throw Error('Production SEARCH_PROVIDER=bing requires BING_SEARCH_API_KEY and BING_API_TERMS_APPROVED=true');
   }
   // Hosted mailbox domain for username@domain signup. Non-production defaults to the reserved .test TLD.
   const mailDomain = env.MAIL_DOMAIN ? normalizeDomain(env.MAIL_DOMAIN) : (production ? null : 'openscanner.test');
@@ -66,10 +61,12 @@ const normalizeEmail = value => {
 const selectLocale = value => ['ko','th','en'].includes(value) ? value : 'en';
 
 export async function createGateway(config, dependencies = {}) {
+  const searchFetch = dependencies.searchFetch || fetch;
   const pool = dependencies.pool || new pg.Pool({ connectionString: config.databaseURL, max: 10 });
   // Mailbox provisioner: { createMailbox({address,displayName}) -> {token}, deleteMailbox({address}) }.
   // No production adapter exists yet, so hosted signup fails closed unless one is injected.
   const provisioner = dependencies.provisioner || null;
+  const signupEnabled = Boolean(config.mailDomain && config.mailKey && config.jmapURL && typeof provisioner?.createMailbox === 'function' && typeof provisioner?.deleteMailbox === 'function');
   const sender = dependencies.sender || (config.smtpHost && config.smtpFrom ? nodemailer.createTransport({ host: config.smtpHost, port: config.smtpPort, secure: config.smtpSecure, requireTLS: config.production && !config.smtpSecure, auth: config.smtpUser ? { user: config.smtpUser, pass: config.smtpPassword } : undefined, connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 12000, logger: false, debug: false }) : null);
   config={...config,...(config.searchProvider?{}:{searchProvider:'opensearch'})};
   const dummy = await hashPassword(randomToken());
@@ -163,7 +160,7 @@ export async function createGateway(config, dependencies = {}) {
         await rate(req, 'username-check', 60, 900);
         if (!config.mailDomain) throw fail('MAIL_PROVISIONING_UNAVAILABLE', 503);
         const username = normalizeUsername(url.searchParams.get('name')); const problem = usernameProblem(username);
-        if (problem) return respond(200, { available: false, reason: problem, domain: config.mailDomain, suggestions: [] });
+        if (problem) return respond(200, { available: false, reason: problem, domain: config.mailDomain, signupEnabled, suggestions: [] });
         const address = `${username}@${config.mailDomain}`;
         const taken = (await pool.query('select 1 from webapp.accounts where email=$1 or username=$2', [address, username])).rowCount > 0;
         let suggestions = [];
@@ -172,12 +169,12 @@ export async function createGateway(config, dependencies = {}) {
           const used = new Set((await pool.query('select username from webapp.accounts where username = any($1)', [candidates])).rows.map(row => row.username));
           suggestions = candidates.filter(name => !used.has(name)).slice(0, 3);
         }
-        return respond(200, { available: !taken, reason: taken ? 'taken' : null, address, domain: config.mailDomain, suggestions });
+        return respond(200, { available: !taken, reason: taken ? 'taken' : null, address, domain: config.mailDomain, signupEnabled, suggestions });
       }
       if (path === '/api/v2/auth/signup' && req.method === 'POST') {
         const body = await readJSON(req);
         await rate(req, 'signup', 5, 3600);
-        if (!config.mailDomain || !provisioner || !config.mailKey) throw fail('MAIL_PROVISIONING_UNAVAILABLE', 503);
+        if (!signupEnabled) throw fail('MAIL_PROVISIONING_UNAVAILABLE', 503);
         if (body.agree !== true) throw fail('INVALID_INPUT');
         const username = normalizeUsername(body.username); const problem = usernameProblem(username);
         if (problem) throw fail(problem === 'reserved' ? 'USERNAME_RESERVED' : 'INVALID_USERNAME');
@@ -253,11 +250,12 @@ export async function createGateway(config, dependencies = {}) {
       if (path === '/api/v2/suggest' && req.method === 'GET') {
         await rate(req, 'suggest', 120, 60);
         const q = url.searchParams.get('q')?.trim() || '';
+        if ([...q].length > 512) throw fail('INVALID_QUERY');
         if (!q) return respond(200, { query: '', suggestions: [] });
         try {
           const target = new URL('/api/v1/suggest', config.searchURL);
           target.search = new URLSearchParams({ q }).toString();
-          const upstream = await fetch(target, { redirect: 'error', signal: AbortSignal.timeout(3000) });
+          const upstream = await searchFetch(target, { redirect: 'error', signal: AbortSignal.timeout(3000) });
           if (upstream.ok) {
             const data = await upstream.json();
             const suggestions = Array.isArray(data.suggestions) ? data.suggestions.slice(0, 10) : [];
@@ -279,32 +277,34 @@ export async function createGateway(config, dependencies = {}) {
           if (!config.braveApproved || !config.braveKey) throw fail('SEARCH_NOT_CONFIGURED', 503);
           await rate(req, 'brave-daily', config.braveDailyLimit, 86400, 'global');
           await rate(req, 'brave-per-second', config.braveRps, 1, 'global');
-          const braveRes = await braveSearch(config, q, page, { safeSearch });
+          const braveRes = await braveSearch(config, q, page, { safeSearch, fetcher: searchFetch });
           return respond(200, { ...braveRes, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(braveRes.hasMore ?? braveRes.has_more), safe_search: safeSearch });
         }
-        if (config.searchProvider === 'bing') {
-          if (!config.bingApproved || !config.bingKey) throw fail('SEARCH_NOT_CONFIGURED', 503);
-          await rate(req, 'bing-daily', config.bingDailyLimit, 86400, 'global');
-          await rate(req, 'bing-per-second', config.bingRps, 1, 'global');
-          const bingRes = await bingSearch(config, q, page, { safeSearch });
-          return respond(200, { ...bingRes, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(bingRes.hasMore ?? bingRes.has_more), safe_search: safeSearch });
-        }
         if (config.searchProvider === 'hybrid') {
-          const hybridRes = await hybridSearch(config, q, page, { safeSearch });
-          return respond(200, { ...hybridRes, elapsed_ms: Math.round(performance.now() - started), safe_search: safeSearch });
+          let searchConfig=config;let budgetLimited=false;
+          if(config.braveApproved && config.braveKey){
+            if(page>10)throw fail('INVALID_QUERY');
+            try{
+              await rate(req,'brave-daily',config.braveDailyLimit,86400,'global');
+              await rate(req,'brave-per-second',config.braveRps,1,'global');
+            }catch(error){if(error.status!==429)throw error;searchConfig={...config,braveApproved:false};budgetLimited=true;}
+          }
+          const hybridRes = await hybridSearch(searchConfig, q, page, { safeSearch, fetcher: searchFetch });
+          return respond(200, { ...hybridRes, corpus_kind:config.corpusKind||'development', degraded: hybridRes.degraded||budgetLimited, has_more: hybridRes.hasMore, elapsed_ms: Math.round(performance.now() - started), safe_search: safeSearch });
         }
         const target = new URL('/api/v1/search', config.searchURL);
         target.search = new URLSearchParams({ q, page: String(page), safe_search: safeSearch }).toString();
         let upstream;
-        try { upstream = await fetch(target,{redirect:'error',signal:AbortSignal.timeout(8000)}); } catch { throw fail('SEARCH_UNAVAILABLE',503); }
+        try { upstream = await searchFetch(target,{redirect:'error',signal:AbortSignal.timeout(8000)}); } catch { throw fail('SEARCH_UNAVAILABLE',503); }
         if (!upstream.ok) throw fail(upstream.status===429?'RATE_LIMITED':'SEARCH_UNAVAILABLE',upstream.status===429?429:503);
-        const data = await upstream.json();
+        const data = await readSearchJSON(upstream);
         if (!Array.isArray(data.hits) || (data.total !== null && !Number.isInteger(data.total))) throw fail('SEARCH_UNAVAILABLE',502);
         return respond(200, {
           ...data,
           elapsed_ms: Math.round(performance.now() - started),
           has_more: Boolean(data.has_more ?? (data.total !== null && page * 10 < data.total)),
           source: 'opensearch-index',
+          corpus_kind: config.corpusKind||'development',
           safe_search: safeSearch,
         });
       }

@@ -20,6 +20,20 @@ const resetLimits=()=>stack.pool.query('delete from webapp.rate_limits');
 const yearsAgo=years=>{const d=new Date();d.setUTCFullYear(d.getUTCFullYear()-years);return d.toISOString().slice(0,10);};
 before(async()=>{stack=await startStack({gatewayPort:0});base=`http://127.0.0.1:${stack.gateway.server.address().port}`;csrf=(await api('/session')).data.csrf;});
 after(async()=>{if(stack)await stack.close();});
+test('hybrid search obeys the shared external budget and falls back to the real local adapter path',async()=>{
+  await resetLimits();let externalCalls=0;
+  const searchFetch=async target=>{
+    if(new URL(target).hostname==='api.search.brave.com'){externalCalls++;return Response.json({query:{original:'base',more_results_available:true},web:{results:[{title:'External protocol fixture',url:'https://example.test/external',description:'Test-only API transport'}]}});}
+    return Response.json({query:'base',total:1,hits:[{title:'Local protocol fixture',url:'https://example.test/local',description:'Test-only index transport'}],has_more:false});
+  };
+  const app=await createGateway({...stack.config,searchProvider:'hybrid',braveKey:'test-only',braveApproved:true,braveDailyLimit:1,braveRps:100},{pool:stack.pool,searchFetch});const port=await listen(app.server);
+  try{
+    const first=await api('/search?q=base',undefined,'GET',{},`http://127.0.0.1:${port}`);
+    assert.equal(first.status,200);assert.equal(first.data.total,null);assert.equal(first.data.has_more,true);assert.equal(first.data.hits.length,2);
+    const second=await api('/search?q=base',undefined,'GET',{},`http://127.0.0.1:${port}`);
+    assert.equal(second.status,200);assert.equal(second.data.degraded,true);assert.equal(second.data.hits.length,1);assert.equal(externalCalls,1);
+  }finally{await app.close();await resetLimits();}
+});
 test('hosted signup creates the account and username@domain mailbox together and signs in',async()=>{
   const check=await api('/auth/username?name='+encodeURIComponent('Integration.User'));assert.equal(check.status,200);assert.equal(check.data.available,true);assert.equal(check.data.address,email);
   const result=await api('/auth/signup',profile());assert.equal(result.status,201);assert.deepEqual(result.data,{created:true,email,recoveryEmail:'sent'});
@@ -52,7 +66,11 @@ test('mailbox provisioning failure rolls back the account; no provisioner fails 
   const failed=await api('/auth/signup',profile({username:'rollback.user'}));assert.equal(failed.status,502);assert.equal(failed.data.code,'MAIL_PROVISIONING_FAILED');
   assert.equal((await stack.pool.query('select 1 from webapp.accounts where username=$1',['rollback.user'])).rowCount,0);
   const closed=await createGateway(stack.config,{pool:stack.pool});const port=await listen(closed.server);
-  try{const response=await api('/auth/signup',profile({username:'closed.user'}),'POST',{},`http://127.0.0.1:${port}`);assert.equal(response.status,503);assert.equal(response.data.code,'MAIL_PROVISIONING_UNAVAILABLE');}
+  try{
+    const response=await api('/auth/signup',profile({username:'closed.user'}),'POST',{},`http://127.0.0.1:${port}`);assert.equal(response.status,503);assert.equal(response.data.code,'MAIL_PROVISIONING_UNAVAILABLE');
+    const capability=await api('/auth/username',undefined,'GET',{},`http://127.0.0.1:${port}`);
+    assert.equal(capability.data.signupEnabled,false,'the first signup screen must know provisioning is unavailable');
+  }
   finally{await closed.close();}
   assert.equal((await stack.pool.query('select 1 from webapp.accounts where username=$1',['closed.user'])).rowCount,0);
 });

@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"example.com/openportal-search/backend/internal/crawler"
 	"example.com/openportal-search/backend/internal/indexer"
 	_ "github.com/lib/pq"
+	"golang.org/x/net/idna"
 )
 
 func env(key, fallback string) string {
@@ -26,14 +29,72 @@ func env(key, fallback string) string {
 	return fallback
 }
 
+func approvedHosts(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, fmt.Errorf("CRAWL_ALLOWED_HOSTS is required; configure only domains with approved crawl rights")
+	}
+	pattern := regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$`)
+	seen := make(map[string]bool)
+	var hosts []string
+	for _, entry := range strings.Split(raw, ",") {
+		ascii, err := idna.Lookup.ToASCII(strings.TrimSpace(entry))
+		if err != nil {
+			return nil, fmt.Errorf("crawl allowlist contains an invalid international hostname")
+		}
+		host := strings.ToLower(ascii)
+		if len(host) > 253 || !pattern.MatchString(host) {
+			return nil, fmt.Errorf("crawl allowlist contains an invalid hostname")
+		}
+		if !seen[host] {
+			seen[host] = true
+			hosts = append(hosts, host)
+		}
+	}
+	if len(hosts) > 100 {
+		return nil, fmt.Errorf("crawl allowlist must contain at most 100 hosts")
+	}
+	return hosts, nil
+}
+
+func approvedTarget(raw string, hosts []string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.User != nil {
+		return fmt.Errorf("invalid crawl target")
+	}
+	cu, err := crawler.Canonicalize(raw)
+	if err != nil || cu.Scheme != "https" || cu.Port != 443 {
+		return fmt.Errorf("crawl target must use approved HTTPS port 443")
+	}
+	for _, host := range hosts {
+		if cu.Hostname == host {
+			return nil
+		}
+	}
+	return fmt.Errorf("crawl target is outside the current operator allowlist")
+}
+
 func main() {
 	opensearchURL := flag.String("opensearch", env("OPENSEARCH_URL", "http://127.0.0.1:9200"), "OpenSearch base URL")
 	indexName := flag.String("index", env("OPENSEARCH_INDEX", "documents_v2"), "OpenSearch target index")
 	databaseURL := flag.String("database", env("DATABASE_URL", ""), "PostgreSQL connection string")
 	targetURL := flag.String("url", "", "Single URL to crawl directly and exit")
 	workerMode := flag.Bool("worker", false, "Run in continuous frontier worker loop")
+	pageLimit := flag.Int("max-pages", 20, "Maximum URLs processed per run (1-10000), including worker mode")
 	crawlDelay := flag.Duration("delay", 500*time.Millisecond, "Per-host crawl delay")
+	allowedHosts := flag.String("allow-hosts", env("CRAWL_ALLOWED_HOSTS", ""), "Comma-separated hostnames with operator-approved crawl rights")
 	flag.Parse()
+	hostnames, err := approvedHosts(*allowedHosts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if *pageLimit < 1 || *pageLimit > 10000 {
+		log.Fatal("max-pages must be between 1 and 10000")
+	}
+	if *targetURL != "" {
+		if err := approvedTarget(*targetURL, hostnames); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	log.Printf("[Crawler] Starting OpenPortal Real Web Crawler & Ingestion Pipeline...")
 	log.Printf("[Crawler] Target OpenSearch: %s, Index: %s", *opensearchURL, *indexName)
@@ -46,7 +107,7 @@ func main() {
 			log.Fatalf("[Crawler] Failed to connect to PostgreSQL: %v", err)
 		}
 		defer db.Close()
-		log.Printf("[Crawler] Connected to PostgreSQL at %s", *databaseURL)
+		log.Printf("[Crawler] PostgreSQL frontier connection configured")
 	}
 
 	var frontier crawler.FrontierQueue
@@ -62,30 +123,15 @@ func main() {
 	fetcher := crawler.NewSafeFetcher(crawler.NewSSRFGuard())
 	bCrawler := crawler.NewBoundedCrawler(frontier, fetcher, politeness)
 
-	// Register approved seed domains
-	authorizedHosts := []struct {
-		scheme   string
-		hostname string
-		port     int
-	}{
-		{"https", "rfc-editor.org", 443},
-		{"https", "www.rfc-editor.org", 443},
-		{"https", "w3.org", 443},
-		{"https", "www.w3.org", 443},
-		{"https", "iana.org", 443},
-		{"https", "www.iana.org", 443},
-		{"https", "developer.mozilla.org", 443},
-		{"https", "ko.wikipedia.org", 443},
-		{"https", "en.wikipedia.org", 443},
-	}
-
-	for _, h := range authorizedHosts {
+	// Public standards sites are not implicitly authorized. Operators must
+	// explicitly approve each host; robots and SSRF checks still apply.
+	for _, hostname := range hostnames {
 		frontier.RegisterVerifiedHost(&crawler.VerifiedHost{
-			ID:           fmt.Sprintf("host-%s", h.hostname),
-			Scheme:       h.scheme,
-			Hostname:     h.hostname,
-			Port:         h.port,
-			HostKey:      fmt.Sprintf("%s://%s:%d", h.scheme, h.hostname, h.port),
+			ID:           fmt.Sprintf("host-%s", hostname),
+			Scheme:       "https",
+			Hostname:     hostname,
+			Port:         443,
+			HostKey:      fmt.Sprintf("https://%s:443", hostname),
 			FetchEnabled: true,
 			CrawlDelay:   *crawlDelay,
 			CreatedAt:    time.Now().UTC(),
@@ -107,23 +153,6 @@ func main() {
 
 	// If a specific URL was requested, enqueue and crawl it directly
 	if *targetURL != "" {
-		cu, err := crawler.Canonicalize(*targetURL)
-		if err != nil {
-			log.Fatalf("[Crawler] Invalid target URL %q: %v", *targetURL, err)
-		}
-
-		// Register host dynamically if allowed
-		frontier.RegisterVerifiedHost(&crawler.VerifiedHost{
-			ID:           fmt.Sprintf("host-%s", cu.Hostname),
-			Scheme:       cu.Scheme,
-			Hostname:     cu.Hostname,
-			Port:         cu.Port,
-			HostKey:      cu.HostKey,
-			FetchEnabled: true,
-			CrawlDelay:   *crawlDelay,
-			CreatedAt:    time.Now().UTC(),
-		})
-
 		_, submitErr := frontier.SubmitURL(*targetURL, 100)
 		if submitErr != nil && submitErr != crawler.ErrFrontierURLAlreadyExists {
 			log.Printf("[Crawler] SubmitURL error: %v", submitErr)
@@ -135,20 +164,12 @@ func main() {
 	}
 
 	// Default seed crawl if not in daemon mode
-	initialSeeds := []string{
-		"https://www.rfc-editor.org/rfc/rfc9309.html", // Robots Exclusion Protocol RFC
-		"https://www.iana.org/domains/reserved",
-	}
-
-	for _, seedURL := range initialSeeds {
-		_, _ = frontier.SubmitURL(seedURL, 80)
+	for _, hostname := range hostnames {
+		_, _ = frontier.SubmitURL("https://"+hostname+"/", 80)
 	}
 
 	runCount := 0
-	maxPages := 20
-	if *workerMode {
-		maxPages = 10000000 // effectively unbounded
-	}
+	maxPages := *pageLimit
 
 	for runCount < maxPages {
 		select {
@@ -158,7 +179,8 @@ func main() {
 		default:
 		}
 
-		items := frontier.LeaseAcquire(workerID, 5, 60*time.Second)
+		batchSize := min(5, maxPages-runCount)
+		items := frontier.LeaseAcquire(workerID, batchSize, 60*time.Second)
 		if len(items) == 0 {
 			if !*workerMode {
 				log.Printf("[Crawler] Queue is empty. Single pass complete.")
@@ -173,6 +195,10 @@ func main() {
 				break
 			}
 			runCount++
+			if err := approvedTarget(item.URL, hostnames); err != nil {
+				_ = frontier.Block(item.URLHash, "outside current operator allowlist")
+				continue
+			}
 			crawlAndIndex(ctx, bCrawler, idxService, frontier, workerID, item.URL, runCount)
 		}
 	}

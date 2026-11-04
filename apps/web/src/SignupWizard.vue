@@ -4,12 +4,14 @@ import { APIError, mutate, request } from './client';
 import { errors, messages, type Locale } from './i18n';
 import { designMessages } from './design-copy';
 import { signupErrors, signupMessages } from './signup-copy';
+import { signupStatusMessages } from './signup-status-copy';
 
 const props = defineProps<{ locale: Locale }>();
 const emit = defineEmits<{ created: [address: string]; navigate: [url: string] }>();
 const t = computed(() => messages[props.locale]);
 const copy = computed(() => designMessages[props.locale]);
 const s = computed(() => signupMessages[props.locale]);
+const statusCopy = computed(() => signupStatusMessages[props.locale]);
 
 type Step = 'name' | 'basic' | 'username' | 'password' | 'recovery' | 'review' | 'done';
 const order: Step[] = ['name', 'basic', 'username', 'password', 'recovery', 'review'];
@@ -24,6 +26,8 @@ const password = ref(''), confirm = ref(''), showPassword = ref(false);
 const recoveryEmail = ref(''), country = ref(props.locale === 'th' ? '+66' : props.locale === 'ko' ? '+82' : '+1'), phone = ref('');
 const agree = ref(false);
 const busy = ref(false), error = ref(''), unavailable = ref(false), created = ref(''), recoveryResult = ref('none');
+const checkingService = ref(true);
+const creationUncertain = ref(false);
 const stepError = ref('');
 
 const countries = [['+82', 'KR'], ['+66', 'TH'], ['+1', 'US/CA'], ['+81', 'JP'], ['+86', 'CN'], ['+44', 'UK'], ['+61', 'AU'], ['+65', 'SG'], ['+84', 'VN'], ['+49', 'DE'], ['+33', 'FR']];
@@ -31,6 +35,7 @@ const monthNames = computed(() => Array.from({ length: 12 }, (_, i) => new Intl.
 
 const errorText = computed(() => {
   const code = error.value;
+  if(code==='SIGNUP_STATUS_UNKNOWN')return statusCopy.value.unknownResult;
   return (signupErrors[props.locale] as Record<string, string>)[code] || errors[props.locale][code] || errors[props.locale].fallback;
 });
 
@@ -63,6 +68,8 @@ async function check(name: string) {
     const data = await request(`/auth/username?${new URLSearchParams({ name })}`, { signal: controller.signal });
     if (own !== sequence) return;
     if (data.domain) domain.value = data.domain;
+    unavailable.value = data.signupEnabled === false;
+    if (unavailable.value) { availability.value = { state: 'error', suggestions: [] }; return; }
     if (!name) return; // initial call only discovers the mail domain
     availability.value = { state: data.available ? 'available' : (data.reason || 'taken'), suggestions: Array.isArray(data.suggestions) ? data.suggestions : [] };
   } catch (e) {
@@ -71,8 +78,9 @@ async function check(name: string) {
     if (e instanceof APIError && (e.code === 'MAIL_PROVISIONING_UNAVAILABLE' || e.status >= 500)) unavailable.value = true;
     if (!name) return;
     availability.value = { state: 'error', suggestions: [] };
-  }
+  } finally { if (own === sequence) checkingService.value = false; }
 }
+function retryService() { checkingService.value = true; error.value = ''; check(normalizedUsername.value); }
 watch(normalizedUsername, name => {
   clearTimeout(timer); ++sequence; controller?.abort();
   if (!name) { availability.value = { state: 'idle', suggestions: [] }; return; }
@@ -103,7 +111,7 @@ function validate(current: Step): string {
     return '';
   }
   if (current === 'username') return availability.value.state === 'available' ? '' : (usernameMessage.value || s.value.format);
-  if (current === 'password') return password.value.length < 12 ? t.value.passwordHint : password.value !== confirm.value ? t.value.mismatch : '';
+  if (current === 'password') return password.value.length < 12 ? t.value.passwordHint : new TextEncoder().encode(password.value).length > 1024 ? statusCopy.value.passwordTooLong : password.value !== confirm.value ? t.value.mismatch : '';
   if (current === 'recovery') {
     if (recoveryEmail.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recoveryEmail.value.trim())) return t.value.email;
     if (domain.value && recoveryEmail.value.trim().toLowerCase().endsWith('@' + domain.value)) return (signupErrors[props.locale] as Record<string, string>).RECOVERY_EMAIL_SAME_DOMAIN;
@@ -114,9 +122,10 @@ function validate(current: Step): string {
 const heading = ref<HTMLElement | null>(null);
 function focusHeading() { requestAnimationFrame(() => heading.value?.focus()); }
 function next() {
+  if (unavailable.value || checkingService.value || busy.value) return;
   stepError.value = validate(step.value);
   if (stepError.value) return;
-  step.value = order[stepIndex.value + 1]; error.value = ''; focusHeading();
+  step.value = order[stepIndex.value + 1]; showPassword.value = false; error.value = ''; focusHeading();
 }
 function back() { stepError.value = ''; error.value = ''; if (stepIndex.value > 0) { step.value = order[stepIndex.value - 1]; focusHeading(); } }
 function goTo(target: Step) { stepError.value = ''; step.value = target; focusHeading(); }
@@ -125,7 +134,7 @@ const birthdayLabel = computed(() => birthDate.value ? new Intl.DateTimeFormat(p
 const fullName = computed(() => props.locale === 'ko' ? `${familyName.value.trim()}${givenName.value.trim()}` : `${givenName.value.trim()} ${familyName.value.trim()}`.trim());
 
 async function submit() {
-  if (!agree.value || busy.value) return;
+  if (!agree.value || busy.value || creationUncertain.value || unavailable.value) return;
   busy.value = true; error.value = '';
   try {
     const data = await mutate('/auth/signup', {
@@ -134,6 +143,7 @@ async function submit() {
       username: normalizedUsername.value, password: password.value, recoveryEmail: recoveryEmail.value.trim() || undefined,
       recoveryPhone: phoneE164.value || undefined, locale: props.locale, agree: true,
     });
+    if(data.created!==true || data.email!==`${normalizedUsername.value}@${domain.value}`){creationUncertain.value=true;throw new APIError('SIGNUP_STATUS_UNKNOWN',502);}
     created.value = data.email; recoveryResult.value = data.recoveryEmail || 'none';
     password.value = ''; confirm.value = '';
     step.value = 'done'; focusHeading(); emit('created', data.email);
@@ -156,9 +166,10 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); });
   <div class="wizard">
     <div v-if="step!=='done'" class="wizard-progress">
       <span class="wizard-count">{{s.steps.replace('{n}', String(stepIndex+1)).replace('{total}', String(order.length))}}</span>
-      <span class="wizard-bar" aria-hidden="true"><i :style="{width:`${((stepIndex+1)/order.length)*100}%`}"></i></span>
+      <span class="wizard-bar" :data-step="stepIndex+1" role="progressbar" :aria-label="s.steps.replace('{n}', String(stepIndex+1)).replace('{total}', String(order.length))" :aria-valuenow="stepIndex+1" :aria-valuemin="1" :aria-valuemax="order.length"><i></i></span>
     </div>
-    <p v-if="unavailable" class="alert" role="alert">{{s.unavailable}}</p>
+    <div v-if="unavailable" class="alert" role="alert"><p>{{s.unavailable}}</p><button type="button" class="button" :disabled="checkingService" @click="retryService">{{checkingService?t.loading:t.retry}}</button></div>
+    <p v-else-if="domain.endsWith('.test')" class="notice" role="note">{{statusCopy.developmentService}}</p>
 
     <form v-if="step==='name'" class="auth-form" @submit.prevent="next">
       <header class="auth-header"><h1 ref="heading" tabindex="-1">{{s.nameTitle}}</h1><p>{{s.nameIntro}}</p></header>
@@ -167,7 +178,7 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); });
         <div class="form-group"><label for="su-given">{{s.givenName}}</label><input id="su-given" v-model="givenName" autocomplete="given-name" maxlength="40" required/></div>
       </div>
       <p v-if="stepError" class="field-error" role="alert">{{stepError}}</p>
-      <div class="wizard-actions"><span></span><button class="button primary" type="submit">{{s.next}}</button></div>
+      <div class="wizard-actions"><span></span><button class="button primary" type="submit" :disabled="unavailable||checkingService">{{checkingService?t.loading:s.next}}</button></div>
     </form>
 
     <form v-else-if="step==='basic'" class="auth-form" @submit.prevent="next">
@@ -178,7 +189,7 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); });
           <div class="form-group"><label for="su-month">{{s.month}}</label><select id="su-month" v-model="month" autocomplete="bday-month" required><option value="" disabled>{{s.month}}</option><option v-for="(name,index) in monthNames" :key="index" :value="String(index+1)">{{name}}</option></select></div>
           <div class="form-group"><label for="su-day">{{s.day}}</label><input id="su-day" v-model="day" inputmode="numeric" autocomplete="bday-day" maxlength="2" placeholder="1" required/></div>
         </div>
-        <small class="hint">{{s.ageHint}}</small>
+        <small class="hint">{{s.ageHint}} {{statusCopy.calendarHint}}</small>
       </fieldset>
       <div class="form-group"><label for="su-gender">{{s.gender}}</label><select id="su-gender" v-model="gender" required><option value="" disabled>{{s.genderSelect}}</option><option value="female">{{s.female}}</option><option value="male">{{s.male}}</option><option value="unspecified">{{s.unspecified}}</option><option value="custom">{{s.custom}}</option></select></div>
       <template v-if="gender==='custom'">
@@ -248,7 +259,8 @@ onUnmounted(() => { clearTimeout(timer); controller?.abort(); });
       </dl>
       <label class="checkbox-row"><input v-model="agree" type="checkbox" required/><span>{{t.agree}} <a :href="`/${locale}/terms`" target="_blank" rel="noopener">{{t.terms}}</a> · <a :href="`/${locale}/privacy`" target="_blank" rel="noopener">{{t.privacy}}</a></span></label>
       <p v-if="error" class="alert" role="alert">{{errorText}}</p>
-      <div class="wizard-actions"><button type="button" class="button" :disabled="busy" @click="back">{{s.back}}</button><button class="button primary" type="submit" :disabled="busy||!agree||unavailable">{{busy?s.creating:s.create}}</button></div>
+      <div class="wizard-actions"><button type="button" class="button" :disabled="busy||creationUncertain" @click="back">{{s.back}}</button><button class="button primary" type="submit" :disabled="busy||!agree||unavailable||creationUncertain">{{busy?s.creating:s.create}}</button></div>
+      <a v-if="creationUncertain" class="button" :href="`/${locale}/login`" @click="link($event,`/${locale}/login`)">{{t.login}}</a>
     </form>
 
     <div v-else class="auth-sent">
