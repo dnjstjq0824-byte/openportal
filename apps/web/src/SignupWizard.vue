@@ -67,7 +67,9 @@ async function check(name: string) {
     availability.value = { state: data.available ? 'available' : (data.reason || 'taken'), suggestions: Array.isArray(data.suggestions) ? data.suggestions : [] };
   } catch (e) {
     if (own !== sequence || controller.signal.aborted) return;
-    if (e instanceof APIError && e.code === 'MAIL_PROVISIONING_UNAVAILABLE') unavailable.value = true;
+    // No gateway (e.g. static Pages deploy) or no provisioner: say so before the user fills every step.
+    if (e instanceof APIError && (e.code === 'MAIL_PROVISIONING_UNAVAILABLE' || e.status >= 500)) unavailable.value = true;
+    if (!name) return;
     availability.value = { state: 'error', suggestions: [] };
   }
 }
@@ -139,7 +141,7 @@ async function submit() {
     error.value = e instanceof APIError ? e.code : 'fallback';
     const target: Record<string, Step> = { USERNAME_TAKEN: 'username', USERNAME_RESERVED: 'username', INVALID_USERNAME: 'username', AGE_REQUIREMENT: 'basic', RECOVERY_EMAIL_SAME_DOMAIN: 'recovery', INVALID_PHONE: 'recovery', PASSWORD_POLICY: 'password' };
     if (target[error.value]) { step.value = target[error.value]; if (target[error.value] === 'username') check(normalizedUsername.value); }
-    if (error.value === 'MAIL_PROVISIONING_UNAVAILABLE') unavailable.value = true;
+    if (error.value === 'MAIL_PROVISIONING_UNAVAILABLE' || error.value === 'GATEWAY_UNAVAILABLE') unavailable.value = true;
   } finally { busy.value = false; }
 }
 function link(event: MouseEvent, url: string) {
