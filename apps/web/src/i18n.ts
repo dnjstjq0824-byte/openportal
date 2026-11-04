@@ -53,7 +53,10 @@ errors.ko.SEND_STATUS_UNKNOWN='메일 전송 상태를 확인하지 못했습니
 errors.th.SEND_STATUS_UNKNOWN='ยังยืนยันสถานะการส่งไม่ได้ โปรดตรวจสอบโฟลเดอร์ส่งแล้วหรือติดต่อผู้ดูแลก่อนส่งซ้ำ';
 errors.en.SEND_STATUS_UNKNOWN='Delivery submission status is uncertain. Check Sent or contact the operator before retrying to avoid duplicates.';
 export const folderLabels={
-  ko:{manage:'폴더 관리',name:'폴더 이름',create:'폴더 만들기',rename:'이름 변경',remove:'빈 폴더 삭제',move:'다른 폴더로 이동'},
-  th:{manage:'จัดการโฟลเดอร์',name:'ชื่อโฟลเดอร์',create:'สร้างโฟลเดอร์',rename:'เปลี่ยนชื่อ',remove:'ลบโฟลเดอร์ว่าง',move:'ย้ายไปโฟลเดอร์อื่น'},
-  en:{manage:'Manage folders',name:'Folder name',create:'Create folder',rename:'Rename',remove:'Delete empty folder',move:'Move to another folder'},
+  ko:{manage:'폴더 관리',name:'폴더 이름',create:'폴더 만들기',rename:'이름 변경',remove:'빈 폴더 삭제',move:'다른 폴더로 이동',from:'보낸 사람',unknownDate:'날짜 정보 없음',discard:'저장하지 않은 메일 변경 사항을 버릴까요?'},
+  th:{manage:'จัดการโฟลเดอร์',name:'ชื่อโฟลเดอร์',create:'สร้างโฟลเดอร์',rename:'เปลี่ยนชื่อ',remove:'ลบโฟลเดอร์ว่าง',move:'ย้ายไปโฟลเดอร์อื่น',from:'จาก',unknownDate:'ไม่มีข้อมูลวันที่',discard:'ต้องการละทิ้งการเปลี่ยนแปลงอีเมลที่ยังไม่ได้บันทึกหรือไม่?'},
+  en:{manage:'Manage folders',name:'Folder name',create:'Create folder',rename:'Rename',remove:'Delete empty folder',move:'Move to another folder',from:'From',unknownDate:'Date unavailable',discard:'Discard the unsaved changes to this message?'},
 };
+errors.ko.MAIL_OPERATION_BUSY='이 메일의 다른 작업이 진행 중입니다. 잠시 후 다시 시도하세요.';
+errors.th.MAIL_OPERATION_BUSY='ข้อความนี้กำลังถูกดำเนินการอยู่ โปรดลองอีกครั้งในภายหลัง';
+errors.en.MAIL_OPERATION_BUSY='Another operation on this message is in progress. Try again shortly.';

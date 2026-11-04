@@ -7,6 +7,7 @@
     "provision:mail": "node --env-file=.env gateway/provision-mail.mjs",
     "test:platform": "node --test tests/platform.integration.test.mjs tests/pages-worker.test.mjs tests/pages-worker-security.test.mjs tests/translations.test.mjs",
     "test:platform:e2e": "playwright test --config playwright.platform.config.mjs",
+    "test:mail:e2e": "playwright test --config playwright.mail.config.mjs",
     "test:db": "node scripts/test-database.mjs",
     "test:contracts": "node scripts/check-contracts.mjs",
     "test:e2e": "playwright test",

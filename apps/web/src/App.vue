@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import MailView from './MailView.vue';
 import { APIError, mutate, request, session } from './client';
-import { errors, locales, messages, type Locale } from './i18n';
+import { errors, locales, messages, folderLabels, type Locale } from './i18n';
 
 const locale = ref<Locale>('en');
 const route = ref('');
@@ -24,6 +24,11 @@ const error = ref('');
 const notice = ref('');
 const user = ref<any>(null);
 const ready = ref(false);
+const mailDraftDirty = ref(false);
+let navigationIndex = Number.isInteger(history.state?.portalIndex) ? history.state.portalIndex : 0;
+let currentAddress = location.pathname + location.search + location.hash;
+let undoingNavigation = false;
+history.replaceState({ ...history.state, portalIndex: navigationIndex }, '', location.href);
 
 // Auth inputs
 const email = ref('');
@@ -230,7 +235,32 @@ function safeReturn(value: string | null) {
 }
 
 function navigate(url: string, replace = false) {
-  history[replace ? 'replaceState' : 'pushState'](null, '', url);
+  if (!canLeaveMail(url)) return false;
+  if (!replace) navigationIndex++;
+  history[replace ? 'replaceState' : 'pushState']({ ...history.state, portalIndex: navigationIndex }, '', url);
+  currentAddress = location.pathname + location.search + location.hash;
+  restore();
+  return true;
+}
+
+function canLeaveMail(url: string) {
+  const destination = new URL(url, location.origin);
+  if (!mailDraftDirty.value || route.value !== 'mail' || /^\/(ko|th|en)\/mail\/?$/.test(destination.pathname)) return true;
+  return window.confirm(folderLabels[locale.value].discard);
+}
+
+function onHistoryNavigation() {
+  if (undoingNavigation) { undoingNavigation = false; return; }
+  const requestedIndex = history.state?.portalIndex;
+  if (!canLeaveMail(location.href)) {
+    if (Number.isInteger(requestedIndex) && requestedIndex !== navigationIndex) {
+      undoingNavigation = true;
+      history.go(navigationIndex - requestedIndex);
+    } else history.pushState({ ...history.state, portalIndex: navigationIndex }, '', currentAddress);
+    return;
+  }
+  if (Number.isInteger(requestedIndex)) navigationIndex = requestedIndex;
+  currentAddress = location.pathname + location.search + location.hash;
   restore();
 }
 
@@ -389,7 +419,8 @@ function restore() {
   featureToast.value = '';
 
   token.value = new URLSearchParams(location.hash.slice(1)).get('token') || '';
-  if (token.value) history.replaceState(null, '', location.pathname + location.search);
+  if (token.value) history.replaceState({ ...history.state }, '', location.pathname + location.search);
+  currentAddress = location.pathname + location.search + location.hash;
   metadata();
 
   if (['mail', 'account'].includes(route.value) && ready.value && !user.value) {
@@ -468,8 +499,10 @@ async function resend() {
 }
 
 async function logout() {
+  if (!canLeaveMail(`/${locale.value}`)) return;
   try {
     await mutate('/auth/logout', {});
+    mailDraftDirty.value = false;
     user.value = null;
     navigate(`/${locale.value}`);
   } catch (e) {
@@ -505,8 +538,11 @@ async function deleteAccount() {
 }
 
 function expired() {
+  const destination=`/${locale.value}/login?${new URLSearchParams({ returnTo: location.pathname + location.search })}`;
+  if (!canLeaveMail(destination)) return;
+  mailDraftDirty.value = false;
   user.value = null;
-  navigate(`/${locale.value}/login?${new URLSearchParams({ returnTo: location.pathname + location.search })}`, true);
+  navigate(destination, true);
 }
 
 watch(theme, value => {
@@ -523,7 +559,7 @@ onMounted(async () => {
   }
   ready.value = true;
   restore();
-  window.addEventListener('popstate', restore);
+  window.addEventListener('popstate', onHistoryNavigation);
   refreshTimer = setInterval(async () => {
     if (user.value) {
       try {
@@ -538,7 +574,7 @@ onMounted(async () => {
 onUnmounted(() => {
   controller?.abort();
   if (refreshTimer) clearInterval(refreshTimer);
-  window.removeEventListener('popstate', restore);
+  window.removeEventListener('popstate', onHistoryNavigation);
 });
 </script>
 
@@ -897,7 +933,7 @@ onUnmounted(() => {
       </section>
 
       <!-- 3. Mail View -->
-      <MailView v-else-if="route === 'mail' && user" :locale="locale" :user="user" @expired="expired" />
+      <MailView v-else-if="route === 'mail' && user" :locale="locale" :user="user" @expired="expired" @dirty-change="mailDraftDirty = $event" />
 
       <!-- 4. Dedicated Auth Pages (D-06: No Modal) -->
       <section v-else-if="['login', 'signup', 'forgot-password', 'reset-password', 'verify-email'].includes(route)" class="auth-page-wrap">

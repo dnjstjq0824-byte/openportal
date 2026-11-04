@@ -7,6 +7,28 @@ const MAIL = 'urn:ietf:params:jmap:mail';
 const SUBMISSION = 'urn:ietf:params:jmap:submission';
 export const MAX_ATTACHMENT = 5 * 1024 * 1024;
 export const fail = (code, status = 400) => Object.assign(new Error(code), { status });
+// Draft replacement and submission must use the same account-scoped lock.
+// Keep every query on this connection to avoid pool starvation under concurrency.
+export async function withMessageLock(pool, accountId, emailId, operation) {
+  if (typeof emailId !== 'string' || !emailId || emailId.length > 256) throw fail('INVALID_INPUT');
+  const connection = await pool.connect();
+  const key = `mail:${accountId}:${emailId}`;
+  let locked = false;
+  let released = false;
+  try {
+    locked = (await connection.query('select pg_try_advisory_lock(hashtextextended($1,0)) as locked', [key])).rows[0].locked;
+    if (!locked) throw fail('MAIL_OPERATION_BUSY', 409);
+    return await operation(connection);
+  } finally {
+    try {
+      if (locked) await connection.query('select pg_advisory_unlock(hashtextextended($1,0))', [key]);
+    } catch (error) {
+      connection.release(error);
+      released = true;
+    }
+    if (!released) connection.release();
+  }
+}
 export function cleanHTML(html) {
   return sanitizeHtml(html, { allowedTags: ['p','br','div','span','strong','b','em','i','ul','ol','li','blockquote','pre','code','a','h1','h2','h3','table','tr','td','th','tbody','thead'], allowedAttributes: { a: ['href'] }, allowedSchemes: ['http','https','mailto'], allowProtocolRelative: false, transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noreferrer noopener', target: '_blank' }) } });
 }
@@ -86,6 +108,8 @@ export class MailClient {
     email.text = (email.textBody || []).map(x => email.bodyValues?.[x.partId]?.value || '').join('\n');
     email.html = cleanHTML((email.htmlBody || []).map(x => email.bodyValues?.[x.partId]?.value || '').join('\n'));
     delete email.bodyValues;
+    const submission = (await this.pool.query('select submission_id from webapp.mail_send_requests where account_id=$1 and email_id=$2', [this.user.id, id])).rows[0];
+    if (submission) email.submissionStatus = submission.submission_id ? 'accepted' : 'uncertain';
     return email;
   }
   async update(id, change) {
@@ -102,6 +126,10 @@ export class MailClient {
     return { updated: true };
   }
   async draft(input) {
+    if (input.id) {
+      const reserved = await this.pool.query('select 1 from webapp.mail_send_requests where account_id=$1 and email_id=$2', [this.user.id, input.id]);
+      if (reserved.rows.length) throw fail('SEND_STATUS_UNKNOWN', 409);
+    }
     const previous=input.id?await this.read(input.id):null;
     if(previous&&!previous.keywords?.$draft)throw fail('INVALID_INPUT');
     const boxes = await this.mailboxes(); const drafts = boxes.find(x => x.role === 'drafts');

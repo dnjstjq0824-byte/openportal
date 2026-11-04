@@ -1545,6 +1545,9 @@ button:disabled {
 }
 
 .mail-action-bar {
+  border: 0;
+  min-width: 0;
+  padding: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1685,6 +1688,23 @@ button:disabled {
   .mail-sidebar, .mail-list {
     border-right: none;
     border-bottom: 1px solid var(--line);
+  }
+  .mail-sidebar {
+    min-width: 0;
+    padding: 14px;
+  }
+  .mail-folder-nav {
+    flex-direction: row;
+    gap: 6px;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .mail-folder-btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 44px;
+    white-space: nowrap;
   }
 }
 

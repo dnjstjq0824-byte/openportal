@@ -5,7 +5,7 @@ import pg from 'pg';
 import nodemailer from 'nodemailer';
 import { randomToken, digest, equal, hashPassword, verifyPassword } from './security.mjs';
 import { emailText } from './translations.mjs';
-import { MailClient, MAX_ATTACHMENT, fail } from './mail.mjs';
+import { MailClient, MAX_ATTACHMENT, fail, withMessageLock } from './mail.mjs';
 import { braveSearch, bingSearch, hybridSearch } from './search.mjs';
 
 export function configuration(env = process.env) {
@@ -274,12 +274,23 @@ export async function createGateway(config, dependencies = {}) {
         const message=path.match(/^\/api\/v2\/mail\/messages\/([^/]+)$/);
         if (message && req.method === 'GET') return respond(200,await mail.read(decodeURIComponent(message[1])));
         if (message && req.method === 'PATCH') return respond(200,await mail.update(decodeURIComponent(message[1]),await readJSON(req)));
-        if (path === '/api/v2/mail/drafts' && req.method === 'POST') return respond(200,await mail.draft(await readJSON(req)));
+        if (path === '/api/v2/mail/drafts' && req.method === 'POST') {
+          const body=await readJSON(req);
+          if(!body.id)return respond(200,await mail.draft(body));
+          return respond(200,await withMessageLock(pool,account.id,body.id,async connection=>{
+            mail.pool=connection;
+            return mail.draft(body);
+          }));
+        }
         if (path === '/api/v2/mail/send' && req.method === 'POST') {
           await rate(req,'send-mail',30,3600);const body=await readJSON(req);if(typeof body.id!=='string'||body.id.length>256)throw fail('INVALID_INPUT');
-          const reservation=await pool.query('insert into webapp.mail_send_requests(account_id,email_id) values($1,$2) on conflict do nothing returning email_id',[account.id,body.id]);
-          if(!reservation.rows.length){const previous=(await pool.query('select submission_id from webapp.mail_send_requests where account_id=$1 and email_id=$2',[account.id,body.id])).rows[0];if(previous?.submission_id)return respond(200,{accepted:true,submissionId:previous.submission_id});throw fail('SEND_STATUS_UNKNOWN',409);}
-          try{const sent=await mail.send(body.id);await pool.query('update webapp.mail_send_requests set submission_id=$1 where account_id=$2 and email_id=$3',[sent.submissionId,account.id,body.id]);return respond(200,sent);}catch{throw fail('SEND_STATUS_UNKNOWN',409);}
+          const result=await withMessageLock(pool,account.id,body.id,async connection=>{
+            mail.pool=connection;
+            const reservation=await connection.query('insert into webapp.mail_send_requests(account_id,email_id) values($1,$2) on conflict do nothing returning email_id',[account.id,body.id]);
+            if(!reservation.rows.length){const previous=(await connection.query('select submission_id from webapp.mail_send_requests where account_id=$1 and email_id=$2',[account.id,body.id])).rows[0];if(previous?.submission_id)return {accepted:true,submissionId:previous.submission_id};throw fail('SEND_STATUS_UNKNOWN',409);}
+            try{const sent=await mail.send(body.id);await connection.query('update webapp.mail_send_requests set submission_id=$1 where account_id=$2 and email_id=$3',[sent.submissionId,account.id,body.id]);return sent;}catch{throw fail('SEND_STATUS_UNKNOWN',409);}
+          });
+          return respond(200,result);
         }
         if (path === '/api/v2/mail/upload' && req.method === 'POST') {
           const bytes=await readBody(req,MAX_ATTACHMENT); const type=String(req.headers['content-type']||'');

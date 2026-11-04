@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
 import net from 'node:net';
 import {startStack,listen} from './helpers/platform-stack.mjs';
-import {cleanHTML,scanAttachment} from '../gateway/mail.mjs';
+import {cleanHTML,scanAttachment,withMessageLock} from '../gateway/mail.mjs';
 import {createGateway} from '../gateway/server.mjs';
 import {safeReturn} from '../gateway/security.mjs';
 
@@ -56,6 +56,36 @@ test('custom folders can be managed while system and foreign folders are protect
   assert.equal((await api('/mail/mailboxes',{id:provider.id+'-inbox',destroy:true})).status,400);
   assert.equal((await api('/mail/mailboxes',{id:'foreign-folder',destroy:true})).status,400);
   assert.equal((await api('/mail/mailboxes',{id,destroy:true})).status,200);
+});
+test('an unresolved send reservation cannot be bypassed by replacing the draft',async()=>{
+  const draft=await api('/mail/drafts',{to:'recipient@example.test',subject:'Uncertain submission',text:'Keep the original draft'});
+  assert.equal(draft.status,200);
+  const account=(await stack.pool.query('select id from webapp.accounts where email=$1',[email])).rows[0];
+  // A reservation with no provider response represents a crash/timeout after
+  // submission started. Its outcome must be reconciled, never sent as a new ID.
+  await stack.pool.query('insert into webapp.mail_send_requests(account_id,email_id) values($1,$2)',[account.id,draft.data.id]);
+  const replacement=await api('/mail/drafts',{id:draft.data.id,to:'recipient@example.test',subject:'Edited retry',text:'Keep the original draft'});
+  assert.equal(replacement.status,409);
+  assert.equal(replacement.data.code,'SEND_STATUS_UNKNOWN');
+  const original=await api('/mail/messages/'+draft.data.id);
+  assert.equal(original.status,200);
+  assert.equal(original.data.subject,'Uncertain submission');
+  assert.equal(original.data.submissionStatus,'uncertain');
+  const retry=await api('/mail/send',{id:draft.data.id});
+  assert.equal(retry.status,409);
+});
+test('draft replacement and submission share one account-scoped lock and release it',async()=>{
+  const draft=await api('/mail/drafts',{to:'recipient@example.test',subject:'Concurrent operation',text:'Preserve one draft'});
+  const account=(await stack.pool.query('select id from webapp.accounts where email=$1',[email])).rows[0];
+  await withMessageLock(stack.pool,account.id,draft.data.id,async()=>{
+    const send=await api('/mail/send',{id:draft.data.id});
+    assert.equal(send.status,409);assert.equal(send.data.code,'MAIL_OPERATION_BUSY');
+    const edit=await api('/mail/drafts',{id:draft.data.id,to:'recipient@example.test',subject:'Competing edit'});
+    assert.equal(edit.status,409);assert.equal(edit.data.code,'MAIL_OPERATION_BUSY');
+    assert.equal((await stack.pool.query('select 1 from webapp.mail_send_requests where account_id=$1 and email_id=$2',[account.id,draft.data.id])).rowCount,0);
+  });
+  const edit=await api('/mail/drafts',{id:draft.data.id,to:'recipient@example.test',subject:'Edit after lock release'});
+  assert.equal(edit.status,200);
 });
 test('message, mailbox and attachment identifiers cannot access another provider account',async()=>{
   const other=stack.jmap.provision('other@example.test');const otherId=stack.jmap.receive(other.token,{});
