@@ -2219,9 +2219,17 @@ func (a *app) routes() http.Handler {
 // use the persistent web gateway; prototype handlers stay inaccessible here.
 func (a *app) productionRoutes() http.Handler {
 	internal := a.routes()
+	limit := newRateLimiter(120, time.Minute)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/healthz", "/readyz", "/api/v1/search", "/api/v1/suggest":
+		case "/healthz", "/readyz":
+			internal.ServeHTTP(w, r)
+		case "/api/v1/search", "/api/v1/suggest":
+			if ok, retry := limit.allow(clientIP(r), time.Now()); !ok {
+				w.Header().Set("Retry-After", strconv.Itoa(int(retry/time.Second)+1))
+				writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded", "code": "RATE_LIMITED"})
+				return
+			}
 			internal.ServeHTTP(w, r)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "endpoint unavailable", "code": "ENDPOINT_UNAVAILABLE"})

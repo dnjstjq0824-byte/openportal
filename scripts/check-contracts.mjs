@@ -9,6 +9,7 @@ const domainSpecs=[
   'docs/openapi/search.v1.yaml',
   'docs/openapi/identity.v1.yaml',
   'docs/openapi/portal.v1.yaml',
+  'docs/openapi/gateway.v2.yaml',
 ];
 const api=YAML.parse(readFileSync(apiPath,'utf8'));
 for(const specPath of domainSpecs){

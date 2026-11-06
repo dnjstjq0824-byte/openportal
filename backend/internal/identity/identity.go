@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -106,8 +108,8 @@ type Store struct {
 	challenges     map[string]*Challenge
 	orgMembers     map[string]map[string]string // orgID -> accountID -> role
 	sites          map[string]*Site
-	passwordHashes map[string]string            // accountID -> pbkdf_sha256 hash
-	emailVerified  map[string]bool              // accountID -> isVerified
+	passwordHashes map[string]string // accountID -> bcrypt$ hash (legacy pbkdf_sha256$ migrates on login)
+	emailVerified  map[string]bool   // accountID -> isVerified
 	nowFunc        func() time.Time
 }
 
@@ -641,23 +643,30 @@ func (s *Store) GetOrganizationSite(actorAccountID, orgID, siteID string) (*Site
 }
 
 func hashPasswordWithSalt(password string) (string, error) {
-	if len(password) < 8 {
+	if len(password) < 8 || len(password) > 72 {
 		return "", ErrInvalidPassword
 	}
-	salt := randomHex(16)
-	h := sha256.New()
-	h.Write([]byte(salt + password))
-	sum := h.Sum(nil)
-	for i := 0; i < 5000; i++ {
-		h.Reset()
-		h.Write(sum)
-		h.Write([]byte(salt))
-		sum = h.Sum(nil)
+	sum, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("pbkdf_sha256$%s$%s", salt, hex.EncodeToString(sum)), nil
+	return "bcrypt$" + string(sum), nil
+}
+
+func isLegacyPasswordHash(encoded string) bool {
+	return strings.HasPrefix(encoded, "pbkdf_sha256$")
 }
 
 func verifyPasswordHash(password, encoded string) bool {
+	if strings.HasPrefix(encoded, "bcrypt$") {
+		return bcrypt.CompareHashAndPassword([]byte(strings.TrimPrefix(encoded, "bcrypt$")), []byte(password)) == nil
+	}
+	return verifyLegacyPasswordHash(password, encoded)
+}
+
+// verifyLegacyPasswordHash checks hashes written by the pre-standard KDF.
+// It exists only to migrate existing accounts; new hashes are bcrypt.
+func verifyLegacyPasswordHash(password, encoded string) bool {
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 3 || parts[0] != "pbkdf_sha256" {
 		return false
@@ -765,6 +774,11 @@ func (s *Store) AuthenticateLocal(email, password string) (*Session, string, *Ac
 	pHash, ok := s.passwordHashes[accID]
 	if !ok || !verifyPasswordHash(password, pHash) {
 		return nil, "", nil, ErrInvalidCredentials
+	}
+	if isLegacyPasswordHash(pHash) {
+		if migrated, err := hashPasswordWithSalt(password); err == nil {
+			s.passwordHashes[accID] = migrated
+		}
 	}
 	if !s.emailVerified[accID] && acc.Status == "pending_verification" {
 		return nil, "", nil, ErrEmailUnverified

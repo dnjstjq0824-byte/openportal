@@ -83,7 +83,7 @@ export async function createGateway(config, dependencies = {}) {
   }
   async function user(req) {
     const token = cookieMap(req)[sessionName]; if (!token) return null;
-    const result = await pool.query('update webapp.sessions s set last_seen_at=now() from webapp.accounts a where s.account_id=a.id and s.token_hash=$1 and s.expires_at>now() and s.last_seen_at>now()-interval \'30 minutes\' and a.verified_at is not null returning a.id,a.email,a.display_name,a.locale,a.username,a.recovery_email,(a.recovery_email_verified_at is not null) as recovery_email_verified,s.expires_at', [digest(token)]);
+    const result = await pool.query('update webapp.sessions s set last_seen_at=now() from webapp.accounts a where s.account_id=a.id and s.token_hash=$1 and s.expires_at>now() and s.last_seen_at>now()-interval \'30 minutes\' and a.verified_at is not null returning a.id,a.email,a.display_name,a.locale,a.username,a.recovery_email,(a.recovery_email_verified_at is not null) as recovery_email_verified,s.expires_at,a.is_admin', [digest(token)]);
     return result.rows[0] || null;
   }
   async function startSession(res, accountId) {
@@ -132,6 +132,8 @@ export async function createGateway(config, dependencies = {}) {
   const handler = async (req, res) => {
     const requestId = randomToken().slice(0, 16);
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options','nosniff'); res.setHeader('Referrer-Policy','no-referrer'); res.setHeader('X-Request-ID',requestId);
+    res.setHeader('Content-Security-Policy',"default-src 'none'; frame-ancestors 'none'"); res.setHeader('X-Frame-Options','DENY'); res.setHeader('Cross-Origin-Resource-Policy','same-origin'); res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=(), payment=()');
+    if (config.production) res.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
     const respond = (status, body) => { res.writeHead(status, { 'Content-Type':'application/json; charset=utf-8' }); res.end(JSON.stringify(body)); };
     try {
       const url = new URL(req.url, config.origin); const path = url.pathname;
@@ -309,6 +311,26 @@ export async function createGateway(config, dependencies = {}) {
         });
       }
       const account = await user(req); if (!account) throw fail('SESSION_REQUIRED',401);
+      if (path.startsWith('/api/v2/admin/')) {
+        if (!account.is_admin) throw fail('FORBIDDEN',403);
+        await rate(req,'admin',120,60);
+        if (path === '/api/v2/admin/overview' && req.method === 'GET') {
+          const counts = (await pool.query(`select (select count(*) from webapp.accounts)::int as accounts,(select count(*) from webapp.sessions where expires_at>now())::int as sessions,(select count(*) from webapp.mail_connections)::int as mailboxes,(select count(*) from webapp.accounts where created_at>now()-interval '24 hours')::int as signups_24h`)).rows[0];
+          const recent = (await pool.query('select email,username,display_name,locale,verified_at is not null as verified,created_at from webapp.accounts order by created_at desc limit 10')).rows;
+          return respond(200, { ...counts, recent });
+        }
+        if (path === '/api/v2/admin/accounts' && req.method === 'GET') {
+          const q = String(url.searchParams.get('q') || '').trim().slice(0,80);
+          const page = Number(url.searchParams.get('page') || 1);
+          if (!Number.isInteger(page) || page < 1 || page > 100) throw fail('INVALID_QUERY');
+          const where = q ? 'where email ilike $1 or username ilike $1 or display_name ilike $1' : '';
+          const args = q ? [`%${q.replace(/[%_\\]/g, '')}%`] : [];
+          const total = (await pool.query(`select count(*)::int as total from webapp.accounts ${where}`, args)).rows[0].total;
+          const rows = (await pool.query(`select email,username,display_name,locale,verified_at is not null as verified,is_admin,created_at from webapp.accounts ${where} order by created_at desc limit 20 offset ${(page-1)*20}`, args)).rows;
+          return respond(200, { total, page, has_more: page*20 < total, accounts: rows });
+        }
+        throw fail('NOT_FOUND',404);
+      }
       if (path === '/api/v2/account' && req.method === 'PATCH') {
         const body = await readJSON(req); const displayName=String(body.displayName||'').trim().slice(0,80); if (!displayName) throw fail('INVALID_INPUT');
         await pool.query('update webapp.accounts set display_name=$1,locale=$2 where id=$3',[displayName,selectLocale(body.locale),account.id]); return respond(200,{updated:true});

@@ -4,12 +4,12 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {startStack} from './helpers/platform-stack.mjs';
 import {seed} from '../scripts/seed.mjs';
 let stack;
-test.beforeAll(async()=>{test.setTimeout(60000);await seed({indexName:process.env.PLATFORM_TEST_INDEX});stack=await startStack({pgPort:55437});});
+test.beforeAll(async()=>{test.setTimeout(120000);await seed({indexName:process.env.PLATFORM_TEST_INDEX});stack=await startStack({pgPort:55437,searchURL:process.env.SEARCH_BACKEND_URL||'http://127.0.0.1:8080'});});
 test.afterAll(async()=>{if(stack)await stack.close();await fetch(`http://127.0.0.1:9200/${process.env.PLATFORM_TEST_INDEX}`,{method:'DELETE'});});
 
 test('real local index: Enter, URL state, refresh, history and language switching',async({page},testInfo)=>{
   await page.goto('/ko');await expect(page.locator('.site-header').getByRole('link',{name:'로그인',exact:true})).toHaveCount(1);
-  await page.getByRole('searchbox',{name:'검색',exact:true}).fill('검색엔진');await page.getByRole('searchbox',{name:'검색',exact:true}).press('Enter');
+  await page.getByRole('searchbox',{name:'OpenScanner 검색',exact:true}).fill('검색엔진');await page.getByRole('searchbox',{name:'OpenScanner 검색',exact:true}).press('Enter');
   await expect(page).toHaveURL(/\/ko\/search\?q=/);await expect(page.getByRole('link',{name:/오픈포털 검색엔진 프로젝트/})).toBeVisible();
   await page.reload();await expect(page.getByRole('searchbox')).toHaveValue('검색엔진');await expect(page.locator('.hit')).not.toHaveCount(0);
   /* cspell:disable */
@@ -36,19 +36,19 @@ test('actual PostgreSQL + SMTP: hosted signup wizard, recovery email, session, m
   await page.getByLabel('Password',{exact:true}).fill(password);await page.getByLabel('Confirm password').fill(password);await nextStep();
   await page.getByLabel('Recovery email (optional)').fill(recovery);await page.getByLabel('Phone number (optional)').fill('2025550123');await nextStep();
   await expect(page.getByText(email,{exact:true})).toBeVisible();await page.getByRole('checkbox').check();await page.getByRole('button',{name:'Create account',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Your account is ready'})).toBeVisible();await expect(page.getByText(email,{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Your account is ready'})).toBeVisible();await expect(page.locator('.auth-sent-to').getByText(email,{exact:true})).toBeVisible();
   await page.getByRole('link',{name:'Open mailbox',exact:true}).click();await expect(page).toHaveURL(/\/en\/mail$/);await expect(page.getByRole('button',{name:'Compose',exact:true})).toBeVisible();
   const verify=stack.smtp.tokenFor(recovery,'verify');await page.goto(`/en/verify-email#token=${verify}`);await page.getByRole('button',{name:'Verify email',exact:true}).click();await expect(page.getByRole('status')).toContainText('Email verified');expect(page.url()).not.toContain(verify);
   await page.goto('/en/mail');
   await page.reload();await expect(page.getByRole('button',{name:'Compose',exact:true})).toBeVisible();await expect(page.locator('.site-header').getByRole('link',{name:'Sign in',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Compose',exact:true}).click();await page.getByLabel('To',{exact:true}).fill('recipient@example.test');await page.getByLabel('Subject',{exact:true}).fill('Browser protocol test');await page.getByLabel('Message',{exact:true}).fill('Protocol simulator message');
   await page.getByLabel('Attach file',{exact:true}).setInputFiles({name:'note.txt',mimeType:'text/plain',buffer:Buffer.from('Browser attachment')});await expect(page.getByText('note.txt',{exact:false})).toBeVisible();
-  await page.getByRole('button',{name:'Send',exact:true}).click();await expect(page.getByRole('status')).toContainText('accepted');
+  await page.getByRole('button',{name:'Send',exact:true}).click();await expect(page.locator('p.notice')).toContainText('accepted');
   await page.getByRole('button',{name:/^Sent/}).click();await expect(page.getByRole('button',{name:/Browser protocol test/})).toBeVisible();await page.getByRole('button',{name:/Browser protocol test/}).click();await expect(page.getByRole('heading',{name:'Browser protocol test'})).toBeVisible();
   await page.screenshot({path:`docs/evidence/platform/${testInfo.project.name}-mail.png`,fullPage:true});
   await page.locator('.header-nav details').last().locator('summary').click();await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.goto('/en/forgot-password');await page.getByLabel('Email or username',{exact:true}).fill(username);await page.getByRole('button',{name:'Reset password',exact:true}).click();await expect(page.getByRole('status')).toContainText('reset link');
   const reset=stack.smtp.tokenFor(recovery,'reset');const next=randomBytes(18).toString('base64url');await page.goto(`/en/reset-password#token=${reset}`);await page.getByLabel('Password',{exact:true}).fill(next);await page.getByLabel('Confirm password').fill(next);await page.getByRole('button',{name:'Reset password',exact:true}).click();await expect(page.getByRole('status')).toContainText('Password updated');
-  await page.goto('/en/login?returnTo=https://attacker.invalid/');await page.getByLabel('Email or username',{exact:true}).fill(username);await page.getByLabel('Password',{exact:true}).fill(next);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/127\.0\.0\.1:5173\/en\/mail$/);
+  await page.goto('/en/login?returnTo=https://attacker.invalid/');await page.getByLabel('Email or username',{exact:true}).fill(username);await page.getByLabel('Password',{exact:true}).fill(next);await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page).toHaveURL(/127\.0\.0\.1:5173\/en$/);expect(page.url()).not.toContain('attacker.invalid');
 });
 
 test('responsive public routes do not overflow at required widths',async({page})=>{

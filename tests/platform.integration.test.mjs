@@ -194,6 +194,34 @@ test('production ingress requires the operator secret and sets secure host cooki
     const metrics=await fetch(address+'/metrics',{headers:{'x-gateway-key':secret}});assert.equal(metrics.status,200);assert.match(await metrics.text(),/openportal_requests_total/);
   }finally{await production.close();}
 });
+test('responses carry baseline security headers and production adds HSTS',async()=>{
+  const headers=(await api('/session')).response.headers;
+  assert.equal(headers.get('content-security-policy'),"default-src 'none'; frame-ancestors 'none'");
+  assert.equal(headers.get('x-frame-options'),'DENY');
+  assert.equal(headers.get('cross-origin-resource-policy'),'same-origin');
+  assert.equal(headers.get('permissions-policy'),'camera=(), microphone=(), geolocation=(), payment=()');
+  assert.equal(headers.get('strict-transport-security'),null);
+  const secret=randomBytes(32).toString('hex');const production=await createGateway({...stack.config,production:true,origin:'https://portal.example.test',ingressSecret:secret},{pool:stack.pool});const port=await listen(production.server);
+  try{
+    const res=await fetch(`http://127.0.0.1:${port}/api/v2/session`,{headers:{'x-gateway-key':secret}});
+    assert.equal(res.status,200);assert.equal(res.headers.get('strict-transport-security'),'max-age=31536000; includeSubDomains');
+  }finally{await production.close();}
+});
+test('admin endpoints require the operator flag and never expose credentials',async()=>{
+  await resetLimits();
+  assert.equal((await fetch(base+'/api/v2/admin/overview')).status,401);
+  const denied=await api('/admin/overview');assert.equal(denied.status,403);assert.equal(denied.data.code,'FORBIDDEN');
+  await stack.pool.query('update webapp.accounts set is_admin=true where email=$1',[email]);
+  const overview=await api('/admin/overview');assert.equal(overview.status,200);
+  for (const key of ['accounts','sessions','mailboxes','signups_24h','recent']) assert.ok(key in overview.data);
+  assert.doesNotMatch(JSON.stringify(overview.data),/password_hash|token_hash|token_ciphertext/);
+  const list=await api('/admin/accounts?q=integration.user');assert.equal(list.status,200);
+  assert.equal(list.data.total,1);assert.equal(list.data.accounts[0].email,email);
+  assert.ok(!('password_hash' in list.data.accounts[0]));
+  assert.equal((await api('/admin/accounts?page=101')).status,400);
+  assert.equal((await api('/admin/nope')).status,404);
+  await stack.pool.query('update webapp.accounts set is_admin=false where email=$1',[email]);
+});
 test('account deletion removes the hosted mailbox through the provisioner',async()=>{
   await resetLimits();const secret=randomBytes(18).toString('base64url');const name='delete.me.now';const address=`${name}@openscanner.test`;
   assert.equal((await api('/auth/signup',profile({username:name,password:secret,recoveryEmail:undefined,recoveryPhone:undefined,gender:'unspecified'}))).status,201);

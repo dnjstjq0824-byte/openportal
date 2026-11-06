@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:openportal_mobile/main.dart';
+import 'package:openscanner_mobile/main.dart';
 
 void main() {
-  testWidgets('OpenPortal mobile search, keyboard submit, correction, back navigation, and share accessibility', (WidgetTester tester) async {
+  testWidgets('OpenScanner mobile search, keyboard submit, correction, back navigation, and share accessibility', (WidgetTester tester) async {
     Future<Map<String, dynamic>> fakeTransport(String q, String lang, String safe) async {
       if (q == 'rjatordpswls') {
         return {
@@ -11,7 +11,16 @@ void main() {
           'total': 0,
           'hits': <dynamic>[],
           'elapsed_ms': 3,
-          'corrected_query': '검색엔진',
+          'did_you_mean': '검색엔진',
+        };
+      }
+      if (q == 'oldengine') {
+        return {
+          'query': q,
+          'total': 0,
+          'hits': <dynamic>[],
+          'elapsed_ms': 3,
+          'corrected_query': '구검색엔진',
         };
       }
       return {
@@ -31,8 +40,8 @@ void main() {
       };
     }
 
-    await tester.pumpWidget(OpenPortalMobileApp(transport: fakeTransport));
-    expect(find.text('OpenPortal Search'), findsOneWidget);
+    await tester.pumpWidget(OpenScannerMobileApp(transport: fakeTransport));
+    expect(find.text('OpenScanner'), findsOneWidget);
 
     // Enter typo query and submit via keyboard action
     await tester.enterText(find.byType(TextField), 'rjatordpswls');
@@ -52,6 +61,12 @@ void main() {
     await tester.tap(find.byTooltip('뒤로가기'));
     await tester.pumpAndSettle();
     expect(find.text('일치하는 샘플 문서가 없습니다.'), findsOneWidget);
+
+    // Legacy engine key still feeds the suggestion as a fallback
+    await tester.enterText(find.byType(TextField), 'oldengine');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('다음 검색어로 검색하시겠습니까? 구검색엔진'), findsOneWidget);
   });
 }
 

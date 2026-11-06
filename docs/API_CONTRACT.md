@@ -1,7 +1,17 @@
 # API and event contract / 007 & 014
 
+## 0. Two-layer model (canonical)
+
+- Clients (web SPA, mobile, partner integrations) call the gateway surface `/api/v2/*` only.
+  Full path catalog: `docs/openapi/gateway.v2.yaml` (machine-checked by `scripts/check-contracts.mjs`).
+- Go `/api/v1/*` is the internal engine surface (gateway → engine). Direct client calls are forbidden;
+  in production only `/healthz`, `/readyz`, `/api/v1/search`, `/api/v1/suggest` are exposed at all.
+- Envelope: success bodies carry domain fields plus `elapsed_ms` where measured; errors are
+  `{code, requestId}` with `X-Request-ID` echoed. Non-GET browser calls require CSRF double-submit.
+
 ## 1. REST Gateway Endpoints
 
+- `GET /api/v2/search`, `GET /api/v2/suggest`, `GET /api/v2/session`, auth 9종(username/signup/resend/verify/forgot-password/reset-password/login/logout/refresh), `PATCH|DELETE /api/v2/account`, mail 7종(mailboxes×2/messages/drafts/send/upload/attachments), admin 2종(overview/accounts): `docs/openapi/gateway.v2.yaml`.
 - `GET /api/v1/search`: `q`(1~200 Unicode 문자, NFC/공백 정규화 적용), `page`(1~100, 기본 1), `lang`(`ko`/`en`, 선택), `safe_search`(`strict`/`moderate`/`off`, 선택), `vertical`(`web`/`image`/`news`/`video`/`map`/`shopping`, 기본 `web`).
   - REST page size는 10이다. 결과 JSON은 `docs/openapi.yaml` 및 도메인별 명세 `docs/openapi/search.v1.yaml`을 따른다.
   - 모든 요청에 `X-Request-Id` 및 `X-Correlation-Id`를 부여/전파하며, 오탈자/한영타 변환 시 `corrected_query`를 함께 반환한다.

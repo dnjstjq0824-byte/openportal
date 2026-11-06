@@ -35,10 +35,14 @@ export function useMailbox(props: { locale: Locale; user: any }, expired: () => 
     selected.value = null;
     html.value = false;
   }
-  function canDiscard() { return !draftDirty.value || window.confirm(labels.value.discard); }
+  const pendingAction = ref<(() => void) | null>(null);
+  const confirmOpen = computed(() => pendingAction.value !== null);
+  function guarded(action: () => void) { if (!draftDirty.value) { action(); return; } pendingAction.value = action; }
+  function confirmDiscard() { const action = pendingAction.value; pendingAction.value = null; if (action) action(); }
+  function cancelDiscard() { pendingAction.value = null; }
   function closeCompose() {
-    if (mutationBusy.value || !canDiscard()) return;
-    composing.value = false;
+    if (mutationBusy.value) return;
+    guarded(() => { composing.value = false; });
   }
   async function load() {
     const own = ++listGeneration;
@@ -67,13 +71,18 @@ export function useMailbox(props: { locale: Locale; user: any }, expired: () => 
     finally { connectionBusy.value = false; }
   }
   function switchFolder(id: string) {
-    if (mutationBusy.value || !canDiscard()) return;
-    clearReader(); folder.value = id; position.value = 0;
-    emails.value = []; total.value = 0; composing.value = false; query.value = '';
-    load();
+    if (mutationBusy.value) return;
+    guarded(() => {
+      clearReader(); folder.value = id; position.value = 0;
+      emails.value = []; total.value = 0; composing.value = false; query.value = '';
+      load();
+    });
   }
-  async function read(id: string) {
-    if (mutationBusy.value || !canDiscard()) return;
+  function read(id: string) {
+    if (mutationBusy.value) return;
+    guarded(() => { void doRead(id); });
+  }
+  async function doRead(id: string) {
     clearReader();
     const own = readerGeneration;
     const controller = new AbortController(); readerController = controller;
@@ -110,7 +119,10 @@ export function useMailbox(props: { locale: Locale; user: any }, expired: () => 
     finally { mutationBusy.value = false; }
   }
   function compose(kind = 'new') {
-    if (mutationBusy.value || !canDiscard()) return;
+    if (mutationBusy.value) return;
+    guarded(() => startCompose(kind));
+  }
+  function startCompose(kind: string) {
     const previous = selected.value;
     clearReader(); notice.value = ''; error.value = '';
     draft.value = emptyDraft();
@@ -215,5 +227,5 @@ export function useMailbox(props: { locale: Locale; user: any }, expired: () => 
     window.removeEventListener('beforeunload', beforeUnload);
     dirtyChange(false);
   });
-  return { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, mutationBusy, error, errorText, notice, query, position, total, composing, html, folderInput, draft, draftDirty, sendBlocked, folderName, load, connect, switchFolder, read, update, compose, save, attach, move, manageFolder, date, closeCompose };
+  return { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, mutationBusy, error, errorText, notice, query, position, total, composing, html, folderInput, draft, draftDirty, sendBlocked, folderName, load, connect, switchFolder, read, update, compose, save, attach, move, manageFolder, date, closeCompose, confirmOpen, confirmDiscard, cancelDiscard };
 }

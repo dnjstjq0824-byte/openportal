@@ -1,0 +1,158 @@
+openapi: 3.1.0
+info:
+  title: OpenScanner gateway client API
+  version: 2.0.0
+  description: Single client surface. Browsers and mobile call /api/v2/* only; Go /api/v1/* is the internal engine surface.
+servers:
+  - url: http://127.0.0.1:8090
+paths:
+  /api/v2/session:
+    get:
+      summary: Current session user plus CSRF token
+      responses:
+        '200': { description: '{user, csrf}' }
+  /api/v2/search:
+    get:
+      summary: Hybrid search (local index, optional approved external)
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, maxLength: 512 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 1 } }
+        - { name: safe_search, in: query, schema: { type: string, enum: [strict, moderate, off], default: moderate } }
+      responses:
+        '200': { description: '{query, total, hits, has_more, degraded, source, did_you_mean?}' }
+        '400': { description: INVALID_QUERY }
+        '503': { description: SEARCH_UNAVAILABLE }
+  /api/v2/suggest:
+    get:
+      summary: Autocomplete backed by the engine, empty on outage
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 512 } }
+      responses:
+        '200': { description: '{query, suggestions, corrected_query?}' }
+  /api/v2/auth/username:
+    get:
+      summary: Username availability and candidates
+      responses:
+        '200': { description: '{available, candidates?}' }
+  /api/v2/auth/signup:
+    post:
+      summary: Create account with hosted mailbox provisioning
+      responses:
+        '201': { description: '{account, mailbox}' }
+        '400': { description: INVALID_INPUT | USERNAME_TAKEN }
+  /api/v2/auth/login:
+    post:
+      summary: Password login with sliding session cookie
+      responses:
+        '200': { description: '{user}' }
+        '401': { description: INVALID_CREDENTIALS }
+        '429': { description: RATE_LIMITED }
+  /api/v2/auth/logout:
+    post:
+      summary: Revoke current session
+      responses:
+        '200': { description: '{logged_out: true}' }
+  /api/v2/auth/refresh:
+    post:
+      summary: Sliding session refresh
+      responses:
+        '200': { description: '{user}' }
+        '401': { description: SESSION_REQUIRED }
+  /api/v2/auth/verify:
+    post:
+      summary: Consume email verification token
+      responses:
+        '200': { description: '{verified: true}' }
+  /api/v2/auth/resend:
+    post:
+      summary: Resend verification email
+      responses:
+        '202': { description: Accepted }
+  /api/v2/auth/forgot-password:
+    post:
+      summary: Request password reset (uniform response)
+      responses:
+        '202': { description: Accepted }
+  /api/v2/auth/reset-password:
+    post:
+      summary: Consume reset token and set a new password
+      responses:
+        '200': { description: '{reset: true}' }
+  /api/v2/account:
+    patch:
+      summary: Update display name, locale, recovery email
+      responses:
+        '200': { description: '{account}' }
+        '401': { description: SESSION_REQUIRED }
+    delete:
+      summary: Delete account with password confirmation
+      responses:
+        '200': { description: '{deleted: true}' }
+  /api/v2/mail/mailboxes:
+    get:
+      summary: List folders
+      responses:
+        '200': { description: '{mailboxes}' }
+    post:
+      summary: Create, rename, or delete a folder
+      responses:
+        '200': { description: '{mailbox}' }
+  /api/v2/mail/messages:
+    get:
+      summary: List or read messages
+      responses:
+        '200': { description: '{messages, total} or {message, attachments}' }
+  /api/v2/mail/drafts:
+    post:
+      summary: Save a draft
+      responses:
+        '200': { description: '{draft}' }
+  /api/v2/mail/send:
+    post:
+      summary: Send a message (uncertain-submission tracking)
+      responses:
+        '200': { description: '{sent, uncertain?}' }
+  /api/v2/mail/upload:
+    post:
+      summary: Upload one attachment (10 MiB cap, type sniffed)
+      responses:
+        '200': { description: '{attachment}' }
+  /api/v2/mail/attachments/{messageId}/{attachmentId}:
+    get:
+      summary: Download an attachment (sandboxed, forced download)
+      parameters:
+        - { name: messageId, in: path, required: true, schema: { type: string } }
+        - { name: attachmentId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: application/octet-stream }
+  /api/v2/admin/overview:
+    get:
+      summary: Operator counts and recent signups (admin only)
+      responses:
+        '200': { description: '{accounts, sessions, mailboxes, signups_24h, recent}' }
+        '403': { description: FORBIDDEN }
+  /api/v2/admin/accounts:
+    get:
+      summary: Search accounts without credentials (admin only)
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 1 } }
+      responses:
+        '200': { description: '{total, page, has_more, accounts}' }
+        '403': { description: FORBIDDEN }
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+        requestId: { type: string }
+    Hit:
+      type: object
+      required: [title, url]
+      properties:
+        title: { type: string }
+        url: { type: string }
+        description: { type: string }
+        source: { type: string }

@@ -3,19 +3,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// Emulator default only. In production use HTTPS and configured release API endpoints.
-const apiBase = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://10.0.2.2:8080');
+// Emulator default only. Clients must use the gateway (/api/v2); Go /api/v1 is
+// an internal engine surface. In production use HTTPS and configured endpoints.
+const apiBase = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://10.0.2.2:8090');
 
-void main() => runApp(const OpenPortalMobileApp());
+void main() => runApp(const OpenScannerMobileApp());
 
-class OpenPortalMobileApp extends StatelessWidget {
+class OpenScannerMobileApp extends StatelessWidget {
   final Future<Map<String, dynamic>> Function(String query, String lang, String safeSearch)? transport;
-  const OpenPortalMobileApp({super.key, this.transport});
+  const OpenScannerMobileApp({super.key, this.transport});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'OpenPortal Search',
+      title: 'OpenScanner',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2967CC)),
         useMaterial3: true,
@@ -54,8 +55,7 @@ class _SearchHomeState extends State<SearchHome> {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
     try {
       final params = <String, String>{'q': q, 'safe_search': safe};
-      if (lang.isNotEmpty) params['lang'] = lang;
-      final u = Uri.parse('$apiBase/api/v1/search').replace(queryParameters: params);
+      final u = Uri.parse('$apiBase/api/v2/search').replace(queryParameters: params);
       final request = await client.getUrl(u);
       final response = await request.close().timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
@@ -84,7 +84,7 @@ class _SearchHomeState extends State<SearchHome> {
       final json = await runner(q, selectedLang, safeSearch);
       final hits = (json['hits'] as List<dynamic>?) ?? [];
       final total = json['total'] ?? hits.length;
-      final corr = json['corrected_query'] as String?;
+      final corr = (json['did_you_mean'] ?? json['corrected_query']) as String?;
       setState(() {
         results = hits;
         correctedQuery = (corr != null && corr.isNotEmpty && corr != q) ? corr : null;
@@ -171,20 +171,22 @@ class _SearchHomeState extends State<SearchHome> {
               : null,
           title: Semantics(
             header: true,
-            child: const Text('OpenPortal Search'),
+            child: const Text('OpenScanner'),
           ),
           actions: [
             DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: selectedLang,
-                tooltip: '검색 언어 선택',
-                items: const [
+              child: Tooltip(
+                message: '검색 언어 선택',
+                child: DropdownButton<String>(
+                  value: selectedLang,
+                  items: const [
                   DropdownMenuItem(value: 'ko', child: Text('한국어')),
                   DropdownMenuItem(value: 'en', child: Text('English')),
                 ],
                 onChanged: (val) {
                   if (val != null) setState(() => selectedLang = val);
                 },
+                ),
               ),
             ),
             const SizedBox(width: 8),

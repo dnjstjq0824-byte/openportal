@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useMailbox } from './useMailbox';
+import ConfirmDialog from './ConfirmDialog.vue';
 import type { Locale } from './i18n';
 import { designMessages } from './design-copy';
 const props = defineProps<{ locale: Locale; user: any }>();
@@ -7,7 +8,7 @@ const emit = defineEmits<{ expired: []; dirtyChange: [dirty: boolean] }>();
 const { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, mutationBusy,
   error, errorText, notice, query, position, total, composing, html, folderInput, draft,
   sendBlocked, folderName, load, connect, switchFolder, read, update, compose, save, attach,
-  move, manageFolder, date, closeCompose } = useMailbox(props, () => emit('expired'), dirty => emit('dirtyChange', dirty));
+  move, manageFolder, date, closeCompose, confirmOpen, confirmDiscard, cancelDiscard } = useMailbox(props, () => emit('expired'), dirty => emit('dirtyChange', dirty));
 </script>
 
 <template>
@@ -26,7 +27,7 @@ const { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, 
     </header>
 
     <!-- Error Alert Box -->
-    <div v-if="error" class="alert alert-error" role="alert">
+    <div v-if="error" class="alert" role="alert">
       <p><strong>{{ errorText }}</strong></p>
       <p v-if="['MAIL_NOT_CONFIGURED', 'MAIL_NOT_PROVISIONED'].includes(error)" class="mail-setup-tip">
         {{ t.mailSetup }}
@@ -164,7 +165,7 @@ const { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, 
           </div>
           <ul v-if="draft.attachments.length" class="draft-attach-list">
             <li v-for="(file, index) in draft.attachments" :key="file.blobId" class="draft-attach-item">
-              <span>📎 {{ file.name }}</span>
+              <span class="attach-name"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 12-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8L13 4.5a3.5 3.5 0 0 1 5 5L9.5 18a1.5 1.5 0 0 1-2.1-2.1L15 8.5"/></svg> {{ file.name }}</span>
               <button type="button" class="button clear-btn-inline" :disabled="busy || sendBlocked" @click="draft.attachments.splice(index, 1)">
                 {{ t.clear }}
               </button>
@@ -239,7 +240,7 @@ const { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, 
                 class="attachment"
                 :href="`/api/v2/mail/attachments/${encodeURIComponent(selected.id)}/${encodeURIComponent(file.blobId)}`"
               >
-                📎 {{ file.name }}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 12-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8L13 4.5a3.5 3.5 0 0 1 5 5L9.5 18a1.5 1.5 0 0 1-2.1-2.1L15 8.5"/></svg> {{ file.name }}
               </a>
             </div>
           </div>
@@ -255,5 +256,6 @@ const { t, labels, folders, folder, emails, selected, busy, listBusy, readBusy, 
         </div>
       </section>
     </div>
+    <ConfirmDialog v-if="confirmOpen" :title="t.discardTitle" :body="labels.discard" :confirm="t.discardConfirm" :cancel="t.cancel" @confirm="confirmDiscard" @cancel="cancelDiscard"/>
   </div>
 </template>

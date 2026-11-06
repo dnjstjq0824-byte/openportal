@@ -6,6 +6,7 @@ import BrandMark from './BrandMark.vue';
 import ScanArt from './ScanArt.vue';
 import SignupWizard from './SignupWizard.vue';
 import ScanState from './ScanState.vue';
+import ConfirmDialog from './ConfirmDialog.vue';
 import { fill, serpMessages } from './serp-copy';
 import { signupErrors, signupMessages } from './signup-copy';
 import { designMessages } from './design-copy';
@@ -32,12 +33,28 @@ const result = ref<{
 
 const busy = ref(false);
 const error = ref('');
+const errorStatus = ref(0);
 const notice = ref('');
 const user = ref<any>(null);
 const ready = ref(false);
 const sessionUnavailable = ref(false);
 const showPassword = ref(false);
 const mailDraftDirty = ref(false);
+const onboarded = ref(stored('openscanner.onboarded', '0') === '1');
+const showOnboarding = computed(() => route.value === '' && ready.value && !onboarded.value);
+function dismissOnboarding(focusSearch = false) {
+  onboarded.value = true;
+  persist('openscanner.onboarded', '1');
+  if (focusSearch) document.getElementById('home-query')?.focus();
+}
+const adminOverview = ref<{ accounts: number; sessions: number; mailboxes: number; signups_24h: number } | null>(null);
+const adminAccounts = ref<{ email: string; username?: string; display_name: string; verified: boolean; is_admin: boolean }[]>([]);
+const adminTotal = ref(0);
+const adminPage = ref(1);
+const adminHasMore = ref(false);
+const adminQuery = ref('');
+const adminDenied = ref(false);
+const adminBusy = ref(false);
 let navigationIndex = Number.isInteger(history.state?.portalIndex) ? history.state.portalIndex : 0;
 let currentAddress = location.pathname + location.search + location.hash;
 let undoingNavigation = false;
@@ -48,13 +65,12 @@ const email = ref('');
 const password = ref('');
 const confirm = ref('');
 const displayName = ref('');
-const agree = ref(false);
 const token = ref('');
-const sentTo = ref('');
 const theme = ref('light');
 
 const authRoutes = ['login', 'signup', 'forgot-password', 'reset-password', 'verify-email'];
 const isAuthRoute = computed(() => authRoutes.includes(route.value));
+const serverDown = computed(() => isAuthRoute.value && route.value !== 'signup' && ready.value && (sessionUnavailable.value || errorStatus.value >= 500));
 const needsNewPassword = computed(() => route.value === 'signup' || route.value === 'reset-password');
 // Advisory only: the gateway enforces the real policy (12+ characters, <= 1024 bytes).
 const passwordScore = computed(() => {
@@ -72,35 +88,49 @@ const confirmState = computed(() => !confirm.value ? '' : confirm.value === pass
 // Search history is opt-in; preferences stay on this device.
 function stored(key: string, fallback: string) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } }
 function persist(key: string, value: string) { try { localStorage.setItem(key, value); } catch {} }
-const recentOptIn = ref(stored('openportal.recent_opt_in', 'false') === 'true');
+// D1 brand unification: openscanner.* keys, with a one-time migration from legacy openportal.* keys.
+function migrateStorage() {
+  for (const name of ['recent_opt_in', 'recent_searches', 'safe_search', 'locale', 'theme']) {
+    try {
+      const next = `openscanner.${name}`;
+      if (localStorage.getItem(next) === null) {
+        const legacy = localStorage.getItem(`openportal.${name}`);
+        if (legacy !== null) localStorage.setItem(next, legacy);
+      }
+      localStorage.removeItem(`openportal.${name}`);
+    } catch {}
+  }
+}
+migrateStorage();
+const recentOptIn = ref(stored('openscanner.recent_opt_in', 'false') === 'true');
 const recentSearches = ref<string[]>([]);
 if (recentOptIn.value) {
-  try { const value = JSON.parse(stored('openportal.recent_searches', '[]')); if (Array.isArray(value)) recentSearches.value = value.filter(x => typeof x === 'string').slice(0, 10); } catch {}
+  try { const value = JSON.parse(stored('openscanner.recent_searches', '[]')); if (Array.isArray(value)) recentSearches.value = value.filter(x => typeof x === 'string').slice(0, 10); } catch {}
 }
-safeSearch.value = stored('openportal.safe_search', 'moderate');
+safeSearch.value = stored('openscanner.safe_search', 'moderate');
 if (!['strict', 'moderate', 'off'].includes(safeSearch.value)) safeSearch.value = 'moderate';
 const preferredSafeSearch = ref(safeSearch.value);
 function changeSafeSearch(event: Event) {
   const value=(event.target as HTMLSelectElement).value;
   if(!['strict','moderate','off'].includes(value))return;
-  preferredSafeSearch.value=value;safeSearch.value=value;persist('openportal.safe_search',value);
+  preferredSafeSearch.value=value;safeSearch.value=value;persist('openscanner.safe_search',value);
   if(route.value==='search')submitSearch(1);
 }
 function removeRecent(text: string) {
   recentSearches.value = recentSearches.value.filter(x => x !== text);
-  if (recentOptIn.value) persist('openportal.recent_searches', JSON.stringify(recentSearches.value));
+  if (recentOptIn.value) persist('openscanner.recent_searches', JSON.stringify(recentSearches.value));
 }
 function clearHistory() {
   recentSearches.value = [];
-  try { localStorage.removeItem('openportal.recent_searches'); } catch {}
+  try { localStorage.removeItem('openscanner.recent_searches'); } catch {}
 }
 function saveRecentSearch(q: string) {
   const value = q.trim();
   if (!recentOptIn.value || !value) return;
   recentSearches.value = [value, ...recentSearches.value.filter(x => x !== value)].slice(0, 10);
-  persist('openportal.recent_searches', JSON.stringify(recentSearches.value));
+  persist('openscanner.recent_searches', JSON.stringify(recentSearches.value));
 }
-watch(recentOptIn, value => { persist('openportal.recent_opt_in', String(value)); if (!value) clearHistory(); });
+watch(recentOptIn, value => { persist('openscanner.recent_opt_in', String(value)); if (!value) clearHistory(); });
 function applyCorrection(corrected: string) {
   search.value = corrected;
   submitSearch(1);
@@ -146,7 +176,7 @@ function crumbs(value: string) {
     return [url.hostname.replace(/^www\./, ''), ...parts].join(' › ');
   } catch { return value; }
 }
-function relaxSafeSearch() { preferredSafeSearch.value = 'moderate'; safeSearch.value = 'moderate'; persist('openportal.safe_search', 'moderate'); submitSearch(1); }
+function relaxSafeSearch() { preferredSafeSearch.value = 'moderate'; safeSearch.value = 'moderate'; persist('openscanner.safe_search', 'moderate'); submitSearch(1); }
 function onOnline() { if (route.value === 'search' && error.value === 'OFFLINE') runSearch(); }
 const errorText = computed(() => (signupErrors[locale.value] as Record<string, string>)[error.value] || errors[locale.value][error.value] || errors[locale.value].fallback);
 let controller: AbortController | undefined;
@@ -171,8 +201,14 @@ const titles = computed(
       business: t.value.business,
       howsearchworks: t.value.howSearchWorks,
       settings: t.value.settings,
+      admin: t.value.admin,
     } as Record<string, string>)
 );
+const policyBody = computed(() => {
+  if (route.value === 'about') return copy.value.aboutBody;
+  if (route.value === 'howsearchworks') return copy.value.howBody;
+  return (t.value as Record<string, string>)[`${route.value}Body`] || '';
+});
 
 const isSearch = computed(() => route.value === '' || route.value === 'search');
 
@@ -187,7 +223,7 @@ function safeReturn(value: string | null) {
 }
 
 function navigate(url: string, replace = false) {
-  if (!canLeaveMail(url)) return false;
+  if (needsMailGuard(url)) { pendingNav.value = { url, replace, after: null }; return false; }
   if (!replace) navigationIndex++;
   history[replace ? 'replaceState' : 'pushState']({ ...history.state, portalIndex: navigationIndex }, '', url);
   currentAddress = location.pathname + location.search + location.hash;
@@ -195,20 +231,32 @@ function navigate(url: string, replace = false) {
   return true;
 }
 
-function canLeaveMail(url: string) {
+type PendingNav = { url: string; replace: boolean; after: (() => void) | null };
+const pendingNav = ref<PendingNav | null>(null);
+function needsMailGuard(url: string) {
   const destination = new URL(url, location.origin);
-  if (!mailDraftDirty.value || route.value !== 'mail' || /^\/(ko|th|en)\/mail\/?$/.test(destination.pathname)) return true;
-  return window.confirm(folderLabels[locale.value].discard);
+  return mailDraftDirty.value && route.value === 'mail' && !/^\/(ko|th|en)\/mail\/?$/.test(destination.pathname);
 }
+function confirmLeaveMail() {
+  const pending = pendingNav.value;
+  pendingNav.value = null;
+  mailDraftDirty.value = false;
+  if (!pending) return;
+  if (pending.after) pending.after();
+  else navigate(pending.url, pending.replace);
+}
+function stayOnMail() { pendingNav.value = null; }
 
 function onHistoryNavigation() {
   if (undoingNavigation) { undoingNavigation = false; return; }
   const requestedIndex = history.state?.portalIndex;
-  if (!canLeaveMail(location.href)) {
+  if (needsMailGuard(location.href)) {
+    const destination = location.href;
     if (Number.isInteger(requestedIndex) && requestedIndex !== navigationIndex) {
       undoingNavigation = true;
       history.go(navigationIndex - requestedIndex);
     } else history.pushState({ ...history.state, portalIndex: navigationIndex }, '', currentAddress);
+    pendingNav.value = { url: destination, replace: false, after: null };
     return;
   }
   if (Number.isInteger(requestedIndex)) navigationIndex = requestedIndex;
@@ -231,7 +279,7 @@ function goToLogin(event: MouseEvent) {
 
 function changeLanguage(event: Event) {
   const value = (event.target as HTMLSelectElement).value as Locale;
-  localStorage.setItem('openportal.locale', value);
+  localStorage.setItem('openscanner.locale', value);
   navigate(`/${value}${route.value ? '/' + route.value : ''}${location.search}${location.hash}`);
 }
 
@@ -335,7 +383,7 @@ function metadata() {
 function restore() {
   const segments = location.pathname.split('/').filter(Boolean);
   if (!locales.includes(segments[0] as Locale)) {
-    const saved = localStorage.getItem('openportal.locale') as Locale | null;
+    const saved = localStorage.getItem('openscanner.locale') as Locale | null;
     const browser = navigator.languages.map(x => x.split('-')[0]).find(x => locales.includes(x as Locale));
     const country = (document.querySelector('meta[name="country"]')?.getAttribute('content') || '').toUpperCase();
     const accountLocale = locales.includes(user.value?.locale) ? user.value.locale : null;
@@ -348,12 +396,11 @@ function restore() {
   if (route.value === 'register') return navigate(`/${locale.value}/signup${location.search}`, true);
 
   error.value = '';
+  errorStatus.value = 0;
   notice.value = '';
   password.value = '';
   showPassword.value = false;
-  sentTo.value = '';
   confirm.value = '';
-  agree.value = false;
   result.value = null;
   controller?.abort();
   ++sequence;
@@ -365,7 +412,7 @@ function restore() {
   currentAddress = location.pathname + location.search + location.hash;
   metadata();
 
-  if (['mail', 'account'].includes(route.value) && ready.value && !user.value) {
+  if (['mail', 'account', 'admin'].includes(route.value) && ready.value && !user.value) {
     return navigate(`/${locale.value}/login?${new URLSearchParams({ returnTo: location.pathname + location.search })}`, true);
   }
 
@@ -382,6 +429,7 @@ function restore() {
   }
 
   if (route.value === 'account' && user.value) displayName.value = user.value.display_name;
+  if (route.value === 'admin' && user.value) { adminPage.value = 1; adminQuery.value = ''; loadAdmin(); }
 }
 
 async function authSubmit() {
@@ -393,17 +441,7 @@ async function authSubmit() {
       notice.value = t.value.mismatch;
       return;
     }
-    if (route.value === 'signup') {
-      await mutate('/auth/signup', {
-        email: email.value,
-        password: password.value,
-        displayName: displayName.value,
-        locale: locale.value,
-        agree: agree.value,
-      });
-      sentTo.value = email.value;
-      notice.value = t.value.signupNotice;
-    } else if (route.value === 'login') {
+    if (route.value === 'login') {
       await mutate('/auth/login', { email: email.value, password: password.value });
       user.value = await session();
       navigate(safeReturn(new URLSearchParams(location.search).get('returnTo')));
@@ -422,6 +460,7 @@ async function authSubmit() {
     }
   } catch (e) {
     error.value = e instanceof APIError ? e.code : 'fallback';
+    errorStatus.value = e instanceof APIError ? e.status : 0;
   } finally {
     busy.value = false;
     password.value = '';
@@ -446,7 +485,7 @@ async function resend() {
 }
 
 async function logout() {
-  if (!canLeaveMail(`/${locale.value}`)) return;
+  if (needsMailGuard(`/${locale.value}`)) { pendingNav.value = { url: `/${locale.value}`, replace: false, after: () => logout() }; return; }
   try {
     await mutate('/auth/logout', {});
     mailDraftDirty.value = false;
@@ -483,10 +522,34 @@ async function deleteAccount() {
     password.value = '';
   }
 }
+async function loadAdmin() {
+  if (route.value !== 'admin' || !user.value) return;
+  adminBusy.value = true;
+  adminDenied.value = false;
+  error.value = '';
+  try {
+    const params = new URLSearchParams({ q: adminQuery.value.trim(), page: String(adminPage.value) });
+    const [overview, list] = await Promise.all([request('/admin/overview'), request(`/admin/accounts?${params}`)]);
+    adminOverview.value = overview;
+    adminAccounts.value = list.accounts;
+    adminTotal.value = list.total;
+    adminHasMore.value = list.has_more;
+    adminPage.value = list.page;
+  } catch (e) {
+    if (e instanceof APIError && (e.code === 'FORBIDDEN' || e.status === 403)) { adminDenied.value = true; return; }
+    if (e instanceof APIError && e.status === 401) { expired(); return; }
+    error.value = e instanceof APIError ? e.code : 'fallback';
+  } finally {
+    adminBusy.value = false;
+  }
+}
+function submitAdminSearch() { adminPage.value = 1; loadAdmin(); }
+function adminPageTo(next: number) { adminPage.value = next; loadAdmin(); }
+function adminCount(value: number) { return new Intl.NumberFormat(locale.value).format(value); }
 
 function expired() {
   const destination=`/${locale.value}/login?${new URLSearchParams({ returnTo: location.pathname + location.search })}`;
-  if (!canLeaveMail(destination)) return;
+  if (needsMailGuard(destination)) { pendingNav.value = { url: destination, replace: true, after: () => expired() }; return; }
   mailDraftDirty.value = false;
   user.value = null;
   navigate(destination, true);
@@ -494,11 +557,11 @@ function expired() {
 
 watch(theme, value => {
   document.documentElement.dataset.theme = value;
-  localStorage.setItem('openportal.theme', value);
+  localStorage.setItem('openscanner.theme', value);
 });
 
 onMounted(async () => {
-  theme.value = localStorage.getItem('openportal.theme') || 'system';
+  theme.value = localStorage.getItem('openscanner.theme') || 'system';
   try {
     user.value = await session();
   } catch {
@@ -540,13 +603,21 @@ onUnmounted(() => {
         <details class="services-menu"><summary>{{t.services}}<svg class="chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="services-popover"><a :href="`/${locale}/mail`" @click="link($event,`/${locale}/mail`)"><span aria-hidden="true">✉</span>{{t.mail}}</a></div></details>
         <label class="language-control"><span class="sr-only">{{t.language}}</span><select :aria-label="t.language" :value="locale" @change="changeLanguage"><option value="ko">한국어</option><option value="th">ไทย</option><option value="en">English</option></select></label>
         <label class="theme-control"><span class="sr-only">{{t.theme}}</span><select :aria-label="t.theme" v-model="theme"><option value="system">{{t.system}}</option><option value="light">{{t.light}}</option><option value="dark">{{t.dark}}</option></select></label>
-        <details v-if="user" class="account-menu"><summary class="account-trigger"><span class="avatar" aria-hidden="true">{{user.display_name?.slice(0,1)}}</span><span class="sr-only">{{t.account}}</span></summary><div class="services-popover"><p class="account-email">{{user.email}}</p><a :href="`/${locale}/account`" @click="link($event,`/${locale}/account`)">{{t.account}}</a><button @click="logout">{{t.logout}}</button></div></details>
+        <details v-if="user" class="account-menu"><summary class="account-trigger"><span class="avatar" aria-hidden="true">{{user.display_name?.slice(0,1)}}</span><span class="sr-only">{{t.account}}</span></summary><div class="services-popover"><p class="account-email">{{user.email}}</p><a :href="`/${locale}/account`" @click="link($event,`/${locale}/account`)">{{t.account}}</a><a v-if="user.is_admin" :href="`/${locale}/admin`" @click="link($event,`/${locale}/admin`)">{{t.admin}}</a><button @click="logout">{{t.logout}}</button></div></details>
         <a v-else-if="!isAuthRoute" class="button primary signin":href="`/${locale}/login?returnTo=${encodeURIComponent(currentAddress.split('#')[0])}`" @click="goToLogin">{{t.login}}</a>
       </nav>
     </header>
 
     <main id="main-content" :class="{'home-main':route==='','mail-main':route==='mail','search-main':route==='search','auth-main':isAuthRoute}">
       <section v-if="route===''" class="home-grid">
+        <div v-if="showOnboarding" class="onboard-banner" role="note" aria-labelledby="onboard-title">
+          <div class="onboard-text"><h2 id="onboard-title">{{t.onboardTitle}}</h2><p>{{t.onboardBody}}</p></div>
+          <div class="actions">
+            <a class="text-button" :href="`/${locale}/signup`" @click="dismissOnboarding();link($event,`/${locale}/signup`)">{{t.signup}}</a>
+            <button type="button" class="button primary" @click="dismissOnboarding(true)">{{t.onboardCta}}</button>
+            <button type="button" class="icon-button" :aria-label="t.onboardClose" @click="dismissOnboarding()"><span aria-hidden="true">×</span></button>
+          </div>
+        </div>
         <div class="hero">
           <p class="eyebrow slogan"><span class="status-dot" aria-hidden="true"></span> {{t.slogan}}</p>
           <h1>{{t.tagline}}</h1><p class="hero-intro">{{copy.homeIntro}}</p>
@@ -663,6 +734,15 @@ onUnmounted(() => {
           <template v-else>
             <header class="auth-header"><h1>{{authTitle}}</h1><p>{{authIntro}}</p></header>
             <p v-if="!ready" role="status">{{t.loading}}</p>
+            <div v-else-if="serverDown" class="serp-state" role="alert">
+              <ScanState kind="unavailable"/>
+              <h2>{{t.serverErrorTitle}}</h2><p>{{t.serverErrorBody}}</p>
+              <div class="actions">
+                <button type="button" class="button primary" @click="error='';errorStatus=0">{{t.retry}}</button>
+                <a class="button" :href="`/${locale}`" @click="link($event,`/${locale}`)">{{t.backHome}}</a>
+              </div>
+              <p v-if="error" class="error-code">{{serp.errorCode}}: <code>{{error}}</code></p>
+            </div>
             <form v-else class="auth-form" @submit.prevent="authSubmit">
               <div v-if="['login','forgot-password'].includes(route)" class="form-group"><label for="auth-email">{{signupCopy.loginId}}</label><input id="auth-email" v-model="email" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254" required/></div>
               <div v-if="['login','reset-password'].includes(route)" class="form-group">
@@ -702,13 +782,56 @@ onUnmounted(() => {
         <p v-if="notice" class="notice" role="status">{{notice}}</p><p v-if="error" class="alert" role="alert">{{errorText}}</p>
       </section>
 
+      <section v-else-if="route==='admin'&&user" class="admin-panel">
+        <div class="page-heading"><p class="eyebrow">OPENSCANNER / {{t.admin}}</p><h1>{{t.admin}}</h1></div>
+        <div v-if="adminDenied" class="serp-state" role="alert">
+          <ScanState kind="unavailable"/>
+          <h2>{{t.adminDeniedTitle}}</h2><p>{{t.adminDeniedBody}}</p>
+          <div class="actions"><a class="button primary" :href="`/${locale}`" @click="link($event,`/${locale}`)">{{t.backHome}}</a></div>
+        </div>
+        <template v-else>
+          <p v-if="adminBusy&&!adminOverview" role="status">{{t.loading}}</p>
+          <div v-if="adminOverview" class="stat-grid">
+            <div class="stat-card"><strong>{{adminCount(adminOverview.accounts)}}</strong><span>{{t.adminAccounts}}</span></div>
+            <div class="stat-card"><strong>{{adminCount(adminOverview.sessions)}}</strong><span>{{t.adminSessions}}</span></div>
+            <div class="stat-card"><strong>{{adminCount(adminOverview.mailboxes)}}</strong><span>{{t.adminMailboxes}}</span></div>
+            <div class="stat-card"><strong>{{adminCount(adminOverview.signups_24h)}}</strong><span>{{t.adminSignups24h}}</span></div>
+          </div>
+          <form v-if="adminOverview" class="admin-search" @submit.prevent="submitAdminSearch">
+            <label class="sr-only" for="admin-q">{{t.adminSearchPlaceholder}}</label>
+            <input id="admin-q" v-model="adminQuery" type="search" :placeholder="t.adminSearchPlaceholder" maxlength="80"/>
+            <button class="button primary" type="submit" :disabled="adminBusy">{{copy.searchButton}}</button>
+          </form>
+          <div v-if="adminAccounts.length" class="table-scroll">
+            <table class="admin-table">
+              <thead><tr><th scope="col">{{t.email}}</th><th scope="col">{{signupCopy.username}}</th><th scope="col">{{t.displayName}}</th><th scope="col">{{t.adminVerified}}</th></tr></thead>
+              <tbody>
+                <tr v-for="row in adminAccounts" :key="row.email">
+                  <td>{{row.email}} <span v-if="row.is_admin" class="status-pill ok">{{t.admin}}</span></td>
+                  <td>{{row.username||'—'}}</td>
+                  <td>{{row.display_name}}</td>
+                  <td>{{row.verified?'✓':'—'}}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else-if="adminOverview&&!adminBusy" class="muted">{{t.adminEmpty}}</p>
+          <nav v-if="adminAccounts.length&&(adminPage>1||adminHasMore)" class="pagination" :aria-label="t.resultCount">
+            <button class="button" :disabled="adminPage<=1||adminBusy" @click="adminPageTo(adminPage-1)"><span aria-hidden="true">←</span> {{t.previous}}</button>
+            <span class="page-indicator" aria-current="page">{{adminCount(adminPage)}}</span>
+            <button class="button" :disabled="!adminHasMore||adminBusy" @click="adminPageTo(adminPage+1)">{{t.next}} <span aria-hidden="true">→</span></button>
+          </nav>
+          <p v-if="error" class="alert" role="alert">{{errorText}}</p>
+        </template>
+      </section>
       <section v-else-if="route==='settings'" class="settings-page"><div class="page-heading"><p class="eyebrow">OPENSCANNER / {{t.settings}}</p><h1>{{t.settings}}</h1><p>{{copy.settingsIntro}}</p></div><div class="settings-card"><label class="setting-row"><span><strong>{{t.language}}</strong></span><select :aria-label="t.language" :value="locale" @change="changeLanguage"><option value="ko">한국어</option><option value="th">ไทย</option><option value="en">English</option></select></label><label class="setting-row"><span><strong>{{t.theme}}</strong></span><select :aria-label="t.theme" v-model="theme"><option value="system">{{t.system}}</option><option value="light">{{t.light}}</option><option value="dark">{{t.dark}}</option></select></label><label class="setting-row"><strong>{{t.safeSearch}}</strong><select :aria-label="t.safeSearch" :value="safeSearch" @change="changeSafeSearch"><option value="moderate">{{t.safeSearchModerate}}</option><option value="strict">{{t.safeSearchStrict}}</option><option value="off">{{t.safeSearchOff}}</option></select></label><label class="setting-row history-setting"><span><strong>{{copy.rememberSearches}}</strong><small>{{copy.historyHint}}</small></span><input v-model="recentOptIn" type="checkbox"/></label><button class="button" @click="clearHistory">{{copy.clearHistory}}</button><p class="source-note">{{copy.preferencesSaved}}</p></div></section>
 
-      <section v-else-if="['about','howsearchworks','privacy','terms'].includes(route)" class="policy-page"><p class="eyebrow">OPENSCANNER</p><h1>{{titles[route]}}</h1><template v-if="route==='privacy'||route==='terms'"><p class="notice">{{t.policyDraft}}</p><p>{{route==='privacy'?t.privacyBody:t.termsBody}}</p></template><p v-else>{{route==='about'?copy.aboutBody:copy.howBody}}</p></section>
+      <section v-else-if="['about','howsearchworks','privacy','terms','store','advertising','business'].includes(route)" class="policy-page"><p class="eyebrow">OPENSCANNER</p><h1>{{titles[route]}}</h1><template v-if="route==='privacy'||route==='terms'"><p class="notice">{{t.policyDraft}}</p><p>{{route==='privacy'?t.privacyBody:t.termsBody}}</p></template><p v-else>{{policyBody}}</p></section>
       <section v-else-if="!ready" class="search-state" role="status">{{t.loading}}</section>
       <section v-else class="search-state not-found"><p class="eyebrow">404 / OPENSCANNER</p><h1>{{t.notFound}}</h1><a class="button primary" :href="`/${locale}`" @click="link($event,`/${locale}`)">{{t.backHome}}</a></section>
     </main>
 
-    <footer class="site-footer"><span class="footer-brand"><BrandMark/><span>OpenScanner</span><span class="footer-divider">/</span><span>{{t.slogan}}</span></span><nav :aria-label="t.about"><a :href="`/${locale}/about`" @click="link($event,`/${locale}/about`)">{{t.about}}</a><a :href="`/${locale}/privacy`" @click="link($event,`/${locale}/privacy`)">{{t.privacy}}</a><a :href="`/${locale}/terms`" @click="link($event,`/${locale}/terms`)">{{t.terms}}</a><a :href="`/${locale}/settings`" @click="link($event,`/${locale}/settings`)">{{t.settings}}</a></nav></footer>
+    <footer class="site-footer"><span class="footer-brand"><BrandMark/><span>OpenScanner</span><span class="footer-divider">/</span><span>{{t.slogan}}</span></span><nav :aria-label="t.about"><a :href="`/${locale}/about`" @click="link($event,`/${locale}/about`)">{{t.about}}</a><a :href="`/${locale}/store`" @click="link($event,`/${locale}/store`)">{{t.store}}</a><a :href="`/${locale}/advertising`" @click="link($event,`/${locale}/advertising`)">{{t.advertising}}</a><a :href="`/${locale}/business`" @click="link($event,`/${locale}/business`)">{{t.business}}</a><a :href="`/${locale}/privacy`" @click="link($event,`/${locale}/privacy`)">{{t.privacy}}</a><a :href="`/${locale}/terms`" @click="link($event,`/${locale}/terms`)">{{t.terms}}</a><a :href="`/${locale}/settings`" @click="link($event,`/${locale}/settings`)">{{t.settings}}</a></nav></footer>
+    <ConfirmDialog v-if="pendingNav" :title="t.discardTitle" :body="folderLabels[locale].discard" :confirm="t.discardConfirm" :cancel="t.cancel" @confirm="confirmLeaveMail" @cancel="stayOnMail"/>
   </div>
 </template>
