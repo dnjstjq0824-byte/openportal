@@ -1,3 +1,6 @@
+// DEPRECATED: targets the pre-foundation search UI (getByRole('combobox')
+// and .home-search-panel are absent from apps/web/src — inputs are
+// role=searchbox now). Excluded from the default playwright config.
 import { test, expect } from '@playwright/test';
 
 // Fault injection only; these tests do not establish real search/provider success.

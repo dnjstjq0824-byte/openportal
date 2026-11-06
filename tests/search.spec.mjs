@@ -1,3 +1,8 @@
+// DEPRECATED: UI assertions target the pre-foundation search UI
+// (getByRole('combobox') — inputs are role=searchbox now, zero 'combobox'
+// matches in apps/web/src — plus retired OpenPortal corpus links).
+// Excluded from the default playwright config; current search flows are
+// covered by platform.e2e.spec.mjs and foundation.e2e.spec.mjs.
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import YAML from 'yaml';

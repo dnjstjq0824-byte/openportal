@@ -1,3 +1,8 @@
+// DEPRECATED: targets the pre-foundation OpenScan UI contract. Its selectors
+// (auth-page-wrap, static-page-wrap, btn-login-gray, ai-chip, feature-toast,
+// empty-result-card) are absent from apps/web/src, and its A-03 brand rule
+// contradicts the current OpenScanner brand. Not referenced by package.json
+// or CI. Use the playwright configs and tests/*.spec.mjs suites instead.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';

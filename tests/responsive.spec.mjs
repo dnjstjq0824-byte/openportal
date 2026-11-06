@@ -1,3 +1,7 @@
+// DEPRECATED: targets the pre-foundation search UI (getByRole('combobox')
+// is absent from apps/web/src — inputs are role=searchbox now). Responsive
+// coverage for the current UI lives in platform/foundation specs (320-1920px
+// sweeps). Excluded from the default playwright config.
 import { test, expect } from '@playwright/test';
 
 const viewports = [

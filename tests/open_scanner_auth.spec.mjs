@@ -1,3 +1,8 @@
+// DEPRECATED: targets the removed os-* modal/PIN auth UI (.os-account-btn,
+// .os-auth-modal-card, #os-verify-code are absent from apps/web/src; the dead
+// style.css was deleted in the design-system rebuild). Current auth uses
+// dedicated /login,/signup routes and SignupWizard, covered by
+// platform.e2e.spec.mjs. Excluded from the default playwright config.
 import { test, expect } from '@playwright/test';
 
 test.describe('Open Scanner — Unified Account & Email Verification System (P0)', () => {

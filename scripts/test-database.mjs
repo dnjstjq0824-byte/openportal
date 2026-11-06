@@ -59,8 +59,8 @@ try {
   await migrate(client);
   await migrate(client);
   const migrationCount = (await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n;
-  assert.equal(migrationCount, 12);
-  console.log('PASS forward migrations (001..012) and repeat run');
+  assert.equal(migrationCount, 14);
+  console.log('PASS forward migrations (001..014) and repeat run');
   const flags = await client.query("select name, enabled from control.feature_flags order by name");
   assert.equal(flags.rows.find(r => r.name === 'vertical.web')?.enabled, true);
   assert.equal(flags.rows.find(r => r.name === 'vertical.image')?.enabled, false);
@@ -120,6 +120,13 @@ try {
   assert.ok(hasReleaseGates);
   const gateCount = (await client.query("select count(*)::int n from control.release_gates")).rows[0].n;
   assert.equal(gateCount, 10);
+  // Migration 013 extends the 012 webapp boundary with hosted-mailbox signup columns.
+  const accountCols = (await client.query("select column_name from information_schema.columns where table_schema='webapp' and table_name='accounts'")).rows.map(x => x.column_name);
+  for (const col of ['username', 'given_name', 'family_name', 'birth_date', 'gender', 'gender_custom', 'pronoun', 'recovery_email', 'recovery_email_verified_at', 'recovery_phone']) assert.ok(accountCols.includes(col));
+  assert.equal((await client.query("select count(*)::int n from pg_indexes where schemaname='webapp' and tablename='accounts' and indexname='accounts_username_unique'")).rows[0].n, 1);
+  // Migration 014 adds the operator admin flag on webapp accounts.
+  assert.ok(accountCols.includes('is_admin'));
+  assert.equal((await client.query("select count(*)::int n from pg_indexes where schemaname='webapp' and tablename='accounts' and indexname='accounts_admins'")).rows[0].n, 1);
   console.log('PASS Phase 1, 2, 3, 4, 5, 6, 7, 8 & 9 feature flags, ranking profiles, vertical schemas, AI tables, ads, PAM and SLO tables seeded');
   await client.query('create role phase0_untrusted');
   await client.query('set role phase0_untrusted');
