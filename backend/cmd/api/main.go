@@ -2160,6 +2160,9 @@ func (a *app) routes() http.Handler {
 	// Public read paths — no authentication required.
 	mux.HandleFunc("/api/v1/search", a.cors(a.search))
 	mux.HandleFunc("/api/v1/suggest", a.cors(a.suggest))
+	// Legacy /v1 aliases kept for the public autocomplete contract.
+	mux.HandleFunc("/v1/search", a.cors(a.search))
+	mux.HandleFunc("/v1/search/suggest", a.cors(a.suggest))
 	mux.HandleFunc("/api/v1/portal/config", a.cors(a.portalConfig))
 	// Open Scanner Superplatform Endpoints
 	mux.HandleFunc("/api/v1/superplatform/apps", a.cors(a.handleSuperplatformApps))
@@ -2224,7 +2227,7 @@ func (a *app) productionRoutes() http.Handler {
 		switch r.URL.Path {
 		case "/healthz", "/readyz":
 			internal.ServeHTTP(w, r)
-		case "/api/v1/search", "/api/v1/suggest":
+		case "/api/v1/search", "/api/v1/suggest", "/v1/search", "/v1/search/suggest":
 			if ok, retry := limit.allow(clientIP(r), time.Now()); !ok {
 				w.Header().Set("Retry-After", strconv.Itoa(int(retry/time.Second)+1))
 				writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded", "code": "RATE_LIMITED"})

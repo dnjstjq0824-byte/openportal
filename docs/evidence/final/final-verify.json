@@ -1,0 +1,85 @@
+{
+  "total": 19,
+  "failed": [],
+  "results": [
+    {
+      "name": "guest home renders",
+      "pass": true
+    },
+    {
+      "name": "guest denied: mail redirects to login",
+      "pass": true
+    },
+    {
+      "name": "search submit + pagination traverse",
+      "pass": true,
+      "ms": 114,
+      "n1": 10,
+      "n2": 10
+    },
+    {
+      "name": "safe-search filter applies",
+      "pass": true
+    },
+    {
+      "name": "empty results state",
+      "pass": true
+    },
+    {
+      "name": "offline error state",
+      "pass": true
+    },
+    {
+      "name": "login bad credentials error",
+      "pass": true
+    },
+    {
+      "name": "signup wizard full flow",
+      "pass": true
+    },
+    {
+      "name": "forgot/reset/verify forms",
+      "pass": true
+    },
+    {
+      "name": "settings all controls",
+      "pass": true
+    },
+    {
+      "name": "policy + 404",
+      "pass": true
+    },
+    {
+      "name": "shot home+search tablet_768",
+      "pass": true
+    },
+    {
+      "name": "shot home+search mobile_390",
+      "pass": true
+    },
+    {
+      "name": "mail list + reader + folders",
+      "pass": true
+    },
+    {
+      "name": "compose modal + send + notice",
+      "pass": true
+    },
+    {
+      "name": "draft guard dialog cancel+confirm",
+      "pass": true
+    },
+    {
+      "name": "account save + user denied admin",
+      "pass": true
+    },
+    {
+      "name": "admin console full",
+      "pass": true
+    },
+    {
+      "name": "mobile mail shot + overflow",
+      "pass": true
+    }
+  ]
+}

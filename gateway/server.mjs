@@ -329,6 +329,22 @@ export async function createGateway(config, dependencies = {}) {
           const rows = (await pool.query(`select email,username,display_name,locale,verified_at is not null as verified,is_admin,created_at from webapp.accounts ${where} order by created_at desc limit 20 offset ${(page-1)*20}`, args)).rows;
           return respond(200, { total, page, has_more: page*20 < total, accounts: rows });
         }
+        if (path === '/api/v2/admin/signups' && req.method === 'GET') {
+          const days = Number(url.searchParams.get('days') || 14);
+          if (!Number.isInteger(days) || days < 1 || days > 90) throw fail('INVALID_QUERY');
+          const rows = (await pool.query(`select to_char(day,'YYYY-MM-DD') as date,count(a.id)::int as count from generate_series(current_date-($1::int-1),current_date,'1 day') day left join webapp.accounts a on a.created_at::date=day group by day order by day`, [days])).rows;
+          return respond(200, { days, signups: rows });
+        }
+        const role = path.match(/^\/api\/v2\/admin\/accounts\/(.+)\/role$/);
+        if (role && req.method === 'PATCH') {
+          const body = await readJSON(req);
+          if (typeof body.is_admin !== 'boolean') throw fail('INVALID_INPUT');
+          const target = await pool.query('select id,email from webapp.accounts where lower(email)=lower($1)', [decodeURIComponent(role[1]).slice(0, 254)]);
+          if (!target.rows.length) throw fail('NOT_FOUND', 404);
+          if (target.rows[0].id === account.id && body.is_admin === false) throw fail('SELF_DEMOTE_FORBIDDEN', 403);
+          await pool.query('update webapp.accounts set is_admin=$1 where id=$2', [body.is_admin, target.rows[0].id]);
+          return respond(200, { email: target.rows[0].email, is_admin: body.is_admin });
+        }
         throw fail('NOT_FOUND',404);
       }
       if (path === '/api/v2/account' && req.method === 'PATCH') {
