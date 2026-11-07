@@ -1,12 +1,15 @@
+title = "openportal gitleaks config"
+
 [extend]
 useDefault = true
 
+# Reviewed false positives (Phase 0 verify runs `gitleaks dir .`, which
+# auto-loads this file from the repo root).
 [allowlist]
-description = "Dependency installations, disposable local clusters, and hash manifests are not repository source secrets"
+description = "build output, public verification key, test fixtures, doc examples"
 paths = [
-  '''(?i)(^|[\\/])node_modules([\\/]|$)''',
-  '''(?i)(^|[\\/])work([\\/]|$)''',
-  '''(?i)(^|[\\/])test-results([\\/]|$)''',
-  '''(?i)HANDOFF_MANIFEST_SHA256\.json''',
-  '''(?i).*\.sha256$'''
+  '''apps/web/dist/''',
+  '''apps/web/public/indexnow\.json''',
+  '''backend/internal/identity/password_kdf_test\.go''',
+  '''OPEN_SCANNER_AUTH_EMAIL_VERIFICATION\.md''',
 ]
