@@ -6,8 +6,13 @@ useDefault = true
 # Reviewed false positives (Phase 0 verify runs `gitleaks dir .`, which
 # auto-loads this file from the repo root).
 [allowlist]
-description = "build output, public verification key, test fixtures, doc examples"
+description = "Dependency installs, disposable clusters, hash manifests, build output, public verification key, test fixtures, doc examples"
 paths = [
+  '''(?i)(^|[\\/])node_modules([\\/]|$)''',
+  '''(?i)(^|[\\/])work([\\/]|$)''',
+  '''(?i)(^|[\\/])test-results([\\/]|$)''',
+  '''(?i)HANDOFF_MANIFEST_SHA256\.json''',
+  '''(?i).*\.sha256$''',
   '''apps/web/dist/''',
   '''apps/web/public/indexnow\.json''',
   '''backend/internal/identity/password_kdf_test\.go''',
