@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-const permitted=new Set(['MIT','ISC','Apache-2.0','BSD-2-Clause','BSD-3-Clause','0BSD','Python-2.0','CC0-1.0','CC-BY-4.0','(MIT OR CC0-1.0)','(MIT OR Apache-2.0)']);
+const permitted=new Set(['MIT','MIT-0','ISC','Apache-2.0','BSD-2-Clause','BSD-3-Clause','0BSD','Python-2.0','CC0-1.0','CC-BY-4.0','(MIT OR CC0-1.0)','(MIT OR Apache-2.0)']); // MIT-0: OSI-approved permissive (MIT without attribution; covers nodemailer)
 const inventory=[];
 for(const path of ['package-lock.json','apps/web/package-lock.json']){
   const lock=JSON.parse(readFileSync(path));
