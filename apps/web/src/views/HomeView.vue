@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
+import BrandMark from '../BrandMark.vue';
 import ScanArt from '../ScanArt.vue';
 import SearchBox from '../SearchBox.vue';
 import { coreMessages, designCopy } from '../i18n/index';
@@ -41,11 +42,11 @@ function submitSearch(): void {
       </div>
     </div>
     <div class="hero">
-      <p class="eyebrow slogan"><span class="status-dot" aria-hidden="true"></span> {{ t.slogan }}</p>
-      <h1>{{ t.tagline }}</h1>
-      <p class="hero-intro">{{ copy.homeIntro }}</p>
+      <h1 class="home-brand">
+        <BrandMark class="home-mark" />
+        <span class="home-word">Open<b>Scanner</b></span>
+      </h1>
       <SearchBox id="home-query" v-model="search" :locale="session.locale" :recent="session.recentSearches" @submit="submitSearch()" @remove-recent="session.removeRecent($event)" />
-      <p class="search-help">{{ copy.searchHelp }}</p>
       <div v-if="session.recentOptIn" class="recent-searches">
         <p class="eyebrow">{{ copy.recent }}</p>
         <p v-if="!session.recentSearches.length" class="muted">{{ copy.noHistory }}</p>

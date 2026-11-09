@@ -18,7 +18,7 @@ test('real local index: Enter, URL state, refresh, history and language switchin
   await page.goBack();await expect(page.getByRole('searchbox')).toHaveValue('검색엔진');await page.goForward();await expect(page.getByRole('searchbox')).toHaveValue('한글 ภาษาไทย & special ?');
   await page.getByLabel('언어',{exact:true}).selectOption('th');await expect(page).toHaveURL(/\/th\/search/);await expect(page.getByRole('searchbox')).toHaveValue('한글 ภาษาไทย & special ?');await expect(page.locator('html')).toHaveAttribute('lang','th');
   /* cspell:enable */
-  await page.goto('/en');await expect(page.getByRole('heading',{name:'Discover beyond search.'})).toBeVisible();await page.getByLabel('Color theme').selectOption('dark');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await page.goto('/en');await expect(page.getByRole('heading',{name:'OpenScanner'})).toBeVisible();await page.getByLabel('Color theme').selectOption('dark');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await mkdir('docs/evidence/platform',{recursive:true});await page.screenshot({path:`docs/evidence/platform/${testInfo.project.name}-home.png`,fullPage:true});
   const timings=[];let failures=0;const started=performance.now();
   for(let group=0;group<10;group++)await Promise.all([0,1].map(async()=>{const before=performance.now();const response=await page.request.get('/api/v2/search?q=OpenPortal');if(!response.ok())failures++;timings.push(performance.now()-before);}));
