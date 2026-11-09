@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: 'list',
   use: { baseURL: 'http://127.0.0.1:5173', browserName: 'chromium' },
   webServer: [
-    { command: 'go run ./cmd/api', cwd: 'backend', url: 'http://127.0.0.1:18777/readyz', reuseExistingServer: false, timeout: 120000, env: { OPENSEARCH_INDEX: index, PORT: '18777' } },
+    { command: 'go run ./cmd/api', cwd: 'backend', url: 'http://127.0.0.1:18777/healthz', reuseExistingServer: false, timeout: 120000, env: { OPENSEARCH_INDEX: index, PORT: '18777' } },
     { command: `${npm} run dev -- --strictPort`, cwd: 'apps/web', url: 'http://127.0.0.1:5173', reuseExistingServer: false },
   ],
 });

@@ -4,6 +4,8 @@ import { defineConfig } from '@playwright/test';
 // foundation specs (open_scanner_auth, search, recovery, responsive) target a
 // removed combobox/modal UI and are deprecated in-file. OpenSearch must be
 // reachable at 127.0.0.1:9200 (CI compose provides it; local: node scripts/start-opensearch.mjs).
+// Backend gate is /healthz, not /readyz: /readyz runs a live search against
+// OPENSEARCH_INDEX, which the specs create later in beforeAll (seed.mjs).
 const index = process.env.PLATFORM_TEST_INDEX || `portal_gateway_e2e_${Date.now()}`;
 process.env.PLATFORM_TEST_INDEX = index;
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -12,7 +14,7 @@ export default defineConfig({
   use:{baseURL:'http://127.0.0.1:5173', browserName:'chromium',
     launchOptions: process.env.CHROME_PATH ? {executablePath:process.env.CHROME_PATH} : {}},
   webServer:[
-    {command:'go run ./cmd/api',cwd:'backend',url:'http://127.0.0.1:8080/readyz',reuseExistingServer:!process.env.CI,timeout:60000,env:{OPENSEARCH_INDEX:index}},
+    {command:'go run ./cmd/api',cwd:'backend',url:'http://127.0.0.1:8080/healthz',reuseExistingServer:!process.env.CI,timeout:60000,env:{OPENSEARCH_INDEX:index}},
     {command:`${npm} run dev -- --strictPort`,cwd:'apps/web',url:'http://127.0.0.1:5173',reuseExistingServer:!process.env.CI},
   ],
 });
