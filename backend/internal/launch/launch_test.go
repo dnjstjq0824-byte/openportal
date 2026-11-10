@@ -243,7 +243,7 @@ func TestDefectRegisterGating(t *testing.T) {
 
 func TestMasterReleaseGate(t *testing.T) {
 	// Case 1: All downstream audits incomplete -> Overall: CONDITIONAL_CANARY, Public: false
-	rep := EvaluateMasterReleaseGate(false, false, false, false, true, true, false, 0, 0)
+	rep := EvaluateMasterReleaseGate(false, false, false, false, false, true, true, false, 0, 0)
 	if rep.OverallDecision != "CONDITIONAL_CANARY" {
 		t.Fatalf("expected CONDITIONAL_CANARY, got %s", rep.OverallDecision)
 	}
@@ -255,14 +255,36 @@ func TestMasterReleaseGate(t *testing.T) {
 	}
 
 	// Case 2: P0 defect present -> Overall: NO-GO, Canary: false
-	repWithP0 := EvaluateMasterReleaseGate(false, false, false, false, true, true, false, 1, 0)
+	repWithP0 := EvaluateMasterReleaseGate(false, false, false, false, false, true, true, false, 1, 0)
 	if repWithP0.OverallDecision != "NO-GO" || repWithP0.CanaryReady {
 		t.Fatalf("expected NO-GO when P0 exists, got %s (canary=%v)", repWithP0.OverallDecision, repWithP0.CanaryReady)
 	}
 
 	// Case 3: All external audits and contracts signed, soak passed, 0 P0/P1 -> Overall: GO, Public: true
-	repFullGo := EvaluateMasterReleaseGate(true, true, true, true, true, true, true, 0, 0)
+	repFullGo := EvaluateMasterReleaseGate(true, true, true, true, true, true, true, true, 0, 0)
 	if repFullGo.OverallDecision != "GO" || !repFullGo.PublicLaunchReady {
 		t.Fatalf("expected GO when all audits passed, got %s", repFullGo.OverallDecision)
+	}
+
+	// Case 4 (A-3): without phases 0-4 external audit evidence, phases 0-4 must
+	// report ExternalAuditPassed=false / "NO-GO (BLOCKED)" even when every other
+	// gate passes, and the overall verdict must not be GO.
+	repCoreBlocked := EvaluateMasterReleaseGate(false, true, true, true, true, true, true, true, 0, 0)
+	if repCoreBlocked.OverallDecision == "GO" || repCoreBlocked.PublicLaunchReady {
+		t.Fatalf("expected non-GO without core audit evidence, got %s", repCoreBlocked.OverallDecision)
+	}
+	for _, phase := range repCoreBlocked.PhaseDetails {
+		if phase.Phase > 4 {
+			continue
+		}
+		if phase.ExternalAuditPassed {
+			t.Fatalf("phase %d must not self-certify ExternalAuditPassed", phase.Phase)
+		}
+		if phase.Decision != "NO-GO (BLOCKED)" {
+			t.Fatalf("phase %d: expected NO-GO (BLOCKED), got %q", phase.Phase, phase.Decision)
+		}
+		if len(phase.BlockingDependencies) == 0 {
+			t.Fatalf("phase %d: expected blocking dependencies to be listed", phase.Phase)
+		}
 	}
 }

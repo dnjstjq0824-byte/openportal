@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
+import ReportDialog from '../ReportDialog.vue';
 import ScanState from '../ScanState.vue';
 import { fill, serpMessages } from '../serp-copy';
 import { coreMessages, designCopy, foundationCopy, serpCopy } from '../i18n/index';
@@ -17,6 +18,17 @@ const foundation = foundationCopy;
 const serp = serpCopy;
 
 const page = ref(1);
+
+// C-9: per-hit report dialog target (null = closed).
+const reportTarget = ref<{ url: string; documentId: string } | null>(null);
+
+function openReport(url: string, documentId: string | undefined): void {
+  reportTarget.value = { url, documentId: documentId || url };
+}
+
+function closeReport(): void {
+  reportTarget.value = null;
+}
 
 const developmentIndex = computed(() => search.result && !['brave-api', 'bing-api'].includes(search.result.source || '') && search.result.corpus_kind !== 'approved-web');
 const sourceLabel = computed(() =>
@@ -109,6 +121,8 @@ watch(
   query => {
     const text = typeof query.q === 'string' ? query.q : '';
     search.query = text;
+    const suffix = session.locale === 'ko' ? 'OpenScanner 검색' : session.locale === 'th' ? 'OpenScanner ค้นหา' : 'OpenScanner Search';
+    document.title = text.trim() ? `${text.trim()} - ${suffix}` : 'OpenScanner';
     session.useQuerySafeSearch(typeof query.safe_search === 'string' ? query.safe_search : null);
     const requested = Number(query.page || 1);
     page.value = Number.isInteger(requested) && requested >= 1 && requested <= 100 ? requested : 1;
@@ -177,7 +191,10 @@ onUnmounted(() => {
         <span class="source-badge">{{ sourceLabel }}</span>
       </div>
       <p v-if="developmentIndex" class="notice corpus-notice" role="note">{{ foundation.developmentIndex }}</p>
-      <p v-if="search.result.degraded" class="notice partial-notice" role="status"><span aria-hidden="true">◐</span> {{ copy.partial }}</p>
+      <p v-if="search.result.degraded" class="notice partial-notice" role="status">
+        <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align: -3px; margin-right: 4px;"><circle cx="12" cy="12" r="9" /><path d="M12 8v4m0 4h.01" /></svg>
+        {{ copy.partial }}
+      </p>
       <p v-if="search.result.corrected_query && search.result.corrected_query !== search.query && search.result.hits.length" class="correction">
         {{ serp.didYouMean }} <button class="text-button" @click="applyCorrection(search.result.corrected_query!)"><strong>{{ search.result.corrected_query }}</strong></button>
       </p>
@@ -222,13 +239,23 @@ onUnmounted(() => {
             <h2>{{ hit.title }}</h2>
           </a>
           <p class="result-description"><template v-for="(part, index) in highlight(hit.description)" :key="index"><mark v-if="part.hit">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></p>
+          <div class="hit-actions">
+            <button type="button" class="text-button report-button" :aria-label="serp.reportTitle" @click="openReport(hit.url, hit.document_id)">{{ serp.reportHit }}</button>
+          </div>
         </li>
       </ol>
+      <ReportDialog v-if="reportTarget" :url="reportTarget.url" :document-id="reportTarget.documentId" @close="closeReport" />
 
       <nav v-if="search.result.hits.length && (page > 1 || search.result.has_more)" class="pagination" :aria-label="t.resultCount">
-        <button class="button" :disabled="page <= 1" @click="submitSearch(page - 1)"><span aria-hidden="true">←</span> {{ t.previous }}</button>
+        <button class="button" :disabled="page <= 1" @click="submitSearch(page - 1)">
+          <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          <span>{{ t.previous }}</span>
+        </button>
         <span class="page-indicator" aria-current="page">{{ fill(serp.pageOf, { n: new Intl.NumberFormat(session.locale).format(page) }) }}</span>
-        <button class="button" :disabled="!search.result.has_more || page >= 100" @click="submitSearch(page + 1)">{{ t.next }} <span aria-hidden="true">→</span></button>
+        <button class="button" :disabled="!search.result.has_more || page >= 100" @click="submitSearch(page + 1)">
+          <span>{{ t.next }}</span>
+          <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+        </button>
       </nav>
       <p v-if="search.result.hits.length && !search.result.has_more" class="end-of-results">{{ serp.endOfResults }}</p>
       <p class="source-note">{{ copy.sourceNote }}</p>

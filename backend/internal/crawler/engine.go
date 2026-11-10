@@ -57,6 +57,24 @@ type BoundedCrawler struct {
 	userAgents  string
 	records     map[string]*CrawlRecord
 	report      ComplianceReport
+	warcStore   WARCStore
+	warcErrors  int64
+}
+
+// SetWARCStore attaches archive persistence for fetched response records (C-2).
+// Storage failures never fail the crawl; they are counted and inspectable via
+// WARCErrors.
+func (c *BoundedCrawler) SetWARCStore(store WARCStore) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.warcStore = store
+}
+
+// WARCErrors returns the number of failed archive writes.
+func (c *BoundedCrawler) WARCErrors() int64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.warcErrors
 }
 
 func NewBoundedCrawler(frontier FrontierQueue, fetcher *SafeFetcher, politeness *PolitenessManager) *BoundedCrawler {
@@ -180,6 +198,19 @@ func (c *BoundedCrawler) CrawlURL(ctx context.Context, rawURL string) (*CrawlRec
 
 	// 6. Task 028 WARC Serialization & SHA-256 Digest
 	warcRecord := CreateWARCResponseRecord(cu.Canonical, cu.URLHash, fetchRes.StatusCode, fetchRes.Header, fetchRes.DecompressedBody, now)
+
+	// C-2: persist the record when an archive store is attached. Archival is
+	// best-effort: a storage failure is counted, never fatal to the crawl.
+	c.mu.RLock()
+	warcStore := c.warcStore
+	c.mu.RUnlock()
+	if warcStore != nil {
+		if err := warcStore.Write(warcRecord); err != nil {
+			c.mu.Lock()
+			c.warcErrors++
+			c.mu.Unlock()
+		}
+	}
 
 	// 7. Task 029 Directives & Link Extraction
 	headerDirectives := ParseXRobotsTag(fetchRes.Header)

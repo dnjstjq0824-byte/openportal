@@ -17,6 +17,37 @@ type ParsedQuery struct {
 	LangFilter     string
 	FiletypeFilter string
 	PositiveTerms  []string
+	// SafeSearch is one of "", "strict", "moderate", "off". Empty and "moderate"
+	// behave identically (moderate default), matching the runtime classifier.
+	SafeSearch string
+}
+
+// safetyFilterClauses renders the SafeSearch level as must_not clauses over the
+// index-time safety labels (C-5). Semantics mirror the runtime classifier's
+// FilterResults exactly; documents without labels pass (fail-open for legacy
+// docs — all newly indexed documents carry labels).
+func safetyFilterClauses(level string) []interface{} {
+	switch level {
+	case "off":
+		return []interface{}{
+			map[string]interface{}{"bool": map[string]interface{}{"filter": []interface{}{
+				map[string]interface{}{"term": map[string]interface{}{"safety": "malware"}},
+				map[string]interface{}{"range": map[string]interface{}{"malware_score": map[string]interface{}{"gte": 0.9}}},
+			}}},
+		}
+	case "strict":
+		return []interface{}{
+			map[string]interface{}{"terms": map[string]interface{}{"safety": []string{"adult", "gambling", "malware"}}},
+		}
+	default: // "" and "moderate"
+		return []interface{}{
+			map[string]interface{}{"terms": map[string]interface{}{"safety": []string{"gambling", "malware"}}},
+			map[string]interface{}{"bool": map[string]interface{}{"filter": []interface{}{
+				map[string]interface{}{"term": map[string]interface{}{"safety": "adult"}},
+				map[string]interface{}{"range": map[string]interface{}{"adult_score": map[string]interface{}{"gte": 0.7}}},
+			}}},
+		}
+	}
 }
 
 // ParseQuery extracts exact phrases ("..."), negations (-term), site filters (site:...),
@@ -107,13 +138,54 @@ func ParseQuery(raw string) ParsedQuery {
 	return res
 }
 
+// sharedMustNot returns the exclusions every retrieval path must apply:
+// tombstones plus the C-5 SafeSearch level filters.
+func (p *ParsedQuery) sharedMustNot() []interface{} {
+	mustNot := []interface{}{
+		map[string]interface{}{
+			"term": map[string]interface{}{"is_tombstone": true},
+		},
+	}
+	return append(mustNot, safetyFilterClauses(p.SafeSearch)...)
+}
+
+// sharedFilters returns the filters every retrieval path must apply:
+// indexable plus site/filetype/language restrictions.
+func (p *ParsedQuery) sharedFilters(defaultLang string) []interface{} {
+	filters := []interface{}{
+		map[string]interface{}{"term": map[string]interface{}{"indexable": true}},
+	}
+	if p.SiteFilter != "" {
+		filters = append(filters, map[string]interface{}{
+			"wildcard": map[string]interface{}{
+				"url": "*" + strings.ToLower(p.SiteFilter) + "*",
+			},
+		})
+	}
+	if p.FiletypeFilter != "" {
+		filters = append(filters, map[string]interface{}{
+			"wildcard": map[string]interface{}{
+				"url": "*." + strings.ToLower(p.FiletypeFilter) + "*",
+			},
+		})
+	}
+	lang := p.LangFilter
+	if lang == "" && defaultLang != "" {
+		lang = defaultLang
+	}
+	if lang != "" {
+		filters = append(filters, map[string]interface{}{
+			"term": map[string]interface{}{"language": lang},
+		})
+	}
+	return filters
+}
+
 // BuildOpenSearchQuery constructs the OpenSearch DSL bool query from ParsedQuery.
 func (p *ParsedQuery) BuildOpenSearchQuery(defaultLang string) map[string]interface{} {
 	mustClauses := []interface{}{}
 	mustNotClauses := []interface{}{}
-	filterClauses := []interface{}{
-		map[string]interface{}{"term": map[string]interface{}{"indexable": true}},
-	}
+	filterClauses := []interface{}{}
 
 	// 1. Positive terms (BM25 multi-match)
 	if len(p.PositiveTerms) > 0 {
@@ -155,39 +227,10 @@ func (p *ParsedQuery) BuildOpenSearchQuery(defaultLang string) map[string]interf
 		})
 	}
 
-	// Always exclude tombstones
-	mustNotClauses = append(mustNotClauses, map[string]interface{}{
-		"term": map[string]interface{}{"is_tombstone": true},
-	})
-
-	// 4. Site filter
-	if p.SiteFilter != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"wildcard": map[string]interface{}{
-				"url": "*" + strings.ToLower(p.SiteFilter) + "*",
-			},
-		})
-	}
-
-	// 4b. Filetype filter
-	if p.FiletypeFilter != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"wildcard": map[string]interface{}{
-				"url": "*." + strings.ToLower(p.FiletypeFilter) + "*",
-			},
-		})
-	}
-
-	// 5. Language filter
-	lang := p.LangFilter
-	if lang == "" && defaultLang != "" {
-		lang = defaultLang
-	}
-	if lang != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"term": map[string]interface{}{"language": lang},
-		})
-	}
+	// Tombstones + C-5 SafeSearch + attribute filters: shared by every
+	// retrieval path so keyword and recall candidates obey identical rules.
+	mustNotClauses = append(mustNotClauses, p.sharedMustNot()...)
+	filterClauses = append(filterClauses, p.sharedFilters(defaultLang)...)
 
 	boolQuery := map[string]interface{}{
 		"filter": filterClauses,
@@ -199,6 +242,73 @@ func (p *ParsedQuery) BuildOpenSearchQuery(defaultLang string) map[string]interf
 	}
 	if len(mustNotClauses) > 0 {
 		boolQuery["must_not"] = mustNotClauses
+	}
+
+	return map[string]interface{}{
+		"bool": boolQuery,
+	}
+}
+
+// BuildRecallQuery constructs the recall-oriented second retrieval path for
+// hybrid fusion (C-6): typo-tolerant fuzzy matching over broader fields plus
+// phrase proximity, OR-ed so either signal retrieves. Safety, tombstone, and
+// attribute filters are identical to the keyword path by construction.
+func (p *ParsedQuery) BuildRecallQuery(defaultLang string) map[string]interface{} {
+	shouldClauses := []interface{}{}
+	if len(p.PositiveTerms) > 0 {
+		termQuery := strings.Join(p.PositiveTerms, " ")
+		shouldClauses = append(shouldClauses, map[string]interface{}{
+			"multi_match": map[string]interface{}{
+				"query": termQuery,
+				"fields": []string{
+					"title^2.0",
+					"description",
+					"body",
+					"headings",
+				},
+				"type":          "best_fields",
+				"fuzziness":     "AUTO",
+				"prefix_length": 2,
+			},
+		})
+		shouldClauses = append(shouldClauses, map[string]interface{}{
+			"match_phrase": map[string]interface{}{
+				"body": map[string]interface{}{"query": termQuery, "slop": 3},
+			},
+		})
+	}
+	for _, phrase := range p.Phrases {
+		shouldClauses = append(shouldClauses, map[string]interface{}{
+			"multi_match": map[string]interface{}{
+				"query":  phrase,
+				"fields": []string{"title", "body", "headings"},
+				"type":   "phrase",
+			},
+		})
+	}
+
+	mustNotClauses := []interface{}{}
+	for _, neg := range p.Negations {
+		mustNotClauses = append(mustNotClauses, map[string]interface{}{
+			"multi_match": map[string]interface{}{
+				"query":  neg,
+				"fields": []string{"title", "body"},
+				"type":   "best_fields",
+			},
+		})
+	}
+	mustNotClauses = append(mustNotClauses, p.sharedMustNot()...)
+
+	boolQuery := map[string]interface{}{
+		"filter":               p.sharedFilters(defaultLang),
+		"must_not":             mustNotClauses,
+		"minimum_should_match": 1,
+	}
+	if len(shouldClauses) > 0 {
+		boolQuery["should"] = shouldClauses
+	} else {
+		boolQuery["must"] = []interface{}{map[string]interface{}{"match_all": map[string]interface{}{}}}
+		delete(boolQuery, "minimum_should_match")
 	}
 
 	return map[string]interface{}{

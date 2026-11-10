@@ -158,6 +158,31 @@ func (c *SafeSearchClassifier) ClassifyContent(title, description, url string) C
 }
 
 // FilterResults filters documents based on the chosen SafeSearch policy.
+// Safety categories stored on indexed documents (C-5). Worst-wins ordering:
+// malware > gambling > adult > clean. Scores preserve the moderate/off
+// thresholds so query-time filters match FilterResults exactly.
+const (
+	SafetyClean    = "clean"
+	SafetyAdult    = "adult"
+	SafetyGambling = "gambling"
+	SafetyMalware  = "malware"
+)
+
+// IndexLabel classifies content into the stored safety label triple.
+func (c *SafeSearchClassifier) IndexLabel(title, description, rawURL string) (category string, adultScore, malwareScore float64) {
+	safety := c.ClassifyContent(title, description, rawURL)
+	category = SafetyClean
+	switch {
+	case safety.IsMalware:
+		category = SafetyMalware
+	case safety.IsGambling:
+		category = SafetyGambling
+	case safety.IsAdult:
+		category = SafetyAdult
+	}
+	return category, safety.AdultScore, safety.MalwareScore
+}
+
 func (c *SafeSearchClassifier) FilterResults(docs []SafeSearchDocument, level SafeSearchLevel) []SafeSearchDocument {
 	if level == "" {
 		level = SafeSearchModerate

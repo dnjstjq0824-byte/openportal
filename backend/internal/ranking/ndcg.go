@@ -61,6 +61,42 @@ func ComputeNDCG(relevance []int, k int) float64 {
 	return ndcg
 }
 
+// ComputeAP computes Average Precision at rank k for one query. Grades >= 2
+// (Relevant/Vital) count as relevant; grades 0-1 count as non-relevant.
+// totalRelevant is the number of relevant documents in the judgments (not
+// just retrieved), so unretrieved relevants correctly lower the score.
+// Queries with zero judged relevants score 0.0 (undefined — caller error).
+func ComputeAP(relevance []int, totalRelevant, k int) float64 {
+	if k <= 0 || totalRelevant <= 0 {
+		return 0.0
+	}
+	limit := k
+	if len(relevance) < limit {
+		limit = len(relevance)
+	}
+	var sumPrec float64
+	hits := 0
+	for i := 0; i < limit; i++ {
+		if relevance[i] >= 2 {
+			hits++
+			sumPrec += float64(hits) / float64(i+1)
+		}
+	}
+	return sumPrec / float64(totalRelevant)
+}
+
+// ComputeMAP computes Mean Average Precision over per-query AP scores.
+func ComputeMAP(averagePrecisions []float64) float64 {
+	if len(averagePrecisions) == 0 {
+		return 0.0
+	}
+	var sum float64
+	for _, ap := range averagePrecisions {
+		sum += ap
+	}
+	return sum / float64(len(averagePrecisions))
+}
+
 // ComputeMRR computes Mean Reciprocal Rank for a set of queries.
 // firstRelevantRanks: 1-based rank of the first relevant document per query (0 if none found).
 func ComputeMRR(firstRelevantRanks []int) float64 {

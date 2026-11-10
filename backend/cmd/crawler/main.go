@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"example.com/openportal-search/backend/internal/crawler"
-	"example.com/openportal-search/backend/internal/indexer"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/crawler"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/indexer"
 	_ "github.com/lib/pq"
 	"golang.org/x/net/idna"
 )
@@ -82,6 +82,7 @@ func main() {
 	pageLimit := flag.Int("max-pages", 20, "Maximum URLs processed per run (1-10000), including worker mode")
 	crawlDelay := flag.Duration("delay", 500*time.Millisecond, "Per-host crawl delay")
 	allowedHosts := flag.String("allow-hosts", env("CRAWL_ALLOWED_HOSTS", ""), "Comma-separated hostnames with operator-approved crawl rights")
+	warcDir := flag.String("warc-dir", env("WARC_DIR", ""), "Local directory for WARC response archives (empty disables archiving)")
 	flag.Parse()
 	hostnames, err := approvedHosts(*allowedHosts)
 	if err != nil {
@@ -122,6 +123,14 @@ func main() {
 	politeness := crawler.NewPolitenessManager(*crawlDelay, 3600)
 	fetcher := crawler.NewSafeFetcher(crawler.NewSSRFGuard())
 	bCrawler := crawler.NewBoundedCrawler(frontier, fetcher, politeness)
+	if *warcDir != "" {
+		store, err := crawler.NewFileWARCStore(*warcDir)
+		if err != nil {
+			log.Fatalf("[Crawler] WARC archive unavailable: %v", err)
+		}
+		bCrawler.SetWARCStore(store)
+		log.Printf("[Crawler] WARC archiving to %s", *warcDir)
+	}
 
 	// Public standards sites are not implicitly authorized. Operators must
 	// explicitly approve each host; robots and SSRF checks still apply.
@@ -139,6 +148,14 @@ func main() {
 	}
 
 	idxService := indexer.NewIndexingService(*opensearchURL, *indexName, &http.Client{Timeout: 10 * time.Second})
+	// C-3: with PostgreSQL configured, indexing intent goes through the durable
+	// outbox and this loop relays it to OpenSearch in bulk.
+	var relay *indexer.Relay
+	durable := db != nil
+	if durable {
+		relay = idxService.EnableDurableOutbox(db)
+		log.Printf("[Crawler] Durable outbox relay enabled (catalog.index_events)")
+	}
 	workerID := fmt.Sprintf("crawler-worker-%d", os.Getpid())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -159,7 +176,8 @@ func main() {
 		}
 
 		log.Printf("[Crawler] Executing real HTTP crawl for target URL: %s", *targetURL)
-		crawlAndIndex(ctx, bCrawler, idxService, frontier, workerID, *targetURL, 1)
+		crawlAndIndex(ctx, bCrawler, idxService, frontier, workerID, *targetURL, 1, durable)
+		drainRelay(ctx, relay)
 		return
 	}
 
@@ -167,6 +185,20 @@ func main() {
 	for _, hostname := range hostnames {
 		_, _ = frontier.SubmitURL("https://"+hostname+"/", 80)
 	}
+
+	// C-2: sitemap-driven URL discovery per allowlisted host (best-effort).
+	if found := bCrawler.SeedSitemaps(ctx, hostnames); found > 0 {
+		log.Printf("[Crawler] Sitemap discovery enqueued %d URLs", found)
+	}
+
+	// C-1: freshness pass — re-queue completions older than 7 days.
+	rescheduleCutoff := time.Now().UTC().Add(-7 * 24 * time.Hour)
+	if revived, err := frontier.RescheduleStale(rescheduleCutoff, 1000); err != nil {
+		log.Printf("[Crawler] Freshness reschedule failed: %v", err)
+	} else if revived > 0 {
+		log.Printf("[Crawler] Freshness reschedule re-queued %d URLs", revived)
+	}
+	lastReschedule := time.Now().UTC()
 
 	runCount := 0
 	maxPages := *pageLimit
@@ -186,6 +218,15 @@ func main() {
 				log.Printf("[Crawler] Queue is empty. Single pass complete.")
 				break
 			}
+			// C-1: periodic freshness pass while idling in worker mode.
+			if time.Since(lastReschedule) > 10*time.Minute {
+				if revived, err := frontier.RescheduleStale(time.Now().UTC().Add(-7*24*time.Hour), 1000); err != nil {
+					log.Printf("[Crawler] Freshness reschedule failed: %v", err)
+				} else if revived > 0 {
+					log.Printf("[Crawler] Freshness reschedule re-queued %d URLs", revived)
+				}
+				lastReschedule = time.Now().UTC()
+			}
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -199,14 +240,30 @@ func main() {
 				_ = frontier.Block(item.URLHash, "outside current operator allowlist")
 				continue
 			}
-			crawlAndIndex(ctx, bCrawler, idxService, frontier, workerID, item.URL, runCount)
+			crawlAndIndex(ctx, bCrawler, idxService, frontier, workerID, item.URL, runCount, durable)
 		}
+		drainRelay(ctx, relay)
 	}
 
 	log.Printf("[Crawler] Finished processing. Total crawled in this session: %d", runCount)
 }
 
-func crawlAndIndex(ctx context.Context, bCrawler *crawler.BoundedCrawler, idxService *indexer.IndexingService, frontier crawler.FrontierQueue, workerID, rawURL string, seq int) {
+// drainRelay delivers one durable-outbox batch; nil relay (memory mode) is a no-op.
+func drainRelay(ctx context.Context, relay *indexer.Relay) {
+	if relay == nil {
+		return
+	}
+	upserts, deletes, err := relay.RunOnce(ctx)
+	if err != nil {
+		log.Printf("[Crawler] Outbox relay: %v (events stay queued for retry)", err)
+		return
+	}
+	if upserts+deletes > 0 {
+		log.Printf("[Crawler] Outbox relay delivered upserts=%d deletes=%d", upserts, deletes)
+	}
+}
+
+func crawlAndIndex(ctx context.Context, bCrawler *crawler.BoundedCrawler, idxService *indexer.IndexingService, frontier crawler.FrontierQueue, workerID, rawURL string, seq int, durable bool) {
 	cu, err := crawler.Canonicalize(rawURL)
 	if err != nil {
 		log.Printf("[Crawler] [FAIL] Canonicalize %s: %v", rawURL, err)
@@ -242,8 +299,12 @@ func crawlAndIndex(ctx context.Context, bCrawler *crawler.BoundedCrawler, idxSer
 
 	elapsed := time.Since(startTime)
 	if indexed {
-		log.Printf("[Crawler] [%d] [INDEXED] docID=%s title=%q lang=%s words=%d links=%d elapsed=%s",
-			seq, docID, extracted.Title, extracted.Language, extracted.WordCount, cRecord.DiscoveredLinks, elapsed)
+		verb := "INDEXED"
+		if durable {
+			verb = "QUEUED"
+		}
+		log.Printf("[Crawler] [%d] [%s] docID=%s title=%q lang=%s words=%d links=%d elapsed=%s",
+			seq, verb, docID, extracted.Title, extracted.Language, extracted.WordCount, cRecord.DiscoveredLinks, elapsed)
 		_ = frontier.Ack(cu.URLHash, workerID)
 	} else {
 		log.Printf("[Crawler] [%d] [SKIP] Unchanged or near-duplicate docID=%s elapsed=%s", seq, docID, elapsed)

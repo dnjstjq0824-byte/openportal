@@ -28,7 +28,7 @@ func TestNormalizeQuery(t *testing.T) {
 	}
 }
 
-func TestSuggestCorrection(t *testing.T) {
+func TestConvertQwertyToHangul(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
@@ -36,18 +36,17 @@ func TestSuggestCorrection(t *testing.T) {
 		{"rjatordpswls", "검색엔진"},
 		{"dhvmsvhxjf", "오픈포털"},
 		{"gksrmf", "한글"},
-		{"openprotal", "OpenPortal"},
-		{"검섹엔진", "검색엔진"},
-		{"검색엔짇", "검색엔진"}, // Levenshtein dist 1
-		{"크롤렁", "크롤러"},   // Levenshtein dist 1
-		{"databse", "database"}, // Levenshtein dist 1
-		{"normal text", ""},
+		{"rkqt", "값"},    // compound jongseong ㅄ
+		{"hkl", "와이"},    // compound jungseong ㅘ
+		{"dkssud", "안녕"}, // jongseong split across syllables
+		{"검색엔진", "검색엔진"}, // already Hangul passes through
+		{"a 1", "ㅁ 1"},   // unmapped runes pass through, lone choseong emitted
 	}
 
 	for _, tt := range tests {
-		got := SuggestCorrection(tt.input)
+		got := ConvertQwertyToHangul(tt.input)
 		if got != tt.expected {
-			t.Errorf("SuggestCorrection(%q) = %q, want %q", tt.input, got, tt.expected)
+			t.Errorf("ConvertQwertyToHangul(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
 }

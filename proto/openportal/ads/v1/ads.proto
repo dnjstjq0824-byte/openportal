@@ -1,7 +1,7 @@
 syntax = "proto3";
 package openportal.ads.v1;
 
-option go_package = "example.com/openportal-search/backend/gen/openportal/ads/v1;adsv1";
+option go_package = "github.com/dnjstjq0824-byte/openportal/backend/gen/openportal/ads/v1;adsv1";
 service AdsService {
   rpc SelectSponsored(SelectSponsoredRequest) returns (SelectSponsoredResponse);
   rpc ReportImpression(ReportImpressionRequest) returns (ReportImpressionResponse);

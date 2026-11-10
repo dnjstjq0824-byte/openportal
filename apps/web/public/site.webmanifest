@@ -1,0 +1,17 @@
+{
+  "name": "OpenScanner",
+  "short_name": "OpenScanner",
+  "description": "OpenScanner — 정밀 웹 검색, 이메일 및 계정 플랫폼",
+  "start_url": "/ko",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1D4ED8",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

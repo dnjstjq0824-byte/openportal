@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"example.com/openportal-search/backend/internal/identity"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/identity"
 )
 
 // HTTP policy fixtures do not stand in for a verified identity provider.

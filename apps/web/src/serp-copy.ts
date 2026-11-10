@@ -12,6 +12,12 @@ const en = {
   invalidTitle: 'Check your search', invalidBody: 'The search is too long or the page number is out of range. Shorten it and try again.',
   unavailableTitle: 'Search is temporarily unavailable', unavailableBody: 'We could not reach the search source. Your query was not lost; try again in a moment.',
   errorCode: 'Error code', retry: 'Try again', home: 'Go to home', tips: 'Search tips',
+  reportHit: 'Report', reportTitle: 'Report this result', reportLead: 'Tell us what is wrong with this result. Reports are reviewed manually.',
+  reportCategory: 'Category', reportDetails: 'Details (optional)', reportDetailsHint: 'Up to 2000 characters.',
+  reportSpam: 'Spam', reportMalware: 'Malware', reportPhishing: 'Phishing', reportAdult: 'Adult content',
+  reportCopyright: 'Copyright / removal request', reportPrivacy: 'Privacy / removal request', reportOther: 'Other',
+  reportSubmit: 'Submit report', reportCancel: 'Cancel', reportLogin: 'Sign in to report a result.',
+  reportDone: 'Report received. Thank you.', reportFailed: 'Could not submit the report. Try again.',
 };
 type SerpCopy = { [K in keyof typeof en]: string };
 const ko: SerpCopy = {
@@ -26,6 +32,12 @@ const ko: SerpCopy = {
   invalidTitle: '검색어를 확인하세요', invalidBody: '검색어가 너무 길거나 페이지 번호가 범위를 벗어났습니다. 줄여서 다시 시도하세요.',
   unavailableTitle: '검색 서비스를 일시적으로 사용할 수 없습니다', unavailableBody: '검색 공급원에 연결하지 못했습니다. 입력한 검색어는 그대로 있으니 잠시 후 다시 시도하세요.',
   errorCode: '오류 코드', retry: '다시 시도', home: '홈으로', tips: '검색 도움말',
+  reportHit: '신고', reportTitle: '이 결과 신고하기', reportLead: '이 결과의 문제점을 알려주세요. 신고는 수동으로 검토됩니다.',
+  reportCategory: '유형', reportDetails: '상세 내용 (선택)', reportDetailsHint: '최대 2000자까지 입력할 수 있습니다.',
+  reportSpam: '스팸', reportMalware: '악성코드', reportPhishing: '피싱', reportAdult: '성인 콘텐츠',
+  reportCopyright: '저작권 / 삭제 요청', reportPrivacy: '개인정보 / 삭제 요청', reportOther: '기타',
+  reportSubmit: '신고 제출', reportCancel: '취소', reportLogin: '결과를 신고하려면 로그인하세요.',
+  reportDone: '신고가 접수되었습니다. 감사합니다.', reportFailed: '신고를 제출하지 못했습니다. 다시 시도하세요.',
 };
 const th: SerpCopy = {
   web: 'เว็บ', verticals: 'ประเภทการค้นหา', about: 'ประมาณ {n} ผลลัพธ์', exact: '{n} ผลลัพธ์', seconds: '({s} วินาที)', pageOf: 'หน้า {n}',
@@ -39,6 +51,12 @@ const th: SerpCopy = {
   invalidTitle: 'ตรวจสอบคำค้นหา', invalidBody: 'คำค้นยาวเกินไปหรือหมายเลขหน้าไม่ถูกต้อง โปรดย่อแล้วลองอีกครั้ง',
   unavailableTitle: 'บริการค้นหาไม่พร้อมใช้งานชั่วคราว', unavailableBody: 'เชื่อมต่อแหล่งค้นหาไม่ได้ คำค้นของคุณยังอยู่ โปรดลองอีกครั้งในอีกสักครู่',
   errorCode: 'รหัสข้อผิดพลาด', retry: 'ลองอีกครั้ง', home: 'ไปหน้าหลัก', tips: 'เคล็ดลับการค้นหา',
+  reportHit: 'รายงาน', reportTitle: 'รายงานผลลัพธ์นี้', reportLead: 'บอกเราว่าผลลัพธ์นี้มีปัญหาอะไร รายงานจะได้รับการตรวจสอบด้วยตนเอง',
+  reportCategory: 'หมวดหมู่', reportDetails: 'รายละเอียด (ไม่บังคับ)', reportDetailsHint: 'สูงสุด 2000 อักขระ',
+  reportSpam: 'สแปม', reportMalware: 'มัลแวร์', reportPhishing: 'ฟิชชิง', reportAdult: 'เนื้อหาผู้ใหญ่',
+  reportCopyright: 'ลิขสิทธิ์ / ขอลบ', reportPrivacy: 'ความเป็นส่วนตัว / ขอลบ', reportOther: 'อื่น ๆ',
+  reportSubmit: 'ส่งรายงาน', reportCancel: 'ยกเลิก', reportLogin: 'ลงชื่อเข้าใช้เพื่อรายงานผลลัพธ์',
+  reportDone: 'ได้รับรายงานแล้ว ขอบคุณ', reportFailed: 'ส่งรายงานไม่สำเร็จ โปรดลองอีกครั้ง',
 };
 export const serpMessages: Record<Locale, SerpCopy> = { en, ko, th };
 export const fill = (template: string, values: Record<string, string | number>) => template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));

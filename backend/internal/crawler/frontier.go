@@ -36,6 +36,9 @@ type FrontierQueue interface {
 	Nack(urlHash string, workerID string, errReason string) error
 	Block(urlHash string, reason string) error
 	QueueDepth(state FrontierState) int
+	// RescheduleStale re-queues done/failed items older than the cutoff for
+	// periodic recrawls (C-1 freshness) and returns how many were re-queued.
+	RescheduleStale(olderThan time.Time, limit int) (int, error)
 }
 
 // VerifiedHost represents a verified site eligible for crawling.
@@ -262,6 +265,33 @@ func (f *Frontier) Block(urlHash string, reason string) error {
 	item.LeaseOwner = ""
 	item.LeaseUntil = time.Time{}
 	return nil
+}
+
+// RescheduleStale re-queues done/failed items scheduled before the cutoff.
+func (f *Frontier) RescheduleStale(olderThan time.Time, limit int) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if limit <= 0 {
+		return 0, nil
+	}
+	now := time.Now().UTC()
+	count := 0
+	for _, item := range f.itemsByHash {
+		if count >= limit {
+			break
+		}
+		if (item.State == StateDone || item.State == StateFailed) && item.ScheduledAt.Before(olderThan) {
+			item.State = StateQueued
+			item.ScheduledAt = now
+			item.RetryCount = 0
+			item.LeaseOwner = ""
+			item.LeaseUntil = time.Time{}
+			item.LastError = ""
+			f.queues[item.HostKey] = append(f.queues[item.HostKey], item)
+			count++
+		}
+	}
+	return count, nil
 }
 
 // QueueDepth returns the count of items in a specific state.

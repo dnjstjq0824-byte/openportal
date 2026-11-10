@@ -93,7 +93,12 @@ onUnmounted(() => {
       <nav class="header-nav" :aria-label="t.services">
         <details class="services-menu">
           <summary>{{ t.services }}<svg class="chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></summary>
-          <div class="services-popover"><RouterLink :to="`/${session.locale}/mail`"><span aria-hidden="true">✉</span>{{ t.mail }}</RouterLink></div>
+          <div class="services-popover">
+            <RouterLink :to="`/${session.locale}/mail`">
+              <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>
+              <span>{{ t.mail }}</span>
+            </RouterLink>
+          </div>
         </details>
         <label class="language-control"><span class="sr-only">{{ t.language }}</span><select :aria-label="t.language" :value="session.locale" @change="changeLanguage"><option value="ko">한국어</option><option value="th">ไทย</option><option value="en">English</option></select></label>
         <label class="theme-control"><span class="sr-only">{{ t.theme }}</span><select :aria-label="t.theme" v-model="session.theme"><option value="system">{{ t.system }}</option><option value="light">{{ t.light }}</option><option value="dark">{{ t.dark }}</option></select></label>
@@ -115,7 +120,7 @@ onUnmounted(() => {
     </main>
 
     <footer class="site-footer">
-      <span class="footer-brand"><BrandMark /><span>OpenScanner</span><span class="footer-divider">/</span><span>{{ t.slogan }}</span></span>
+      <span class="footer-brand"><BrandMark /><span>© OpenScanner. All rights reserved.</span><span class="footer-divider">/</span><span>{{ t.slogan }}</span></span>
       <nav :aria-label="t.about">
         <RouterLink :to="`/${session.locale}/about`">{{ t.about }}</RouterLink>
         <RouterLink :to="`/${session.locale}/store`">{{ t.store }}</RouterLink>

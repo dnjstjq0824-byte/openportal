@@ -125,4 +125,15 @@ func TestDocumentsV2SchemaAndAnalyzerConformance(t *testing.T) {
 	if payload["spam_score"] == nil {
 		t.Errorf("spam_score is nil")
 	}
+	suggest, ok := payload["suggest"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("suggest block missing: %T", payload["suggest"])
+	}
+	inputs, ok := suggest["input"].([]string)
+	if !ok || len(inputs) == 0 {
+		t.Fatalf("suggest inputs missing: %v", suggest["input"])
+	}
+	if inputs[0] != "Test Doc" {
+		t.Errorf("suggest inputs[0]: want title 'Test Doc', got %q", inputs[0])
+	}
 }

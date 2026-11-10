@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	searchv1 "example.com/openportal-search/backend/gen/openportal/search/v1"
+	searchv1 "github.com/dnjstjq0824-byte/openportal/backend/gen/openportal/search/v1"
 )
 
 // ToProtoSearchRequest converts the validated REST search query parameters into a canonical Protobuf v1 SearchRequest.

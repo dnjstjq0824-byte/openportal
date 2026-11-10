@@ -352,7 +352,7 @@ const file_openportal_crawl_v1_crawl_proto_rawDesc = "" +
 	"\fCrawlService\x12Z\n" +
 	"\tSubmitURL\x12%.openportal.crawl.v1.SubmitURLRequest\x1a&.openportal.crawl.v1.SubmitURLResponse\x12]\n" +
 	"\n" +
-	"InspectURL\x12&.openportal.crawl.v1.InspectURLRequest\x1a'.openportal.crawl.v1.InspectURLResponseBGZEexample.com/openportal-search/backend/gen/openportal/crawl/v1;crawlv1b\x06proto3"
+	"InspectURL\x12&.openportal.crawl.v1.InspectURLRequest\x1a'.openportal.crawl.v1.InspectURLResponseBPZNgithub.com/dnjstjq0824-byte/openportal/backend/gen/openportal/crawl/v1;crawlv1b\x06proto3"
 
 var (
 	file_openportal_crawl_v1_crawl_proto_rawDescOnce sync.Once

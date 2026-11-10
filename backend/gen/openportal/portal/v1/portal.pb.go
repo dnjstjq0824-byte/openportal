@@ -193,7 +193,7 @@ const file_openportal_portal_v1_portal_proto_rawDesc = "" +
 	"\amodules\x18\x01 \x03(\v2\x1c.openportal.portal.v1.ModuleR\amodules2p\n" +
 	"\rPortalService\x12_\n" +
 	"\n" +
-	"GetModules\x12'.openportal.portal.v1.GetModulesRequest\x1a(.openportal.portal.v1.GetModulesResponseBIZGexample.com/openportal-search/backend/gen/openportal/portal/v1;portalv1b\x06proto3"
+	"GetModules\x12'.openportal.portal.v1.GetModulesRequest\x1a(.openportal.portal.v1.GetModulesResponseBRZPgithub.com/dnjstjq0824-byte/openportal/backend/gen/openportal/portal/v1;portalv1b\x06proto3"
 
 var (
 	file_openportal_portal_v1_portal_proto_rawDescOnce sync.Once

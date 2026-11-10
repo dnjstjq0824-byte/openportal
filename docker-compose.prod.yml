@@ -1,0 +1,115 @@
+# Production-shaped full stack (B-3): PostgreSQL + OpenSearch(nori) + Redis + Go API + gateway.
+# All published ports bind loopback. Host ports are overridable for machines
+# where the defaults are taken, e.g. API_HOST_PORT=8081 docker compose -f ... up.
+#
+# Environment contract (see .env.example for the full list):
+#   PUBLIC_ORIGIN         browser-facing origin (CORS allowlist). The audit order
+#                         calls this WEB_GATEWAY_ORIGIN; the code name is kept.
+#   SEARCH_BACKEND_URL    gateway -> Go API base URL. The order calls this
+#                         SEARCH_API_URL; the code name is kept.
+#   GATEWAY_SHARED_SECRET ingress secret for the gateway (fail-fast in production).
+#   DATABASE_URL          assembled from POSTGRES_* by compose; the Go API and
+#                         the gateway both consume it.
+#   NODE_ENV              keep unset/local for loopback verification; set
+#                         NODE_ENV=production (with https PUBLIC_ORIGIN + secrets)
+#                         for real deployment. configuration() fail-fasts there.
+#
+# NOTE on PostgreSQL 16 vs 17: the audit order names PG16, but every migration,
+# test (embedded-postgres 17.10), and the dev compose file standardize on
+# postgres:17.10. The prod stack follows the tested repo standard (17.10).
+name: openportal-prod
+services:
+  postgres:
+    image: postgres:17.10
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-openportal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_prod_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-openportal}
+    ports: ["127.0.0.1:${PG_HOST_PORT:-5432}:5432"]
+    volumes: ["pgdata-prod:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openportal} -d ${POSTGRES_DB:-openportal}"]
+      interval: 3s
+      retries: 30
+  opensearch:
+    build: ./infra/opensearch
+    environment:
+      discovery.type: single-node
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports: ["127.0.0.1:${OS_HOST_PORT:-9200}:9200"]
+    volumes: ["osdata-prod:/usr/share/opensearch/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
+      interval: 5s
+      retries: 60
+    ulimits:
+      nofile: {soft: 65536, hard: 65536}
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 12
+  migrate:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-openportal}:${POSTGRES_PASSWORD:-local_prod_password_change_me}@postgres:5432/${POSTGRES_DB:-openportal}?sslmode=disable
+      NODE_ENV: ${NODE_ENV:-localtest}
+    # sslmode=disable: loopback-local stack without server TLS. Real deployments
+    # must terminate TLS at Postgres and use sslmode=require (or verify-full).
+    command: ["node", "scripts/migrate.mjs"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  seed:
+    image: python:3.12.14-slim
+    working_dir: /workspace
+    volumes: ["./scripts/seed.py:/workspace/scripts/seed.py:ro", "./infra/opensearch:/workspace/infra/opensearch:ro"]
+    environment:
+      OPENSEARCH_URL: "http://opensearch:9200"
+      OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-documents_v1}
+    command: ["python", "scripts/seed.py"]
+    depends_on:
+      opensearch: {condition: service_healthy}
+  api:
+    build: ./backend
+    environment:
+      OPENSEARCH_URL: "http://opensearch:9200"
+      OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-documents_v1}
+      DATABASE_URL: postgres://${POSTGRES_USER:-openportal}:${POSTGRES_PASSWORD:-local_prod_password_change_me}@postgres:5432/${POSTGRES_DB:-openportal}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      LISTEN_HOST: "0.0.0.0"
+      PORT: "8080"
+    ports: ["127.0.0.1:${API_HOST_PORT:-8080}:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      retries: 30
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      seed: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-openportal}:${POSTGRES_PASSWORD:-local_prod_password_change_me}@postgres:5432/${POSTGRES_DB:-openportal}?sslmode=disable
+      SEARCH_BACKEND_URL: http://api:8080
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: 8090
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://127.0.0.1:5173}
+      GATEWAY_SHARED_SECRET: ${GATEWAY_SHARED_SECRET:-localtest-shared-secret-change-me}
+      NODE_ENV: ${NODE_ENV:-localtest}
+    ports: ["127.0.0.1:${GATEWAY_HOST_PORT:-8090}:8090"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      api: {condition: service_healthy}
+volumes:
+  pgdata-prod:
+  osdata-prod:

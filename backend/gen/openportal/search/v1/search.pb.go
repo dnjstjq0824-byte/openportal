@@ -416,7 +416,7 @@ const file_openportal_search_v1_search_proto_rawDesc = "" +
 	"\vsuggestions\x18\x01 \x03(\tR\vsuggestions2\xbc\x01\n" +
 	"\rSearchService\x12S\n" +
 	"\x06Search\x12#.openportal.search.v1.SearchRequest\x1a$.openportal.search.v1.SearchResponse\x12V\n" +
-	"\aSuggest\x12$.openportal.search.v1.SuggestRequest\x1a%.openportal.search.v1.SuggestResponseBIZGexample.com/openportal-search/backend/gen/openportal/search/v1;searchv1b\x06proto3"
+	"\aSuggest\x12$.openportal.search.v1.SuggestRequest\x1a%.openportal.search.v1.SuggestResponseBRZPgithub.com/dnjstjq0824-byte/openportal/backend/gen/openportal/search/v1;searchv1b\x06proto3"
 
 var (
 	file_openportal_search_v1_search_proto_rawDescOnce sync.Once

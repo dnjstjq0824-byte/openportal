@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"example.com/openportal-search/backend/internal/indexer"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/indexer"
 )
 
 // PublisherPolicy holds licensing bounds for a verified news publisher.

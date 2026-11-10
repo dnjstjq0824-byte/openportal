@@ -8,6 +8,7 @@ export interface SearchHit {
   description: string;
   site_name?: string;
   source?: string;
+  document_id?: string;
 }
 
 export interface SearchResult {
@@ -97,6 +98,7 @@ export const useSearchStore = defineStore('search', () => {
             description: x.description,
             site_name: x.site_name,
             source: x.source,
+            document_id: typeof x.document_id === 'string' ? x.document_id : undefined,
           })),
       };
     } catch (e) {

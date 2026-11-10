@@ -3,6 +3,9 @@ package indexer
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -40,6 +43,15 @@ type TombstoneManager struct {
 	indexName  string
 	httpClient *http.Client
 	outbox     *OutboxQueue
+	db         *sql.DB
+}
+
+// WithDB attaches PostgreSQL persistence for tombstone records
+// (catalog.removal_tombstones). Without it, tombstones propagate to OpenSearch
+// only and leave no durable audit trail.
+func (m *TombstoneManager) WithDB(db *sql.DB) *TombstoneManager {
+	m.db = db
+	return m
 }
 
 // NewTombstoneManager constructs a TombstoneManager.
@@ -109,7 +121,29 @@ func (m *TombstoneManager) ApplyTombstone(ctx context.Context, docID string, rea
 		}
 	}
 
+	// 3. Persist the durable audit record when a database is attached.
+	if m.db != nil {
+		if err := m.persistRecord(ctx, docID, reason); err != nil {
+			return nil, err
+		}
+	}
+
 	return record, nil
+}
+
+// persistRecord inserts the tombstone into catalog.removal_tombstones.
+// canonical_hash keys the removed document; legal and privacy removals take a
+// legal hold so no vacuum may physically erase the audit row.
+func (m *TombstoneManager) persistRecord(ctx context.Context, docID string, reason TombstoneReason) error {
+	sum := sha256.Sum256([]byte(docID))
+	legalHold := reason == TombstoneReasonLegalTakedown || reason == TombstoneReasonPrivacyRight
+	_, err := m.db.ExecContext(ctx,
+		`INSERT INTO catalog.removal_tombstones (canonical_hash, reason, processed_at, legal_hold)
+		 VALUES ($1, $2, now(), $3)
+		 ON CONFLICT (canonical_hash) DO UPDATE SET reason=EXCLUDED.reason, processed_at=now(), legal_hold=EXCLUDED.legal_hold`,
+		hex.EncodeToString(sum[:]), string(reason), legalHold,
+	)
+	return err
 }
 
 // PurgePhysically performs permanent document removal from OpenSearch after retention period.

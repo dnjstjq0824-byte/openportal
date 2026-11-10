@@ -1,3 +1,128 @@
+# GAP REGISTER — OpenScanner 감사 추적 단일 기준 문서 (Single Source of Truth)
+
+- 최종 갱신: 2026-11-10 (Phase 1 완료, Phase 2 진입)
+- 종합 판정: **NO-GO** (P1~P3 잔여 및 외부 BLOCKED 해소 전까지 공개 출시 금지)
+- 출처: OpenScanner 감사 작업지시서 Phase 1~3 (코드 항목 A~D 명시 22건 + 기존 G-ledger 매핑 + F 외부 5건)
+- 주의: 감사 원문에 언급된 34건 중 작업지시서에 번호가 명시되지 않은 항목(A-7, B-4, D-1~D-3, E-1~)은
+  임의로 창작하지 않고 하단 "미열거(UNENUMERATED)" 섹션에 추적한다. 번호가 확인되는 대로 등록한다.
+
+## 실행 환경 정정 (2026-11-10 실측, 구 문서의 차단 문구는 폐기)
+
+| 항목 | 구 문서 주장 | 2026-11-10 실측 | 비고 |
+|---|---|---|---|
+| Docker | 미설치 차단 (G005) | Docker 29.9.2, daemon 기동 확인 | Compose 풀스택 검증 가능. G005 Phase 2에서 해소 |
+| Flutter | SDK 부재 (G009/G017) | Flutter 3.47.8 / Dart 3.13.7 | `flutter test` 7/7 PASS (2026-11-10) |
+| Go | 1.27.3 필요 (G013) | go1.27.0 + 자동 툴체인 해결 | `go test -count=1 ./...` 전체 PASS |
+| CGO/gcc | race 차단 (G012) | gcc 없음, CGO_ENABLED=0 | Windows native `-race` 불가. **Docker Linux에서 `go test -count=1 -race ./...` 전체 PASS (2026-11-10)** |
+| psql CLI | — | PATH에 없음 | embedded-postgres 기반 테스트/마이그레이션 정상 |
+| OpenSearch | — | Docker 2.19.0 yellow 확인 | 로컬 .bat 기동은 좀비 프로세스로 실패, Docker로 대체 |
+| Playwright | — | chromium/webkit 설치됨 | E2E 2/3 PASS, 1건은 HEAD既存 UI 드리프트(아래注) |
+
+注: `platform.e2e` line 21 실패(heading 'OpenScanner' vs 렌더 'Open Scanner')는 HEAD부터 존재하는
+테스트/UI 불일치로 Phase 1 변경과 무관함을 `git show HEAD:` 대조로 확인. E2E 경화 시 수정 예정.
+
+## P0 — 즉시 차단/보안/허위 제거 (Phase 1, 전체 DONE)
+
+| ID | 상태 | 내용 | 검증/증거 |
+|---|---|---|---|
+| A-1 | DONE 2026-11-10 | 운영 검색 응답에서 가짜 광고(`ad-cloud-001`) 주입 삭제. `SponsoredAds=[]` 명시 반환 | `TestSearchHonestSlotsByDefault` PASS + 실서버 curl 확인 |
+| A-2 | DONE 2026-11-10 | AI Overview를 `AI_OVERVIEW_ENABLED`(기본 false) 뒤로 격리. OFF 시 미노출 | `TestSearchHonestSlotsByDefault` + `TestAIOverviewFlag` PASS |
+| A-3 | DONE 2026-11-10 | `signoff.go` Phase 0~4 무조건 GO 제거. 증거 없으면 `ExternalAuditPassed:false` + `"NO-GO (BLOCKED)"`. 런치 핸들러 DR 시뮬레이션도 제거 | `TestMasterReleaseGate` Case 4 회귀 PASS |
+| A-4 | DONE 2026-11-10 | `cmd/loadtest` 실측 도구로 재작성. 대상 미설정/미가동/전건 실패 시 FAIL + exit 1 | 빌드 PASS, 미가동 exit 1 확인 |
+| A-5 | DONE 2026-11-10 | `cmd/dr-rehearsal` 실연결 프로브(PG LSN + OpenSearch health)로 재작성. 실패 시 exit 1 | 빌드 PASS, 미가동 exit 1 확인 |
+| A-6 | DONE 2026-11-10 | `superplatform` 3종 가짜 핸들러 → 501(`NOT_IMPLEMENTED`). i18n `lucky` 3로케일 제거 | 501 회귀 + translations parity PASS |
+| A-8 | DONE 2026-11-10 | 모듈 경로 → `github.com/dnjstjq0824-byte/openportal/backend`. `.pb.go` 재생성, baseline 갱신 | `go build/vet/test` + buf lint/breaking PASS |
+| D-4 | DONE 2026-11-10 | `/api/v2/admin/*` 무조건 403(`ADMIN_DISABLED`). 핸들러 본문 삭제(기록은 git) | `admin-crud` + platform D-4 회귀 PASS |
+| D-5 | DONE 2026-11-10 | OTP 덮어쓰기 제거(충돌 시 재생성), 검증 `email` 귀속 필수, 만료+시도(5회)+계정당 레이트(5/h) | 마이그레이션 015 + `otp-binding` 3건 PASS |
+| D-AUDIT | DONE 2026-11-10 | Phase 4: `webapp.audit_log` append-only + 게이트웨이 11종 액션 기록(로그인 성공/실패·로그아웃·가입·검증·재전송·재설정 요청/완료·계정수정/삭제·신고·admin 거부). 비밀번호/토큰 meta 금지 | 마이그레이션 018 + `audit` 2건 PASS, 플랫폼 게이트 편입 |
+| D-SESS | DONE(무변경) 2026-11-10 | Phase 4 세션 감사: 재설정 시 전체 세션 파기·30분 슬라이딩+7일 만료·회전·어드민 신선조회 확인, 기존 테스트 커버. 수정 불필요 | platform reset 무효화 회귀 PASS |
+| G006 | 부분 해소 | auth/MFA/RLS/SSRF/삭제·정산 통제 (Phase 1~3에서 단계 해소) | 024~029, 038, 078~090 테스트 |
+| G010 | 출시 차단 | 독립 감사·권리·결제 승인 증적 없음 → 파트 F로 이관 추적 | 외부 서명 필요 |
+| G021 | 완화 유지 | moderation 운영 노출 금지 (production 404 유지) | `production_test.go` PASS |
+| SEARCH-BASE-04 | 경계 보완 | 크롤러 기본 allowlist 제거, 운영자 allowlist 요구 | Go 검사 PASS, 외부 수집 미실행 |
+| SIGNUP-20261104-02 | BLOCKED | 운영 메일 어댑터/DNS/평판 없음 → fail-closed 유지, F-2로 이관 | `MAIL_PROVISIONING_UNAVAILABLE` |
+
+## P1 — 서비스 가동/코어 필수 (Phase 2 + 크롤러/아웃박스)
+
+| ID | 상태 | 내용 | 검증/증거 |
+|---|---|---|---|
+| B-1 | DONE 2026-11-10 | `gateway/Dockerfile`(멀티스테이지, node 유저) 신규 + Go 측 기존 파일 검증(curl healthcheck 추가). 4종 이미지 빌드 성공 | `docker compose build` 4/4 Built |
+| B-2 | DONE 2026-11-10 | 운영 라우트는 실백엔드(search/suggest/healthz/readyz/metrics)만 유지(메모리 핸들러 개방 불가 판정 문서화). `/readyz` OS+PG 실체크, 503+원인 분류 | readyz 그린/레드 3건 + 실스택 `{"status":"ready"}` |
+| B-3 | DONE 2026-11-10 | `docker-compose.prod.yml`(PG17.10+nori OS+Go+게이트웨이) + 마이그레이션/시드 자동화. 4종 healthy, 503 해소 실측 | `/readyz`·`/api/v1/search`·`/api/v2/session`·`/api/v2/search` 200 curl 로그 |
+| B-5 | DONE 2026-11-10 | Go `/metrics`(HELP/TYPE+count/sum) + JSON 라인 로깅(ts/request_id/path/status/latency). 게이트웨이 표준 exposition 정리 | 단위 테스트 + 실스택 `/metrics` 출력 |
+| R-1 | DONE 2026-11-10 | 리팩토링: `main.go` 2000→58줄, 17개 파일(≤330줄) 분리. `server.mjs` 471→387 + config/http/routes-mail 분리 | Go 전체 + 플랫폼 37/37 PASS |
+| C-1 | DONE 2026-11-10 | RescheduleStale 메모리/PG + freshness 스케줄러, Frontier DB 연동 | 통합 PASS (cutoff-now 윈도우 결함 수정, -race PASS) |
+| C-2 | DONE 2026-11-10 | Sitemap 파서 파이프라인 연결, WARC 로컬/S3호환 실저장 | 단위 PASS |
+| C-3 | DONE 2026-11-10 | Bulk/_bulk·Relay·PGOutbox·Tombstone DB연동·crawler relay 연결, 직접 dispatch 금지 | 통합 3건 PASS |
+| G001 | DONE | 부분 실패 fail-closed (shard/hits 누락 검사) | `evidence/go-tests.txt` PASS |
+| G003 | DONE | seed bulk errors 검사 | seed-unit 3건 PASS |
+| G004 | DONE | DB 이력/체크섬 원자 마이그레이션 | database.txt PASS |
+| G005 | Phase 2 해소 예정 | Docker Compose 풀스택 (Docker 실측 설치·기동됨) | B-3에서 해소 |
+| G007 | DONE | 자체 fetch→parse→index 파이프라인 | 8/8, 9/9, 18/18 PASS |
+| G009 | 부분 DONE | Flutter 위젯 테스트 7/7 PASS (2026-11-10). cross-platform E2E 잔여 | `flutter test` PASS |
+| G016 | 차단/완화 | Nuxt CVE로 Vite 유지 | 업스트림 패치 대기 |
+| G017 | DONE | `flutter test` 7/7 PASS (2026-11-10, SDK 설치 확인) | All tests passed |
+| G018 | DONE | 재랭킹 `language` 누락 수정 | Go PASS, E2E 5/5 |
+| G020 | 부분 수정 | Intent/RRF 연결, 영속 저장소 잔여 | 재시작/다중 인스턴스 테스트 |
+| G022 | 부분 검증 | 7질의 골든셋 NDCG=1.0 (장난감 수준, C-7에서 교체) | 회귀 PASS, 독립 검토 외부 |
+| G024 | DONE | 동시 초기화 mutex | `-count=20` PASS |
+| SEARCH-BASE-01/02/03 | DONE/경계 | URL 병합·하이브리드 카운트 수정, 개발 색인 안내 | 단위+E2E PASS |
+| SIGNUP-BASE-01 | DONE | 6단계 가입 검증 (운영 어댑터는 BLOCKED) | 통합 18개 PASS |
+| SIGNUP-20261104-01/03/04 | DONE/검토필요 | 메일함 트랜잭션 가입 / 수집항목 법률검토 / 대량생성 방지 | F-1/F-2 연계 |
+| MAIL-20261104-01/02/04 | DONE/차단 | 잠금·순서검사 수정 / 운영 SMTP·JMAP·ClamAV 차단 | 통합 PASS, F-2 연계 |
+
+## P2 — 검색 품질·보안 고도화 (Phase 3 후반)
+
+| ID | 상태 | 내용 | 검증/증거 |
+|---|---|---|---|
+| C-4 | DONE 2026-11-10 | 하드코딩 사전 폐기 → completion suggester(+prefix 폴백) + title/body phrase 교정 + 2-bul 레이아웃 구조(인덱스 검증). 매핑 suggest 필드·파이프라인·seed 연동 | stub 단위 7건 + 실OS live PASS (검섹엔진→검색엔진, serach→search, rjatordpswls 구조) |
+| C-5 | DONE | SafeSearch 실필터링: 색인라벨+DSL must_not, SearchWithSafety, post-filter 제거 (2026-11-10) | safesearch_dsl 단위 PASS, TestSearchSafeSearchInQuery PASS, strict E2E 계약 픽스처 PASS |
+| C-6 | DONE(어휘)/BLOCKED(벡터) 2026-11-10 | Redis 카운터 DONE. 하이브리드 RRF: 키워드+fuzzy/phrase 리콜 2경로 병렬+RRF 융합(동일-10건 재정렬 폐기, Safety 양경로, total=max). 벡터: k-NN seam+명시적 미설정 에러, 임베딩 모델 없어 BLOCKED | stub 융합 5건 + 실OS live PASS, `-race` 14/14 DATA RACE 0 |
+| G002 | DONE | proto lint/RPC명 수정 (A-8 후 baseline 갱신, breaking PASS) | buf lint + breaking + negative control PASS (2026-11-10) |
+| G008 | DONE | Nori 플러그인 + documents_v2 + Blue-Green 재색인 | 토큰화+수명주기 PASS |
+| G011 | 차단 | 원격 CI/CodeQL 미실행 | GitHub CI 실행 필요 (F-5 연계) |
+| G012 | DONE(대체경로) | Docker Linux에서 `-race` 전체 PASS (2026-11-10). Windows native는 gcc 부재로 불가 유지 | race 14 패키지 ok, DATA RACE 0 |
+| G013 | DONE | Go 1.27.3 (취약점 해소) | govulncheck clean |
+| G014 | DONE | REST↔Protobuf 브리지 + Sponsored 분리 | RoundTrip PASS |
+| G019 | DONE | 재랭킹 실신호 연동 (발행일/권위/밀도) | golden_eval PASS |
+| MAIL-20261104-03 | DONE | 미저장 변경 폐기 확인 | E2E PASS |
+
+## P3 — 확장 제품 영역
+
+| ID | 상태 | 내용 | 검증/증거 |
+|---|---|---|---|
+| C-7 | DONE 2026-11-10 | 14문서 코퍼스+12질의(ko8/en4, 오타 2건 포함) 골든셋, 실 Nori 인덱스 대상 SearchHybrid 평가. AP/MAP 메트릭 추가 | live GOLDEN: mean NDCG@10=0.9986 MAP@10=1.0000 (임계 0.90/0.90) |
+| C-8 | DONE 2026-11-10 | 수직 백엔드 미연결 판정: 운영 `?vertical=` 403→501 VERTICAL_NOT_IMPLEMENTED, 프로토타입 응답에 served_from=prototype-seed 표기 | 단위 PASS, E2E spec 501 갱신 |
+| C-9 | DONE 2026-11-10 | `POST/GET /api/v2/report` (인증·레이트제한·PG 영속 017 마이그레이션) + SearchView 신고 다이얼로그(ko/en/th) | node 3건 PASS, 플랫폼 게이트 편입, typecheck+build PASS |
+| G015 | DONE | 경쟁 비교·권리 경계 문서 | 공식자료 인용, 법무서명 외부 |
+| G023 | 관찰 | 8080 401 오탐 1회 (재현 없음) | 재발 시 포트 기록 |
+
+## 파트 F — STATUS: BLOCKED (Legal/Business Owner Action Required, 코드 해결 불가)
+
+| ID | 상태 | 내용 | 필요한 조치/소유자 |
+|---|---|---|---|
+| F-1 | BLOCKED | 개인정보 처리방침·수집항목·보관기간·약관 법률 검토 미완료 | 법무 검토 서명 (Legal Owner) |
+| F-2 | BLOCKED | 운영 메일 도메인 소유·DNS(MX/SPF/DKIM/DMARC)·발신 평판·운영 JMAP/SMTP 어댑터 없음 | 도메인 결정+메일 infra (Business/Infra Owner) |
+| F-3 | BLOCKED | 상용 라이선스·제휴 계약 없음 (지도/쇼핑/뉴스 신디케이션, LLM SLA·저작권 면책) | 계약 체결 (Business Owner) |
+| F-4 | BLOCKED | 독립 보안 감사(SOC2/ISO)·외부 침투테스트·재무감사(SOC1) 인증 없음 | 외부 감사 (External Auditor) |
+| F-5 | BLOCKED | 원격 CI/CodeQL 실행·이미지 서명·배포 자격증명·결제(PG) 승인 없음 | 승인+자격증명 (Business/Infra Owner) |
+
+## 미열거 감사 번호 (UNENUMERATED — 원문 확인 후 등록, 창작 금지)
+
+- A-7, B-4, D-1, D-2, D-3, E-1~E-n: 작업지시서에 세부 내용 없음. 감사 원문 확보 시 등록.
+- E 영역(확장 제품: 실제 광고 엔진, 실제 LLM/RAG, 개발자 플랫폼/SDK, 슈퍼앱 생태계)은
+  A-1/A-2/A-6의 Follow-up으로 P0 완료 후 E 번호 부여 예정.
+
+## 아카이브 정책
+
+- 루트 및 `docs/`의 `OPENSCANNER_*` / `OPEN_SCANNER_*` glossy 완료 보고서는
+  허위 수치(`10,000 QPS PASSED`, `p95 8.4ms` 등) 및 구버전 차단 문구를 포함하므로
+  `docs/archive/`로 이동하고 본 문서를 유일 기준으로 삼는다. 복원은 git history 참조.
+
+---
+
+## 부록: 기존 Ledger 원문 보존 (2026-10-24 ~ 2026-11-04, 증거 유지)
+
 # P0–P3 결함·출시 차단 등록부 — 2026-10-24
 
 ## 2026-11-04 OpenScanner 검색 기반

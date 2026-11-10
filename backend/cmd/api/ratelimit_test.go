@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"example.com/openportal-search/backend/internal/identity"
-	"example.com/openportal-search/backend/internal/search"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/identity"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/search"
 )
 
 func TestRateLimiterWindow(t *testing.T) {

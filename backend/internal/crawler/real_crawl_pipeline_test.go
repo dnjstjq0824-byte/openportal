@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"example.com/openportal-search/backend/internal/indexer"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/indexer"
 )
 
 // TestRealCrawlPipelineIngestion verifies SE-03:

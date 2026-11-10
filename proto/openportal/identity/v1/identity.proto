@@ -1,7 +1,7 @@
 syntax = "proto3";
 package openportal.identity.v1;
 
-option go_package = "example.com/openportal-search/backend/gen/openportal/identity/v1;identityv1";
+option go_package = "github.com/dnjstjq0824-byte/openportal/backend/gen/openportal/identity/v1;identityv1";
 service IdentityService {
   rpc VerifySession(VerifySessionRequest) returns (VerifySessionResponse);
 }

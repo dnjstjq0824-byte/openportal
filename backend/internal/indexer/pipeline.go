@@ -3,6 +3,7 @@ package indexer
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/ranking"
 )
 
 // IndexingService integrates HTML boilerplate extraction, SimHash deduplication,
@@ -19,13 +22,39 @@ type IndexingService struct {
 	mu          sync.Mutex
 	remover     *BoilerplateRemover
 	outbox      *OutboxQueue
+	pgOutbox    *PGOutbox
 	tombstones  *TombstoneManager
+	safety      *ranking.SafeSearchClassifier
 	metrics     *MetricsCollector
 	baseURL     string
 	indexName   string
 	httpClient  *http.Client
 	docVersions map[string]*DocumentVersion
 	knownHashes map[uint64]string // simhash -> docID
+}
+
+// EnableDurableOutbox switches the service to the transactional outbox pattern
+// (C-3): IngestCrawlResult and ApplyTombstone record intent in PostgreSQL and
+// return; the returned Relay delivers events to OpenSearch in bulk. Without it
+// the service keeps the direct single-document dispatch path.
+func (s *IndexingService) EnableDurableOutbox(db *sql.DB) *Relay {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pgOutbox = NewPGOutbox(db, 30*time.Second, 5)
+	s.tombstones.WithDB(db)
+	return &Relay{
+		Store: PGRelayStore(s.pgOutbox),
+		Bulk:  s.BulkIndex,
+		Delete: func(ctx context.Context, docID string, payload map[string]interface{}) error {
+			reason := TombstoneReasonUserDeleted
+			if raw, ok := payload["reason"].(string); ok && raw != "" {
+				reason = TombstoneReason(raw)
+			}
+			requester, _ := payload["requester"].(string)
+			_, err := s.tombstones.ApplyTombstone(ctx, docID, reason, requester)
+			return err
+		},
+	}
 }
 
 // NewIndexingService constructs a complete indexing service.
@@ -41,6 +70,7 @@ func NewIndexingService(baseURL, indexName string, client *http.Client) *Indexin
 		remover:     NewBoilerplateRemover(),
 		outbox:      outbox,
 		tombstones:  tombstones,
+		safety:      ranking.NewSafeSearchClassifier(),
 		metrics:     metrics,
 		baseURL:     baseURL,
 		indexName:   indexName,
@@ -112,8 +142,15 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 
 	spamScore := computeSpamScore(extracted)
 
+	// C-5: index-time safety labels so SafeSearch filters inside OpenSearch
+	// (consistent total + pagination) instead of post-filtering the page.
+	safetyCat, adultScore, malwareScore := s.safety.IndexLabel(extracted.Title, extracted.Description, canonicalURL)
+
 	// 5. Enqueue outbox upsert event
 	docPayload := map[string]interface{}{
+		"safety":                 safetyCat,
+		"adult_score":            adultScore,
+		"malware_score":          malwareScore,
 		"document_id":            docID,
 		"url":                    rawURL,
 		"canonical_url":          canonicalURL,
@@ -134,21 +171,33 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 		"source":                 "crawler",
 		"published_at":           crawledAt.Format(time.RFC3339),
 		"term_frequency_density": computeTermFrequencyDensity(extracted.Body),
+		"suggest": map[string]interface{}{
+			"input": SuggestInputs(extracted.Title, extracted.Headings),
+		},
 	}
 
-	ev, err := s.outbox.Enqueue(docID, OpUpsert, versionNum, docPayload)
-	if err != nil {
-		return nil, false, fmt.Errorf("outbox enqueue failed: %w", err)
-	}
-
-	// 6. If OpenSearch target is configured, dispatch directly (or via consumer worker)
-	if s.baseURL != "" && s.indexName != "" {
-		if err := s.dispatchToOpenSearch(ctx, docID, docPayload); err != nil {
-			s.outbox.Nack(ev.ID, err)
-			return nil, false, err
+	// Durable path (C-3): record intent in PostgreSQL; the relay worker owns
+	// delivery, so no direct dispatch happens here.
+	if s.pgOutbox != nil {
+		if _, err := s.pgOutbox.Enqueue(ctx, docID, OpUpsert, versionNum, docPayload); err != nil {
+			return nil, false, fmt.Errorf("durable outbox enqueue failed: %w", err)
 		}
-		_ = s.outbox.Ack(ev.ID)
 		s.metrics.RecordIndexed(crawledAt, crawledAt)
+	} else {
+		ev, err := s.outbox.Enqueue(docID, OpUpsert, versionNum, docPayload)
+		if err != nil {
+			return nil, false, fmt.Errorf("outbox enqueue failed: %w", err)
+		}
+
+		// 6. If OpenSearch target is configured, dispatch directly (or via consumer worker)
+		if s.baseURL != "" && s.indexName != "" {
+			if err := s.dispatchToOpenSearch(ctx, docID, docPayload); err != nil {
+				s.outbox.Nack(ev.ID, err)
+				return nil, false, err
+			}
+			_ = s.outbox.Ack(ev.ID)
+			s.metrics.RecordIndexed(crawledAt, crawledAt)
+		}
 	}
 
 	// Commit change-detection state only after the configured destination accepts
@@ -166,6 +215,19 @@ func (s *IndexingService) IngestCrawlResult(ctx context.Context, docID, rawURL s
 // ApplyTombstone marks a document as legally/user deleted, purges from active search,
 // updates OpenSearch, and records the tombstone.
 func (s *IndexingService) ApplyTombstone(ctx context.Context, docID string, reason TombstoneReason, requester string) error {
+	// Durable path (C-3): record the delete intent; the relay worker applies
+	// the OpenSearch tombstone and the audit row.
+	if s.pgOutbox != nil {
+		_, err := s.pgOutbox.Enqueue(ctx, docID, OpDelete, 1, map[string]interface{}{
+			"reason":    string(reason),
+			"requester": requester,
+		})
+		if err != nil {
+			return err
+		}
+		s.metrics.RecordTombstone(false)
+		return nil
+	}
 	_, err := s.tombstones.ApplyTombstone(ctx, docID, reason, requester)
 	if err != nil {
 		return err

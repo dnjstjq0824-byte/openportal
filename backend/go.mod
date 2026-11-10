@@ -1,4 +1,4 @@
-module example.com/openportal-search/backend
+module github.com/dnjstjq0824-byte/openportal/backend
 
 go 1.27.3
 

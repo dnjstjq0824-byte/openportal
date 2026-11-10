@@ -1,0 +1,64 @@
+[
+  {
+    "query": "검색엔진",
+    "language": "ko",
+    "judgments": {"k01": 3, "k02": 3, "k07": 1}
+  },
+  {
+    "query": "크롤러",
+    "language": "ko",
+    "judgments": {"k03": 3, "k01": 1, "k02": 1}
+  },
+  {
+    "query": "Nori 형태소",
+    "language": "ko",
+    "judgments": {"k04": 3}
+  },
+  {
+    "query": "유해 콘텐츠 차단",
+    "language": "ko",
+    "judgments": {"k05": 3}
+  },
+  {
+    "query": "DSAR 삭제 권리",
+    "language": "ko",
+    "judgments": {"k06": 3}
+  },
+  {
+    "query": "RRF 하이브리드",
+    "language": "ko",
+    "judgments": {"k07": 3}
+  },
+  {
+    "query": "검색엔징",
+    "language": "ko",
+    "note": "typo: keyword path misses, fuzzy recall must rescue",
+    "judgments": {"k01": 3, "k02": 2}
+  },
+  {
+    "query": "맛집 지도",
+    "language": "ko",
+    "judgments": {"k08": 3}
+  },
+  {
+    "query": "hybrid search",
+    "language": "en",
+    "judgments": {"e02": 3, "e01": 1}
+  },
+  {
+    "query": "developer documentation",
+    "language": "en",
+    "judgments": {"e01": 3}
+  },
+  {
+    "query": "bread baking",
+    "language": "en",
+    "judgments": {"e03": 3}
+  },
+  {
+    "query": "postgres text search",
+    "language": "en",
+    "note": "postgres vs postgresql: fuzzy recall must bridge the gap",
+    "judgments": {"e04": 3, "e01": 1}
+  }
+]

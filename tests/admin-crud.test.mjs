@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { startStack } from './helpers/platform-stack.mjs';
 
+// D-4 regression: /api/v2/admin/* denies by default regardless of is_admin
+// until MFA, privileged audit logging, and separate-domain isolation ship.
 let stack, base;
 const origin = 'http://127.0.0.1:5173';
 const jars = new Map();
@@ -32,36 +34,28 @@ before(async () => {
 });
 after(async () => { if (stack) await stack.close(); });
 
-test('admin signups timeseries and role management', async () => {
+test('admin routes deny by default even for admins', async () => {
   const adminU = `adm.${randomBytes(4).toString('hex')}`;
   const userU = `usr.${randomBytes(4).toString('hex')}`;
   assert.equal((await api('admin', '/auth/signup', profile(adminU))).status, 201);
   assert.equal((await api('user', '/auth/signup', profile(userU))).status, 201);
   await stack.pool.query('update webapp.accounts set is_admin=true where username=$1', [adminU]);
 
-  const series = await api('admin', '/admin/signups?days=14');
-  assert.equal(series.status, 200);
-  assert.equal(series.data.days, 14);
-  assert.equal(series.data.signups.length, 14);
-  assert.ok(series.data.signups.reduce((n, r) => n + r.count, 0) >= 2);
-  assert.match(series.data.signups[0].date, /^\d{4}-\d{2}-\d{2}$/);
-
-  assert.equal((await api('user', '/admin/signups')).data.code, 'FORBIDDEN');
-  assert.equal((await api('admin', '/admin/signups?days=0')).data.code, 'INVALID_QUERY');
-  assert.equal((await api('admin', '/admin/signups?days=91')).data.code, 'INVALID_QUERY');
-
   const userEmail = `${userU}@openscanner.test`;
-  assert.equal((await api('user', `/admin/accounts/${encodeURIComponent(userEmail)}/role`, { is_admin: true }, 'PATCH')).data.code, 'FORBIDDEN');
-  const promote = await api('admin', `/admin/accounts/${encodeURIComponent(userEmail)}/role`, { is_admin: true }, 'PATCH');
-  assert.equal(promote.status, 200);
-  assert.equal(promote.data.is_admin, true);
-  assert.equal((await stack.pool.query('select is_admin from webapp.accounts where username=$1', [userU])).rows[0].is_admin, true);
-
-  const adminEmail = `${adminU}@openscanner.test`;
-  const selfDemote = await api('admin', `/admin/accounts/${encodeURIComponent(adminEmail)}/role`, { is_admin: false }, 'PATCH');
-  assert.equal(selfDemote.status, 403);
-  assert.equal(selfDemote.data.code, 'SELF_DEMOTE_FORBIDDEN');
-
-  assert.equal((await api('admin', '/admin/accounts/nobody@example.test/role', { is_admin: true }, 'PATCH')).status, 404);
-  assert.equal((await api('admin', `/admin/accounts/${encodeURIComponent(userEmail)}/role`, { is_admin: 'yes' }, 'PATCH')).data.code, 'INVALID_INPUT');
+  const probes = [
+    ['/admin/overview', undefined, 'GET'],
+    ['/admin/accounts', undefined, 'GET'],
+    ['/admin/signups?days=14', undefined, 'GET'],
+    [`/admin/accounts/${encodeURIComponent(userEmail)}/role`, { is_admin: true }, 'PATCH'],
+  ];
+  // Authenticated admins and non-admins alike: unconditional 403.
+  for (const name of ['admin', 'user']) {
+    for (const [path, body, method] of probes) {
+      const res = await api(name, path, body, method);
+      assert.equal(res.status, 403);
+      assert.equal(res.data.code, 'ADMIN_DISABLED');
+    }
+  }
+  // Role escalation must not have happened through the dead surface.
+  assert.equal((await stack.pool.query('select is_admin from webapp.accounts where username=$1', [userU])).rows[0].is_admin, false);
 });

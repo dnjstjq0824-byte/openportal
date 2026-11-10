@@ -68,33 +68,66 @@ type Response struct {
 	Intent         string             `json:"intent,omitempty"`
 	NextPageToken  string             `json:"next_page_token,omitempty"`
 	AIOverview     *AIOverviewSummary `json:"ai_overview,omitempty"`
-	SponsoredAds   []SponsoredAdItem  `json:"sponsored_ads,omitempty"`
+	SponsoredAds   []SponsoredAdItem  `json:"sponsored_ads"`
 }
+type osHitSource struct {
+	DocumentID           string  `json:"document_id"`
+	Title                string  `json:"title"`
+	URL                  string  `json:"url"`
+	Description          string  `json:"description"`
+	Language             string  `json:"language"`
+	PublishedAt          string  `json:"published_at"`
+	LastCrawledAt        string  `json:"last_crawled_at"`
+	DomainAuthority      float64 `json:"domain_authority"`
+	TermFrequencyDensity float64 `json:"term_frequency_density"`
+}
+
+type osHit struct {
+	ID     string      `json:"_id"`
+	Score  float64     `json:"_score"`
+	Source osHitSource `json:"_source"`
+}
+
+type osHits struct {
+	Total struct {
+		Value int64 `json:"value"`
+	} `json:"total"`
+	Hits []osHit `json:"hits"`
+}
+
 type osResponse struct {
 	TimedOut bool `json:"timed_out"`
 	Shards   struct {
 		Failed int `json:"failed"`
 	} `json:"_shards"`
-	Hits *struct {
-		Total struct {
-			Value int64 `json:"value"`
-		} `json:"total"`
-		Hits []struct {
-			ID     string  `json:"_id"`
-			Score  float64 `json:"_score"`
-			Source struct {
-				DocumentID           string  `json:"document_id"`
-				Title                string  `json:"title"`
-				URL                  string  `json:"url"`
-				Description          string  `json:"description"`
-				Language             string  `json:"language"`
-				PublishedAt          string  `json:"published_at"`
-				LastCrawledAt        string  `json:"last_crawled_at"`
-				DomainAuthority      float64 `json:"domain_authority"`
-				TermFrequencyDensity float64 `json:"term_frequency_density"`
-			} `json:"_source"`
-		} `json:"hits"`
-	} `json:"hits"`
+	Hits *osHits `json:"hits"`
+}
+
+// toHits maps raw OpenSearch hits to API hits, dropping URL-less records.
+func toHits(hits []osHit) []Hit {
+	out := make([]Hit, 0, len(hits))
+	for _, h := range hits {
+		if !strings.HasPrefix(h.Source.URL, "https://") && !strings.HasPrefix(h.Source.URL, "http://") {
+			continue
+		}
+		docID := h.Source.DocumentID
+		if docID == "" {
+			docID = h.ID
+		}
+		out = append(out, Hit{
+			DocumentID:           docID,
+			Title:                h.Source.Title,
+			URL:                  h.Source.URL,
+			Description:          h.Source.Description,
+			Language:             h.Source.Language,
+			Score:                h.Score,
+			PublishedAt:          h.Source.PublishedAt,
+			LastCrawledAt:        h.Source.LastCrawledAt,
+			DomainAuthority:      h.Source.DomainAuthority,
+			TermFrequencyDensity: h.Source.TermFrequencyDensity,
+		})
+	}
+	return out
 }
 
 func New(baseURL, index, username, password string) *Client {
@@ -140,12 +173,19 @@ func (c *Client) do(ctx context.Context, target string, body interface{}, out in
 	return nil
 }
 func (c *Client) Search(ctx context.Context, phrase, lang string, page, limit int) (Response, error) {
+	return c.SearchWithSafety(ctx, phrase, lang, page, limit, "")
+}
+
+// SearchWithSafety applies the SafeSearch level inside the OpenSearch query
+// (C-5) so the returned total and pagination already reflect filtering.
+func (c *Client) SearchWithSafety(ctx context.Context, phrase, lang string, page, limit int, safeSearch string) (Response, error) {
 	if page < 1 || page > 100 || limit < 1 || limit > 20 {
 		return Response{}, errors.New("invalid pagination")
 	}
 	start := time.Now()
 
 	parsed := ParseQuery(phrase)
+	parsed.SafeSearch = safeSearch
 	opensearchDSL := parsed.BuildOpenSearchQuery(lang)
 
 	query := map[string]interface{}{
@@ -165,49 +205,16 @@ func (c *Client) Search(ctx context.Context, phrase, lang string, page, limit in
 	r := Response{
 		Query:     phrase,
 		Total:     result.Hits.Total.Value,
-		Hits:      make([]Hit, 0, len(result.Hits.Hits)),
+		Hits:      toHits(result.Hits.Hits),
 		ElapsedMS: time.Since(start).Milliseconds(),
+		// No ad engine is connected (A-1): always emit an explicit empty slot.
+		SponsoredAds: []SponsoredAdItem{},
 	}
 	if int64(page*limit) < result.Hits.Total.Value {
 		r.NextPageToken = EncodePageToken(page+1, limit)
 	}
-	for _, h := range result.Hits.Hits {
-		if !strings.HasPrefix(h.Source.URL, "https://") && !strings.HasPrefix(h.Source.URL, "http://") {
-			continue
-		}
-		docID := h.Source.DocumentID
-		if docID == "" {
-			docID = h.ID
-		}
-		r.Hits = append(r.Hits, Hit{
-			DocumentID:           docID,
-			Title:                h.Source.Title,
-			URL:                  h.Source.URL,
-			Description:          h.Source.Description,
-			Language:             h.Source.Language,
-			Score:                h.Score,
-			PublishedAt:          h.Source.PublishedAt,
-			LastCrawledAt:        h.Source.LastCrawledAt,
-			DomainAuthority:      h.Source.DomainAuthority,
-			TermFrequencyDensity: h.Source.TermFrequencyDensity,
-		})
-	}
 	return r, nil
 }
-func (c *Client) Suggest(ctx context.Context, phrase string) ([]string, error) {
-	q := map[string]interface{}{"size": 8, "_source": []string{"title"}, "query": map[string]interface{}{"bool": map[string]interface{}{"must": map[string]interface{}{"match_phrase_prefix": map[string]interface{}{"title": phrase}}, "filter": map[string]interface{}{"term": map[string]interface{}{"indexable": true}}}}}
-	var out osResponse
-	if err := c.do(ctx, c.BaseURL+"/"+url.PathEscape(c.Index)+"/_search", q, &out); err != nil {
-		return nil, err
-	}
-	seen := map[string]bool{}
-	suggestions := []string{}
-	for _, hit := range out.Hits.Hits {
-		title := hit.Source.Title
-		if title != "" && !seen[title] {
-			suggestions = append(suggestions, title)
-			seen[title] = true
-		}
-	}
-	return suggestions, nil
-}
+
+// Suggest and SuggestCorrection live in suggest.go (C-4): completion
+// suggester autocomplete plus index-grounded typo correction.

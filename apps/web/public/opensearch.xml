@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>OpenScanner</ShortName>
+  <Description>OpenScanner — 정밀 웹 검색, 이메일 및 계정 플랫폼</Description>
+  <InputEncoding>UTF-8</InputEncoding>
+  <OutputEncoding>UTF-8</OutputEncoding>
+  <Image width="64" height="64" type="image/svg+xml">/favicon.svg</Image>
+  <Url type="text/html" method="get" template="/ko/search?q={searchTerms}" />
+  <Url type="application/x-suggestions+json" method="get" template="/api/v2/suggest?q={searchTerms}" />
+</OpenSearchDescription>

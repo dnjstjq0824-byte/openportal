@@ -3,7 +3,7 @@ package search
 import (
 	"testing"
 
-	searchv1 "example.com/openportal-search/backend/gen/openportal/search/v1"
+	searchv1 "github.com/dnjstjq0824-byte/openportal/backend/gen/openportal/search/v1"
 )
 
 func TestProtoBridgeRoundTripAndOrganicIsolation(t *testing.T) {

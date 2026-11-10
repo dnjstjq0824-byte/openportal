@@ -138,7 +138,7 @@ const file_openportal_identity_v1_identity_proto_rawDesc = "" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x16\n" +
 	"\x06active\x18\x03 \x01(\bR\x06active2\x7f\n" +
 	"\x0fIdentityService\x12l\n" +
-	"\rVerifySession\x12,.openportal.identity.v1.VerifySessionRequest\x1a-.openportal.identity.v1.VerifySessionResponseBMZKexample.com/openportal-search/backend/gen/openportal/identity/v1;identityv1b\x06proto3"
+	"\rVerifySession\x12,.openportal.identity.v1.VerifySessionRequest\x1a-.openportal.identity.v1.VerifySessionResponseBVZTgithub.com/dnjstjq0824-byte/openportal/backend/gen/openportal/identity/v1;identityv1b\x06proto3"
 
 var (
 	file_openportal_identity_v1_identity_proto_rawDescOnce sync.Once

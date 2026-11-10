@@ -34,7 +34,7 @@ const authIntro = computed(() =>
   <section class="auth-shell">
     <aside class="auth-visual">
       <div class="auth-visual-copy">
-        <p class="auth-visual-brand"><BrandMark /><span>OpenScanner</span></p>
+        <p class="auth-visual-brand"><BrandMark /><span class="brand-word">Open<b>Scanner</b></span></p>
         <h2>{{ t.slogan }}</h2>
         <ul class="auth-benefits">
           <li v-for="item in authBenefits" :key="item">
@@ -50,7 +50,10 @@ const authIntro = computed(() =>
         <RouterLink :to="`/${session.locale}/login${authReturn}`" :aria-current="page === 'login' ? 'page' : undefined">{{ t.login }}</RouterLink>
         <RouterLink :to="`/${session.locale}/signup${authReturn}`" :aria-current="page === 'signup' ? 'page' : undefined">{{ t.signup }}</RouterLink>
       </nav>
-      <RouterLink v-else class="auth-back" :to="`/${session.locale}/login`"><span aria-hidden="true">←</span> {{ copy.backToLogin }}</RouterLink>
+      <RouterLink v-else class="auth-back" :to="`/${session.locale}/login`">
+        <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+        <span>{{ copy.backToLogin }}</span>
+      </RouterLink>
       <slot :intro="authIntro" />
     </div>
   </section>

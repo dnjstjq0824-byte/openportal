@@ -11,7 +11,11 @@
       "language": {"type": "keyword"},
       "indexable": {"type": "boolean"},
       "published_at": {"type": "date"},
-      "last_crawled_at": {"type": "date"}
+      "last_crawled_at": {"type": "date"},
+      "safety": {"type": "keyword"},
+      "adult_score": {"type": "float"},
+      "malware_score": {"type": "float"},
+      "suggest": {"type": "completion", "analyzer": "content_analyzer", "preserve_separators": true, "max_input_length": 100}
     }
   }
 }

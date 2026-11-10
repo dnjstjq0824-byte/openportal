@@ -156,6 +156,11 @@ router.afterEach(to => {
     admin: messages[locale].admin,
   };
   syncMetadata(locale, page, name === 'policy' ? titles[page] || '' : titles[name] || '', messages[locale].intro);
+  if (name === 'search') {
+    const q = typeof to.query.q === 'string' ? to.query.q.trim() : '';
+    const suffix = locale === 'ko' ? 'OpenScanner 검색' : locale === 'th' ? 'OpenScanner ค้นหา' : 'OpenScanner Search';
+    document.title = q ? `${q} - ${suffix}` : 'OpenScanner';
+  }
 });
 
 export default router;

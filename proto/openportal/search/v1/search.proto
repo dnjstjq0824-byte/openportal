@@ -1,7 +1,7 @@
 syntax = "proto3";
 package openportal.search.v1;
 
-option go_package = "example.com/openportal-search/backend/gen/openportal/search/v1;searchv1";
+option go_package = "github.com/dnjstjq0824-byte/openportal/backend/gen/openportal/search/v1;searchv1";
 service SearchService {
   rpc Search(SearchRequest) returns (SearchResponse);
   rpc Suggest(SuggestRequest) returns (SuggestResponse);

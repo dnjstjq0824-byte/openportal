@@ -87,8 +87,9 @@ export const useSessionStore = defineStore('session', () => {
     await mutate('/auth/forgot-password', { email });
   }
 
-  async function verifyEmail(token: string): Promise<void> {
-    await mutate('/auth/verify', { token });
+  async function verifyEmail(token: string, email?: string): Promise<void> {
+    // D-5: 6-digit OTP verification must identify the requesting account.
+    await mutate('/auth/verify', email ? { token, email } : { token });
   }
 
   async function resetPassword(token: string, password: string): Promise<void> {

@@ -46,6 +46,39 @@ func TestMRRComputation(t *testing.T) {
 	}
 }
 
+func TestAPComputation(t *testing.T) {
+	// Retrieved grades [3,0,2], 2 judged relevant:
+	// P@1=1/1, P@3=2/3 → AP=(1+2/3)/2=0.8333
+	ap := ComputeAP([]int{3, 0, 2}, 2, 10)
+	if math.Abs(ap-0.833333) > 1e-4 {
+		t.Errorf("expected AP 0.8333, got %f", ap)
+	}
+	// Grade 1 is non-relevant for AP: [1,1], 1 judged relevant → 0.0
+	if ap := ComputeAP([]int{1, 1}, 1, 10); ap != 0.0 {
+		t.Errorf("expected AP 0.0 for grade-1-only retrieval, got %f", ap)
+	}
+	// Unretrieved relevant lowers the score: [3], 2 judged → (1)/2=0.5
+	if ap := ComputeAP([]int{3}, 2, 10); math.Abs(ap-0.5) > 1e-9 {
+		t.Errorf("expected AP 0.5 with one missed relevant, got %f", ap)
+	}
+	// Cutoff k respected: relevant at rank 3 beyond k=2 → (1)/2
+	if ap := ComputeAP([]int{3, 0, 2}, 2, 2); math.Abs(ap-0.5) > 1e-9 {
+		t.Errorf("expected AP@2 0.5, got %f", ap)
+	}
+	if ap := ComputeAP([]int{3}, 0, 10); ap != 0.0 {
+		t.Errorf("expected AP 0.0 with no judged relevants, got %f", ap)
+	}
+}
+
+func TestMAPComputation(t *testing.T) {
+	if m := ComputeMAP([]float64{1.0, 0.5, 0.0}); math.Abs(m-0.5) > 1e-9 {
+		t.Errorf("expected MAP 0.5, got %f", m)
+	}
+	if m := ComputeMAP(nil); m != 0.0 {
+		t.Errorf("expected MAP 0.0 for empty input, got %f", m)
+	}
+}
+
 func TestZeroResultsRate(t *testing.T) {
 	hits := []int64{150, 0, 42, 0, 12, 5, 0, 89, 100, 3}
 	// 3 out of 10 queries have 0 hits -> 30%

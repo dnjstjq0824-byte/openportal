@@ -42,93 +42,9 @@ func NormalizeQuery(raw string) (string, error) {
 	return out, nil
 }
 
-var defaultRewrites = map[string]string{
-	"rjatordpswls":  "검색엔진",
-	"dhvmsvhxjf":    "오픈포털",
-	"gksrmf":        "한글",
-	"검섹엔진":          "검색엔진",
-	"검색엔지":          "검색엔진",
-	"오픈포탈":          "오픈포털",
-	"openprotal":    "OpenPortal",
-	"openporatl":    "OpenPortal",
-	"serach engine": "search engine",
-}
-
-var knownCorpusTerms = []string{
-	"검색엔진", "오픈포털", "인덱싱", "크롤러", "랭킹", "역색인",
-	"형태소", "데이터베이스", "아키텍처", "OpenPortal",
-	"search engine", "crawler", "indexer", "ranking", "database",
-}
-
-func levenshteinRunes(a, b []rune) int {
-	la, lb := len(a), len(b)
-	if la == 0 {
-		return lb
-	}
-	if lb == 0 {
-		return la
-	}
-	dp := make([]int, lb+1)
-	for j := 0; j <= lb; j++ {
-		dp[j] = j
-	}
-	for i := 1; i <= la; i++ {
-		prev := dp[0]
-		dp[0] = i
-		for j := 1; j <= lb; j++ {
-			temp := dp[j]
-			cost := 0
-			if a[i-1] != b[j-1] {
-				cost = 1
-			}
-			minVal := dp[j] + 1
-			if dp[j-1]+1 < minVal {
-				minVal = dp[j-1] + 1
-			}
-			if prev+cost < minVal {
-				minVal = prev + cost
-			}
-			dp[j] = minVal
-			prev = temp
-		}
-	}
-	return dp[lb]
-}
-
-// SuggestCorrection returns a suggested query correction if the normalized query matches known Korean/English typo or QWERTY-Hangul patterns, or has Levenshtein distance <= 2 with corpus terms.
-func SuggestCorrection(normalizedQuery string) string {
-	key := strings.ToLower(strings.TrimSpace(normalizedQuery))
-	if corr, ok := defaultRewrites[key]; ok && !strings.EqualFold(corr, normalizedQuery) {
-		return corr
-	}
-	if corr, ok := defaultRewrites[normalizedQuery]; ok && corr != normalizedQuery {
-		return corr
-	}
-
-	// Levenshtein edit distance check for terms >= 3 runes
-	qRunes := []rune(key)
-	if len(qRunes) >= 3 {
-		bestDist := 3 // looking for <= 2
-		bestCandidate := ""
-		for _, term := range knownCorpusTerms {
-			tRunes := []rune(strings.ToLower(term))
-			diff := len(qRunes) - len(tRunes)
-			if diff < -2 || diff > 2 {
-				continue
-			}
-			dist := levenshteinRunes(qRunes, tRunes)
-			if dist > 0 && dist <= 2 && dist < bestDist {
-				bestDist = dist
-				bestCandidate = term
-			}
-		}
-		if bestCandidate != "" && !strings.EqualFold(bestCandidate, normalizedQuery) {
-			return bestCandidate
-		}
-	}
-
-	return ""
-}
+// Query correction is index-grounded (C-4): Client.SuggestCorrection combines
+// QWERTY-layout rescue with the OpenSearch phrase suggester. The old hardcoded
+// rewrite map and fixed corpus list were removed.
 
 // VerticalTab describes a search vertical tab controlled by feature flags (Task 013).
 type VerticalTab struct {

@@ -207,19 +207,14 @@ test('responses carry baseline security headers and production adds HSTS',async(
     assert.equal(res.status,200);assert.equal(res.headers.get('strict-transport-security'),'max-age=31536000; includeSubDomains');
   }finally{await production.close();}
 });
-test('admin endpoints require the operator flag and never expose credentials',async()=>{
+test('admin endpoints deny by default regardless of the operator flag (D-4)',async()=>{
   await resetLimits();
   assert.equal((await fetch(base+'/api/v2/admin/overview')).status,401);
-  const denied=await api('/admin/overview');assert.equal(denied.status,403);assert.equal(denied.data.code,'FORBIDDEN');
+  const denied=await api('/admin/overview');assert.equal(denied.status,403);assert.equal(denied.data.code,'ADMIN_DISABLED');
   await stack.pool.query('update webapp.accounts set is_admin=true where email=$1',[email]);
-  const overview=await api('/admin/overview');assert.equal(overview.status,200);
-  for (const key of ['accounts','sessions','mailboxes','signups_24h','recent']) assert.ok(key in overview.data);
-  assert.doesNotMatch(JSON.stringify(overview.data),/password_hash|token_hash|token_ciphertext/);
-  const list=await api('/admin/accounts?q=integration.user');assert.equal(list.status,200);
-  assert.equal(list.data.total,1);assert.equal(list.data.accounts[0].email,email);
-  assert.ok(!('password_hash' in list.data.accounts[0]));
-  assert.equal((await api('/admin/accounts?page=101')).status,400);
-  assert.equal((await api('/admin/nope')).status,404);
+  for (const path of ['/admin/overview','/admin/accounts?q=integration.user','/admin/accounts?page=101','/admin/nope']) {
+    const res=await api(path);assert.equal(res.status,403);assert.equal(res.data.code,'ADMIN_DISABLED');
+  }
   await stack.pool.query('update webapp.accounts set is_admin=false where email=$1',[email]);
 });
 test('account deletion removes the hosted mailbox through the provisioner',async()=>{

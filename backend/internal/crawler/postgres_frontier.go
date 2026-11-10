@@ -299,6 +299,35 @@ func (pf *PostgresFrontier) QueueDepth(state FrontierState) int {
 	return count
 }
 
+// RescheduleStale re-queues done/failed rows scheduled before the cutoff for
+// periodic recrawls (C-1 freshness) and returns how many were re-queued.
+func (pf *PostgresFrontier) RescheduleStale(olderThan time.Time, limit int) (int, error) {
+	if pf.db == nil {
+		return 0, nil
+	}
+	if limit <= 0 {
+		return 0, nil
+	}
+	query := `
+		WITH stale AS (
+			SELECT id FROM crawl.frontier
+			WHERE state IN ('done','failed') AND scheduled_at < $1
+			ORDER BY scheduled_at
+			LIMIT $2
+			FOR UPDATE SKIP LOCKED
+		)
+		UPDATE crawl.frontier f
+		SET state = 'queued', scheduled_at = now(), retry_count = 0,
+		    lease_owner = NULL, lease_until = NULL, last_error = NULL
+		FROM stale WHERE f.id = stale.id;`
+	res, err := pf.db.Exec(query, olderThan, limit)
+	if err != nil {
+		return 0, err
+	}
+	affected, _ := res.RowsAffected()
+	return int(affected), nil
+}
+
 // ReclaimExpiredLeases returns expired leased URLs back to StateQueued.
 func (pf *PostgresFrontier) ReclaimExpiredLeases() int {
 	if pf.db == nil {

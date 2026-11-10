@@ -4,15 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"example.com/openportal-search/backend/internal/identity"
-	"example.com/openportal-search/backend/internal/search"
-	"example.com/openportal-search/backend/internal/vertical"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/identity"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/search"
+	"github.com/dnjstjq0824-byte/openportal/backend/internal/vertical"
 )
 
 // registerTestUser performs the OIDC challenge/verify flow and returns a session
@@ -47,9 +52,10 @@ func registerTestUser(t *testing.T, h http.Handler, email, name string) string {
 }
 
 func TestHTTPBoundary(t *testing.T) {
-	calls := 0
+	var calls atomic.Int64
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
+		// Atomic: hybrid search fans out parallel backend queries.
+		calls.Add(1)
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
 	}))
 	defer upstream.Close()
@@ -62,7 +68,7 @@ func TestHTTPBoundary(t *testing.T) {
 		{"GET", "/api/v1/search?q=x&lang=xx", 400}, {"POST", "/api/v1/search?q=x", 405},
 		{"POST", "/api/v1/suggest?q=x", 405}, {"GET", "/api/v1/suggest?q=", 400},
 		{"GET", "/admin", 404}, {"GET", "/api/v1/admin", 404}, {"GET", "/partner", 404},
-		{"GET", "/api/v1/search?q=x&vertical=image", 403},
+		{"GET", "/api/v1/search?q=x&vertical=image", 501},
 		{"GET", "/api/v1/search?q=x&safe_search=invalid", 400},
 	} {
 		r := httptest.NewRequest(tc.method, tc.path, nil)
@@ -72,7 +78,7 @@ func TestHTTPBoundary(t *testing.T) {
 			t.Errorf("%s: got %d want %d", tc.path, w.Code, tc.status)
 		}
 	}
-	if calls != 0 {
+	if calls.Load() != 0 {
 		t.Fatal("invalid requests reached upstream")
 	}
 	for _, path := range []string{"/api/v1/search?q=한글", "/api/v1/suggest?q=Open", "/readyz", "/api/v1/portal/config"} {
@@ -106,6 +112,20 @@ func TestHTTPBoundary(t *testing.T) {
 
 func TestGatewayAuthMFARecoveryAndBOLAEndpoints(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		// C-4: model count queries honestly — only the converted term matches.
+		if strings.Contains(string(body), `"suggest"`) {
+			_, _ = w.Write([]byte(`{"suggest":{"correction-title":[{"text":"x","options":[]}],"correction-body":[{"text":"x","options":[]}]}}`))
+			return
+		}
+		if strings.Contains(string(body), `"size":0`) {
+			total := 0
+			if strings.Contains(string(body), "검색엔진") {
+				total = 1
+			}
+			_, _ = w.Write([]byte(`{"hits":{"total":{"value":` + strconv.Itoa(total) + `},"hits":[]}}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":1},"hits":[{"_id":"fixture-001","_score":2.0,"_source":{"document_id":"fixture-001","title":"오픈포털 검색엔진 프로젝트","url":"https://example.org/intro","description":"예시","language":"ko"}}]}}`))
 	}))
 	defer upstream.Close()
@@ -309,7 +329,26 @@ func TestGatewayAuthMFARecoveryAndBOLAEndpoints(t *testing.T) {
 }
 
 func TestRankingAbuseAndModerationEndpoints(t *testing.T) {
+	// C-5: filtering happens inside OpenSearch (must_not in the query DSL),
+	// not as a handler post-filter. The stub backend models that contract:
+	// it applies the strict safety filter itself when the query carries it.
+	var gotSearchQuery []byte
+	var captureMu sync.Mutex
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		// First request is the search; later ones are best-effort correction
+		// or the parallel hybrid path. Guarded: hybrid queries race here.
+		captureMu.Lock()
+		if gotSearchQuery == nil {
+			gotSearchQuery = body
+		}
+		captureMu.Unlock()
+		if strings.Contains(string(body), `"safety":["adult","gambling","malware"]`) {
+			_, _ = w.Write([]byte(`{"hits":{"total":{"value":1},"hits":[
+				{"_id":"doc-clean","_score":2.5,"_source":{"document_id":"doc-clean","title":"정상 기술 문서","url":"https://example.org/tech","description":"클린 내용","language":"ko"}}
+			]}}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"hits":{"total":{"value":2},"hits":[
 			{"_id":"doc-clean","_score":2.5,"_source":{"document_id":"doc-clean","title":"정상 기술 문서","url":"https://example.org/tech","description":"클린 내용","language":"ko"}},
 			{"_id":"doc-adult","_score":2.8,"_source":{"document_id":"doc-adult","title":"성인인증 음란물 야동","url":"https://adult.test/xxx","description":"유해","language":"ko"}}
@@ -352,6 +391,9 @@ func TestRankingAbuseAndModerationEndpoints(t *testing.T) {
 		}
 		var sResp search.Response
 		_ = json.Unmarshal(w.Body.Bytes(), &sResp)
+		if !strings.Contains(string(gotSearchQuery), `"safety":["adult","gambling","malware"]`) {
+			t.Fatalf("strict safesearch must travel in the backend query, got: %s", gotSearchQuery)
+		}
 		if len(sResp.Hits) != 1 || sResp.Hits[0].DocumentID != "doc-clean" {
 			t.Fatalf("expected only clean hit in strict safesearch, got %d hits", len(sResp.Hits))
 		}
@@ -861,6 +903,36 @@ func TestPhase9LaunchEndpoints(t *testing.T) {
 	}
 }
 
+// C-8: non-web verticals have no index backend; the production search path
+// must answer 501 (not an empty list, not 403 theater).
+func TestSearchVerticalNotImplemented(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"hits":{"total":{"value":0},"hits":[]}}`))
+	}))
+	defer upstream.Close()
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+	for _, v := range []string{"image", "news", "video", "shopping", "map"} {
+		w := httptest.NewRecorder()
+		a.routes().ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/search?q=x&vertical="+v, nil))
+		if w.Code != 501 {
+			t.Fatalf("vertical=%s: expected 501, got %d", v, w.Code)
+		}
+		var errResp struct {
+			Code string `json:"code"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &errResp)
+		if errResp.Code != "VERTICAL_NOT_IMPLEMENTED" {
+			t.Fatalf("vertical=%s: expected code VERTICAL_NOT_IMPLEMENTED, got %+v", v, errResp)
+		}
+	}
+	// web vertical still served.
+	w := httptest.NewRecorder()
+	a.routes().ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/search?q=x&vertical=web", nil))
+	if w.Code != 200 {
+		t.Fatalf("vertical=web: expected 200, got %d", w.Code)
+	}
+}
+
 func TestPrototypeVerticalFederatedSearchAndAdsClickEndpoints(t *testing.T) {
 	a := &app{}
 	prodHandler := a.routes() // Prototype-only; production denial is tested separately.
@@ -879,6 +951,10 @@ func TestPrototypeVerticalFederatedSearchAndAdsClickEndpoints(t *testing.T) {
 		}
 		if resp.TotalHits == 0 || resp.Attribution == "" {
 			t.Fatalf("expected image hits and legal attribution, got %+v", resp)
+		}
+		// C-8: prototype seed hits must be labeled as such.
+		if resp.ServedFrom != "prototype-seed" {
+			t.Fatalf("expected served_from=prototype-seed, got %+v", resp)
 		}
 	}
 
@@ -1092,70 +1168,31 @@ func TestPrototypeSuperplatformHTTPEndpoints(t *testing.T) {
 	}
 	prodHandler := a.routes() // No production access to synthetic superplatform data.
 
-	// 1. GET /api/v1/superplatform/apps -> 200 OK
-	{
-		req := httptest.NewRequest("GET", "/api/v1/superplatform/apps", nil)
+	// A-6: fabricated catalogs were removed. The endpoints stay registered but
+	// must honestly report 501 NOT_IMPLEMENTED instead of fake data.
+	for _, path := range []string{
+		"/api/v1/superplatform/apps",
+		"/api/v1/superplatform/mail?email=tester@openscanner.internal",
+		"/api/v1/superplatform/developer",
+	} {
+		req := httptest.NewRequest("GET", path, nil)
 		w := httptest.NewRecorder()
 		prodHandler.ServeHTTP(w, req)
-		if w.Code != 200 {
-			t.Fatalf("apps endpoint failed: %d %s", w.Code, w.Body.String())
+		if w.Code != 501 {
+			t.Fatalf("GET %s: expected 501, got %d %s", path, w.Code, w.Body.String())
 		}
 		var resp struct {
-			Status string                   `json:"status"`
-			Total  int                      `json:"total"`
-			Apps   []map[string]interface{} `json:"apps"`
+			Code string `json:"code"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-			t.Fatalf("unmarshal apps error: %v", err)
+			t.Fatalf("GET %s: unmarshal error: %v", path, err)
 		}
-		if resp.Total == 0 || len(resp.Apps) == 0 {
-			t.Fatalf("expected non-empty apps list")
+		if resp.Code != "NOT_IMPLEMENTED" {
+			t.Fatalf("GET %s: expected code NOT_IMPLEMENTED, got %q", path, resp.Code)
 		}
 	}
 
-	// 2. GET /api/v1/superplatform/mail -> 200 OK
-	{
-		req := httptest.NewRequest("GET", "/api/v1/superplatform/mail?email=tester@openscanner.internal", nil)
-		w := httptest.NewRecorder()
-		prodHandler.ServeHTTP(w, req)
-		if w.Code != 200 {
-			t.Fatalf("mail endpoint failed: %d %s", w.Code, w.Body.String())
-		}
-		var resp struct {
-			Status   string                   `json:"status"`
-			Mailbox  string                   `json:"mailbox"`
-			Messages []map[string]interface{} `json:"messages"`
-		}
-		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-			t.Fatalf("unmarshal mail error: %v", err)
-		}
-		if len(resp.Messages) == 0 {
-			t.Fatalf("expected non-empty mailbox messages")
-		}
-	}
-
-	// 3. GET /api/v1/superplatform/developer -> 200 OK
-	{
-		req := httptest.NewRequest("GET", "/api/v1/superplatform/developer", nil)
-		w := httptest.NewRecorder()
-		prodHandler.ServeHTTP(w, req)
-		if w.Code != 200 {
-			t.Fatalf("developer endpoint failed: %d %s", w.Code, w.Body.String())
-		}
-		var resp struct {
-			Status    string            `json:"status"`
-			Endpoints []string          `json:"endpoints"`
-			SDKs      map[string]string `json:"sdks"`
-		}
-		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-			t.Fatalf("unmarshal developer error: %v", err)
-		}
-		if len(resp.Endpoints) == 0 || len(resp.SDKs) == 0 {
-			t.Fatalf("expected endpoints and SDKs")
-		}
-	}
-
-	// 4. Method not allowed on POST -> 405
+	// Method not allowed on POST -> 405
 	{
 		req := httptest.NewRequest("POST", "/api/v1/superplatform/apps", nil)
 		w := httptest.NewRecorder()
@@ -1166,3 +1203,119 @@ func TestPrototypeSuperplatformHTTPEndpoints(t *testing.T) {
 	}
 }
 
+// A-1/A-2: the operational search path must not inject fabricated ads and must
+// not serve an AI Overview block while no model pipeline is configured.
+func TestSearchHonestSlotsByDefault(t *testing.T) {
+	t.Setenv("AI_OVERVIEW_ENABLED", "")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{
+			"timed_out": false,
+			"_shards": {"failed": 0},
+			"hits": {"total": {"value": 2}, "hits": [
+				{"_id": "doc-1", "_score": 2.5, "_source": {"document_id": "doc-1", "title": "클라우드 서버 개발 가이드", "url": "https://example.test/cloud", "description": "클라우드 서버 개발을 시작하는 방법. 첫 단계를 안내합니다.", "language": "ko"}},
+				{"_id": "doc-2", "_score": 1.5, "_source": {"document_id": "doc-2", "title": "OpenPortal 검색 소개", "url": "https://example.test/intro", "description": "검색 시스템의 개요와 사용법. 빠르게 찾아봅니다.", "language": "ko"}}
+			]}
+		}`))
+	}))
+	defer upstream.Close()
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+
+	for _, path := range []string{
+		"/api/v1/search?q=" + url.QueryEscape("클라우드 서버 개발"),
+		"/api/v1/search?q=" + url.QueryEscape("클라우드 서버 개발") + "&ai=1",
+	} {
+		w := httptest.NewRecorder()
+		a.routes().ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != 200 {
+			t.Fatalf("GET %s: got %d %s", path, w.Code, w.Body.String())
+		}
+		var resp struct {
+			Hits         []map[string]any `json:"hits"`
+			SponsoredAds *[]any           `json:"sponsored_ads"`
+			AIOverview   *map[string]any  `json:"ai_overview"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("GET %s: unmarshal error: %v", path, err)
+		}
+		if len(resp.Hits) != 2 {
+			t.Fatalf("GET %s: expected 2 passthrough hits, got %d", path, len(resp.Hits))
+		}
+		// A-1: the ad slot must be an explicit empty array, never a fake injection.
+		if resp.SponsoredAds == nil {
+			t.Fatalf("GET %s: sponsored_ads must be present as []", path)
+		}
+		if len(*resp.SponsoredAds) != 0 {
+			t.Fatalf("GET %s: sponsored_ads must be empty without an ad backend", path)
+		}
+		// A-2: no AI block without a configured pipeline, even with ?ai=1.
+		if resp.AIOverview != nil {
+			t.Fatalf("GET %s: ai_overview must be absent while AI_OVERVIEW_ENABLED is unset", path)
+		}
+		raw := w.Body.String()
+		if strings.Contains(raw, "ad-cloud-001") || strings.Contains(raw, "cloud.openportal.org") {
+			t.Fatalf("GET %s: fabricated ad payload leaked into response", path)
+		}
+	}
+}
+
+// C-5: the safe_search level travels into the OpenSearch query (not a page
+// post-filter), so total and pagination already reflect the level.
+func TestSearchSafeSearchInQuery(t *testing.T) {
+	var gotQuery []byte
+	var queryMu sync.Mutex
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		// First request wins; later ones are the parallel hybrid path or
+		// best-effort correction. Guarded: hybrid queries race here.
+		queryMu.Lock()
+		if gotQuery == nil {
+			gotQuery = body
+		}
+		queryMu.Unlock()
+		_, _ = w.Write([]byte(`{
+			"timed_out": false,
+			"_shards": {"failed": 0},
+			"hits": {"total": {"value": 42}, "hits": [
+				{"_id": "doc-1", "_score": 2.5, "_source": {"document_id": "doc-1", "title": "clean guide", "url": "https://example.test/clean", "description": "A clean technical guide.", "language": "en"}}
+			]}
+		}`))
+	}))
+	defer upstream.Close()
+	a := &app{c: search.New(upstream.URL, "documents_v1", "", ""), idStore: identity.NewStore(), corsOrigin: "http://127.0.0.1:5173"}
+
+	w := httptest.NewRecorder()
+	a.routes().ServeHTTP(w, httptest.NewRequest("GET", "/api/v1/search?q=guide&safe_search=strict", nil))
+	if w.Code != 200 {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(string(gotQuery), `"safety":["adult","gambling","malware"]`) {
+		t.Fatalf("upstream query missing strict safety filter: %s", gotQuery)
+	}
+	var resp struct {
+		Total      int64          `json:"total"`
+		Hits       []map[string]any `json:"hits"`
+		SafeSearch string         `json:"safe_search"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	// Total passes through untouched: filtering happened before paging.
+	if resp.Total != 42 || len(resp.Hits) != 1 || resp.SafeSearch != "strict" {
+		t.Fatalf("total=%d hits=%d safe=%q", resp.Total, len(resp.Hits), resp.SafeSearch)
+	}
+}
+
+func TestAIOverviewFlag(t *testing.T) {
+	t.Setenv("AI_OVERVIEW_ENABLED", "")
+	if aiOverviewEnabled() {
+		t.Fatal("expected disabled by default")
+	}
+	t.Setenv("AI_OVERVIEW_ENABLED", "true")
+	if !aiOverviewEnabled() {
+		t.Fatal("expected enabled with AI_OVERVIEW_ENABLED=true")
+	}
+	t.Setenv("AI_OVERVIEW_ENABLED", "1")
+	if aiOverviewEnabled() {
+		t.Fatal("expected only explicit 'true' to enable")
+	}
+}

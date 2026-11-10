@@ -12,14 +12,19 @@ def request(method, path, payload, content_type='application/json'):
         with urllib.request.urlopen(req,timeout=8) as resp:return resp.read().decode()
     except urllib.error.HTTPError as e:raise RuntimeError(f'{method} {path} -> {e.code}: {e.read()[:400]!r}') from e
 
+# Fixture-only index: recreate so mapping changes (e.g. C-4 suggest field)
+# apply cleanly. Never point OPENSEARCH_INDEX at a real corpus with this script.
+try:request('DELETE','/'+index,None)
+except RuntimeError:pass
 mapping=json.loads((root/'infra/opensearch/documents_v1.json').read_text(encoding='utf-8'))
-try:request('PUT','/'+index,mapping)
-except RuntimeError as e:
-    if 'resource_already_exists_exception' not in str(e):raise
+request('PUT','/'+index,mapping)
+# C-5: fixtures are known-clean demo docs, labeled explicitly so SafeSearch
+# query filters treat them as clean (and prove the mapping accepts labels).
+# C-4: suggest inputs mirror the indexer payload (title first).
 fixtures=[
- {'document_id':'fixture-001','url':'https://example.org/intro','title':'오픈포털 검색엔진 프로젝트','description':'독립 검색엔진 아키텍처 개발을 위한 예시 문서','body':'검색 엔진 크롤러 역색인 랭킹 API Go Vue Flutter 한국어','language':'ko','indexable':True},
- {'document_id':'fixture-002','url':'https://example.org/search','title':'검색엔진 인덱싱과 랭킹','description':'검색 색인과 품질 평가에 대한 테스트 문서','body':'웹 검색 랭킹 텍스트 색인 검색 결과','language':'ko','indexable':True},
- {'document_id':'fixture-003','url':'https://example.org/docs','title':'OpenPortal developer documentation','description':'Example English document in the demo dataset','body':'OpenPortal full text search engine API integration','language':'en','indexable':True}
+ {'document_id': 'fixture-001', 'url': 'https://example.org/intro', 'title': '오픈포털 검색엔진 프로젝트', 'description': '독립 검색엔진 아키텍처 개발을 위한 예시 문서', 'body': '검색 엔진 크롤러 역색인 랭킹 API Go Vue Flutter 한국어', 'language': 'ko', 'indexable': True, 'safety': 'clean', 'adult_score': 0.0, 'malware_score': 0.0, 'suggest': {'input': ['오픈포털 검색엔진 프로젝트']}},
+ {'document_id': 'fixture-002', 'url': 'https://example.org/search', 'title': '검색엔진 인덱싱과 랭킹', 'description': '검색 색인과 품질 평가에 대한 테스트 문서', 'body': '웹 검색 랭킹 텍스트 색인 검색 결과', 'language': 'ko', 'indexable': True, 'safety': 'clean', 'adult_score': 0.0, 'malware_score': 0.0, 'suggest': {'input': ['검색엔진 인덱싱과 랭킹']}},
+ {'document_id': 'fixture-003', 'url': 'https://example.org/docs', 'title': 'OpenPortal developer documentation', 'description': 'Example English document in the demo dataset', 'body': 'OpenPortal full text search engine API integration', 'language': 'en', 'indexable': True, 'safety': 'clean', 'adult_score': 0.0, 'malware_score': 0.0, 'suggest': {'input': ['OpenPortal developer documentation']}},
 ]
 lines=[]
 for i,doc in enumerate(fixtures,1):

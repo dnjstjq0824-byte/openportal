@@ -33,14 +33,15 @@ type VerticalQuery struct {
 
 // VerticalResponse wraps unified pagination and payload for a vertical search.
 type VerticalResponse struct {
-	Vertical     VerticalType `json:"vertical"`
-	Query        string       `json:"query"`
-	Page         int          `json:"page"`
-	TotalHits    int          `json:"total_hits"`
-	Data         any          `json:"data"`
-	ExecutionMs  int64        `json:"execution_ms"`
-	Cached       bool         `json:"cached"`
-	Attribution  string       `json:"attribution,omitempty"`
+	Vertical    VerticalType `json:"vertical"`
+	Query       string       `json:"query"`
+	Page        int          `json:"page"`
+	TotalHits   int          `json:"total_hits"`
+	Data        any          `json:"data"`
+	ExecutionMs int64        `json:"execution_ms"`
+	Cached      bool         `json:"cached"`
+	Attribution string       `json:"attribution,omitempty"`
+	ServedFrom  string       `json:"served_from"`
 }
 
 // TokenBucketLimiter implements a per-vertical thread-safe rate limiter.
@@ -170,6 +171,10 @@ func (c *VerticalFederationCoordinator) Execute(
 		ExecutionMs: execMs,
 		Cached:      false,
 		Attribution: attribution,
+		// C-8: prototype tree serves verified seed corpora (no production
+		// vertical backend exists); label it so no consumer mistakes seed
+		// hits for a real index.
+		ServedFrom: "prototype-seed",
 	}
 
 	// 4. Save to cache

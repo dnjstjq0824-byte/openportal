@@ -372,7 +372,7 @@ const file_openportal_ads_v1_ads_proto_rawDesc = "" +
 	"\n" +
 	"AdsService\x12h\n" +
 	"\x0fSelectSponsored\x12).openportal.ads.v1.SelectSponsoredRequest\x1a*.openportal.ads.v1.SelectSponsoredResponse\x12k\n" +
-	"\x10ReportImpression\x12*.openportal.ads.v1.ReportImpressionRequest\x1a+.openportal.ads.v1.ReportImpressionResponseBCZAexample.com/openportal-search/backend/gen/openportal/ads/v1;adsv1b\x06proto3"
+	"\x10ReportImpression\x12*.openportal.ads.v1.ReportImpressionRequest\x1a+.openportal.ads.v1.ReportImpressionResponseBLZJgithub.com/dnjstjq0824-byte/openportal/backend/gen/openportal/ads/v1;adsv1b\x06proto3"
 
 var (
 	file_openportal_ads_v1_ads_proto_rawDescOnce sync.Once

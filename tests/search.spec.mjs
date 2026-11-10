@@ -41,7 +41,7 @@ test('empty and invalid requests, suggestions, denied consoles',async ({page,req
   expect((await request.get('http://127.0.0.1:8080/api/v1/search?q=x&page=101')).status()).toBe(400);
   expect((await request.post('http://127.0.0.1:8080/api/v1/search?q=x')).status()).toBe(405);
   expect((await request.get('http://127.0.0.1:8080/admin')).status()).toBe(404);
-  expect((await request.get('http://127.0.0.1:8080/api/v1/search?q=x&vertical=image')).status()).toBe(403);
+  expect((await request.get('http://127.0.0.1:8080/api/v1/search?q=x&vertical=image')).status()).toBe(501);
   const suggest = await request.get('http://127.0.0.1:8080/api/v1/suggest?q=Open');
   expect((await suggest.json()).suggestions).toContain('OpenPortal developer documentation');
 });

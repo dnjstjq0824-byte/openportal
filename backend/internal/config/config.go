@@ -12,6 +12,7 @@ type Config struct {
 	OpenSearchIndex    string
 	OpenSearchUsername string
 	OpenSearchPassword string
+	DatabaseURL        string
 	CORSOrigin         string
 	OIDCIssuer         string
 	OIDCClientID       string
@@ -32,6 +33,7 @@ func Load() Config {
 		OpenSearchIndex:    env("OPENSEARCH_INDEX", "documents_v2"),
 		OpenSearchUsername: os.Getenv("OPENSEARCH_USERNAME"),
 		OpenSearchPassword: os.Getenv("OPENSEARCH_PASSWORD"),
+		DatabaseURL:        strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		CORSOrigin:         env("CORS_ORIGIN", "http://127.0.0.1:5173"),
 		OIDCIssuer:         strings.TrimSpace(os.Getenv("OIDC_ISSUER")),
 		OIDCClientID:       strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")),

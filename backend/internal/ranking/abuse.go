@@ -26,17 +26,12 @@ type AbuseReport struct {
 	Score     float64   `json:"score"` // 0.0 (benign) to 1.0 (malicious)
 }
 
-type clientRecord struct {
-	timestamps []time.Time
-}
-
 type AbuseDetector struct {
 	mu            sync.RWMutex
 	window        time.Duration
 	maxBurstIP    int
 	maxBurstQuery int
-	ipHistory     map[string]*clientRecord
-	queryHistory  map[string]*clientRecord
+	bursts        BurstCounter
 	purgedTerms   map[string]string // term -> reason
 	blacklisted   map[string]string // normalized term -> category
 }
@@ -60,6 +55,13 @@ var (
 )
 
 func NewAbuseDetector(window time.Duration, maxBurstIP, maxBurstQuery int) *AbuseDetector {
+	return NewAbuseDetectorWithCounter(window, maxBurstIP, maxBurstQuery, NewMemoryBurstCounter())
+}
+
+// NewAbuseDetectorWithCounter injects the burst backend. Production passes a
+// RedisBurstCounter so burst verdicts hold across replicas (C-6); tests and
+// single-process deployments use the memory counter.
+func NewAbuseDetectorWithCounter(window time.Duration, maxBurstIP, maxBurstQuery int, bursts BurstCounter) *AbuseDetector {
 	if window <= 0 {
 		window = 10 * time.Second
 	}
@@ -69,13 +71,15 @@ func NewAbuseDetector(window time.Duration, maxBurstIP, maxBurstQuery int) *Abus
 	if maxBurstQuery <= 0 {
 		maxBurstQuery = 10
 	}
+	if bursts == nil {
+		bursts = NewMemoryBurstCounter()
+	}
 
 	ad := &AbuseDetector{
 		window:        window,
 		maxBurstIP:    maxBurstIP,
 		maxBurstQuery: maxBurstQuery,
-		ipHistory:     make(map[string]*clientRecord),
-		queryHistory:  make(map[string]*clientRecord),
+		bursts:        bursts,
 		purgedTerms:   make(map[string]string),
 		blacklisted:   make(map[string]string),
 	}
@@ -174,30 +178,9 @@ func (ad *AbuseDetector) InspectQuery(clientIP, query string) AbuseReport {
 		}
 	}
 
-	// 4. Burst Rate Limit Check
+	// 4. Burst Rate Limit Check (shared counter backend: memory or Redis)
 	if clientIP != "" {
-		ad.mu.Lock()
-		defer ad.mu.Unlock()
-
-		now := time.Now()
-		cutoff := now.Add(-ad.window)
-
-		// Check IP burst
-		rec, exists := ad.ipHistory[clientIP]
-		if !exists {
-			rec = &clientRecord{}
-			ad.ipHistory[clientIP] = rec
-		}
-		// prune old timestamps
-		validIP := make([]time.Time, 0, len(rec.timestamps)+1)
-		for _, t := range rec.timestamps {
-			if t.After(cutoff) {
-				validIP = append(validIP, t)
-			}
-		}
-		validIP = append(validIP, now)
-		rec.timestamps = validIP
-		if len(validIP) > ad.maxBurstIP {
+		if !ad.bursts.Allow("ip:"+clientIP, ad.window, ad.maxBurstIP) {
 			return AbuseReport{
 				IsAbusive: true,
 				Type:      AbuseBurstRate,
@@ -205,23 +188,7 @@ func (ad *AbuseDetector) InspectQuery(clientIP, query string) AbuseReport {
 				Score:     0.95,
 			}
 		}
-
-		// Check Query burst (manipulation / keyword stuffing attack)
-		qKey := clientIP + "::" + norm
-		qRec, qExists := ad.queryHistory[qKey]
-		if !qExists {
-			qRec = &clientRecord{}
-			ad.queryHistory[qKey] = qRec
-		}
-		validQ := make([]time.Time, 0, len(qRec.timestamps)+1)
-		for _, t := range qRec.timestamps {
-			if t.After(cutoff) {
-				validQ = append(validQ, t)
-			}
-		}
-		validQ = append(validQ, now)
-		qRec.timestamps = validQ
-		if len(validQ) > ad.maxBurstQuery {
+		if !ad.bursts.Allow("q:"+clientIP+"::"+norm, ad.window, ad.maxBurstQuery) {
 			return AbuseReport{
 				IsAbusive: true,
 				Type:      AbuseManipulation,

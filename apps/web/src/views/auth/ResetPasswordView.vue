@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { APIError } from '../../client';
 import AuthShell from '../../components/auth/AuthShell.vue';
 import AuthStatus from '../../components/auth/AuthStatus.vue';
@@ -8,12 +9,15 @@ import { useSessionStore } from '../../stores/session';
 import { useAuthForm } from './authForm';
 
 const session = useSessionStore();
+const route = useRoute();
 const t = coreMessages;
 const copy = designCopy;
 const { password, confirm, showPassword, busy, error, errorStatus, notice, passwordScore, passwordVaried, strengthLabel, confirmState, authTitle, authIntro, serverDown, errorText, resetSecrets } = useAuthForm();
 
-const token = ref(new URLSearchParams(location.hash.slice(1)).get('token') || '');
-if (token.value) history.replaceState(history.state, '', location.pathname + location.search);
+const initialHashToken = new URLSearchParams(location.hash.slice(1)).get('token') || '';
+const initialQueryToken = typeof route.query.token === 'string' ? route.query.token : '';
+const token = ref(initialHashToken || initialQueryToken);
+if (initialHashToken) history.replaceState(history.state, '', location.pathname + location.search);
 
 async function submit(): Promise<void> {
   busy.value = true;
