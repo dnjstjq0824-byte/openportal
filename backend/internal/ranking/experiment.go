@@ -55,6 +55,7 @@ type ExperimentPlatform struct {
 	experiments map[string]*ExperimentDef
 	layerLock   map[string]string // layer -> active experimentID (mutual exclusion)
 	metrics     map[string]*ExperimentMetrics // expID:variant -> metrics
+	store       ExperimentStore   // nil = memory-only platform (no persistence)
 }
 
 func NewExperimentPlatform() *ExperimentPlatform {

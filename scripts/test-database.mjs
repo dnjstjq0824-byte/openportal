@@ -1,6 +1,6 @@
 import EmbeddedPostgres from 'embedded-postgres';
 import assert from 'node:assert/strict';
-import { readFile, mkdir, cp, writeFile } from 'node:fs/promises';
+import { readFile, mkdir, cp, writeFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { migrate } from './migrate.mjs';
@@ -59,8 +59,9 @@ try {
   await migrate(client);
   await migrate(client);
   const migrationCount = (await client.query('select count(*)::int n from public.schema_migrations')).rows[0].n;
-  assert.equal(migrationCount, 14);
-  console.log('PASS forward migrations (001..014) and repeat run');
+  const migrationFiles = (await readdir('database/migrations')).filter(x => /^\d{3}_.+\.sql$/.test(x)).sort();
+  assert.equal(migrationCount, migrationFiles.length);
+  console.log(`PASS forward migrations (${migrationFiles[0].slice(0, 3)}..${migrationFiles[migrationFiles.length - 1].slice(0, 3)}, n=${migrationFiles.length}) and repeat run`);
   const flags = await client.query("select name, enabled from control.feature_flags order by name");
   assert.equal(flags.rows.find(r => r.name === 'vertical.web')?.enabled, true);
   assert.equal(flags.rows.find(r => r.name === 'vertical.image')?.enabled, false);
@@ -127,6 +128,15 @@ try {
   // Migration 014 adds the operator admin flag on webapp accounts.
   assert.ok(accountCols.includes('is_admin'));
   assert.equal((await client.query("select count(*)::int n from pg_indexes where schemaname='webapp' and tablename='accounts' and indexname='accounts_admins'")).rows[0].n, 1);
+  // Migration 019 extends query.experiments with 049 ExperimentDef columns.
+  const expCols = (await client.query("select column_name from information_schema.columns where table_schema='query' and table_name='experiments'")).rows.map(x => x.column_name);
+  for (const col of ['layer', 'salt', 'split_percent', 'control_profile', 'treatment_profile', 'max_error_rate_threshold', 'max_p99_latency_threshold', 'min_sample_size', 'rollback_reason', 'rolled_back_at']) assert.ok(expCols.includes(col), `missing query.experiments.${col}`);
+  await assert.rejects(client.query("insert into query.experiments(name,status,split_percent) values('bad-split','draft',101)"), e => e.code === '23514');
+  const seed = (await client.query("select layer, split_percent, control_profile, treatment_profile from query.experiments where name='ranking_bm25_vs_rrf'")).rows[0];
+  assert.equal(seed.layer, 'ranking');
+  assert.equal(seed.split_percent, 50);
+  assert.equal(seed.control_profile, 'bm25_baseline_v1');
+  assert.equal(seed.treatment_profile, 'rrf_hybrid_candidate_v1');
   console.log('PASS Phase 1, 2, 3, 4, 5, 6, 7, 8 & 9 feature flags, ranking profiles, vertical schemas, AI tables, ads, PAM and SLO tables seeded');
   await client.query('create role phase0_untrusted');
   await client.query('set role phase0_untrusted');

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"log"
 	"net"
 	"os"
 	"strings"
@@ -45,6 +47,7 @@ type app struct {
 	drMgr         *launch.DRManager
 	sloTracker    *launch.SLOTracker
 	defectReg     *launch.DefectRegister
+	expPlatform   *ranking.ExperimentPlatform
 }
 
 type contextKey string
@@ -252,4 +255,26 @@ func (a *app) ensureDefectRegister() *launch.DefectRegister {
 		a.defectReg = launch.NewDefectRegister()
 	}
 	return a.defectReg
+}
+
+// ensureExperimentPlatform lazily builds the 049 experiment platform. With a
+// database handle it attaches the Postgres store and restores running
+// experiments; without one (or when restore fails) it stays memory-only so a
+// database outage degrades experiments instead of failing boot (rolling-safe:
+// /readyz still reports the unreachable dependency).
+func (a *app) ensureExperimentPlatform() *ranking.ExperimentPlatform {
+	a.initMu.Lock()
+	defer a.initMu.Unlock()
+	if a.expPlatform == nil {
+		a.expPlatform = ranking.NewExperimentPlatform()
+		if a.db != nil {
+			a.expPlatform.AttachStore(ranking.NewPostgresStore(a.db))
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := a.expPlatform.RestoreRunning(ctx); err != nil {
+				log.Printf("experiment restore failed; continuing memory-only: %v", err)
+			}
+		}
+	}
+	return a.expPlatform
 }
