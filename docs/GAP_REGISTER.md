@@ -1,6 +1,6 @@
 # GAP REGISTER — OpenScanner 감사 추적 단일 기준 문서 (Single Source of Truth)
 
-- 최종 갱신: 2026-11-10 (Phase 1 완료, Phase 2 진입)
+- 최종 갱신: 2026-11-24 (공식 문서 대조: W-02 해소·Mojeek 구현, U-02·U-03·W-03·W-04·W-05 축소)
 - 종합 판정: **NO-GO** (P1~P3 잔여 및 외부 BLOCKED 해소 전까지 공개 출시 금지)
 - 출처: OpenScanner 감사 작업지시서 Phase 1~3 (코드 항목 A~D 명시 22건 + 기존 G-ledger 매핑 + F 외부 5건)
 - 주의: 감사 원문에 언급된 34건 중 작업지시서에 번호가 명시되지 않은 항목(A-7, B-4, D-1~D-3, E-1~)은
@@ -63,7 +63,7 @@
 | G016 | 차단/완화 | Nuxt CVE로 Vite 유지 | 업스트림 패치 대기 |
 | G017 | DONE | `flutter test` 7/7 PASS (2026-11-10, SDK 설치 확인) | All tests passed |
 | G018 | DONE | 재랭킹 `language` 누락 수정 | Go PASS, E2E 5/5 |
-| G020 | 부분 수정 | Intent/RRF 연결, 영속 저장소 잔여 | 재시작/다중 인스턴스 테스트 |
+| G020 | 부분 해소 2026-11-24 | Intent/RRF 연결 + 실험 영속화 DONE. 재시작·다중인스턴스 복원도 실DB 테스트 PASS. 잔여: 실트래픽 온라인 운영 | 실트래픽 운영 (Engineering) |
 | G022 | 부분 검증 | 7질의 골든셋 NDCG=1.0 (장난감 수준, C-7에서 교체) | 회귀 PASS, 독립 검토 외부 |
 | G024 | DONE | 동시 초기화 mutex | `-count=20` PASS |
 | SEARCH-BASE-01/02/03 | DONE/경계 | URL 병합·하이브리드 카운트 수정, 개발 색인 안내 | 단위+E2E PASS |
@@ -96,6 +96,33 @@
 | C-9 | DONE 2026-11-10 | `POST/GET /api/v2/report` (인증·레이트제한·PG 영속 017 마이그레이션) + SearchView 신고 다이얼로그(ko/en/th) | node 3건 PASS, 플랫폼 게이트 편입, typecheck+build PASS |
 | G015 | DONE | 경쟁 비교·권리 경계 문서 | 공식자료 인용, 법무서명 외부 |
 | G023 | 관찰 | 8080 401 오탐 1회 (재현 없음) | 재발 시 포트 기록 |
+
+## 제공자 후속 추적 (RV, 2026-11-11 R/V 검토 → 2026-11-24 등록)
+
+근거: `검토보고_제공자정정_20261111.md`(R-01~R-07), `검토보고_제공자정밀조사_20261111.md`(V-01~V-07).
+결정 종합은 [SEARCH_PROVIDER_STRATEGY.md](SEARCH_PROVIDER_STRATEGY.md), 목표 표준은
+[GOOGLE_CLASS_SEARCH_STANDARD.md](GOOGLE_CLASS_SEARCH_STANDARD.md)를 따른다.
+
+| ID | 상태 | 내용 | 필요한 조치/소유자 |
+|---|---|---|---|
+| RV-01 | DONE 2026-11-24 | 제공자 어댑터 추상화: `gateway/providers.mjs` 레지스트리(8종·정규화·재시도·브레이커·쿼터), Bing 스텁·사망 분기 제거 | providers 12건 + gateway-search 9건 + platform 42/42 PASS |
+| RV-02 | 부분 해소 2026-11-24 | 전송 검증 후보 2종: 네이버 webkr(공식 문서 대조·오류매핑) + Mojeek(공식 문서 대조·어댑터 구현). live 선정은 키 발급 후 | 키 발급 후 RV-06 live 실행 (기획+Engineering) |
+| RV-03 | 부분 해소 2026-11-24 | Brave 유지 + 미검증 3종 fail-closed 등록. 최종 선정은 수용 테스트 live 결과로 확정 | 키 발급 후 RV-06 live 실행 (기획+Engineering) |
+| RV-04 | DONE 2026-11-24 | 제공자 env×승인 행렬 + production 부팅 거부 + degraded 폴백 일반화(`config.mjs`) | 부팅 거부 3건 + hybrid 예산 폴백 PASS |
+| RV-05 | DONE 2026-11-24 | 수직 경로 격리 가드 테스트(외부 제공자의 vertical 접근 0건) + 501 유지 확인 | `TestSearchVerticalNotImplemented` + RV-05 가드 PASS |
+| RV-06 | DONE(도구) 2026-11-24 | `scripts/provider-acceptance.mjs` 구현(40질의·합격 6종·증거 JSON). live 실행은 키 발급 후 | 키 발급 후 blind 평가 (QA) |
+| EVAL-01 | DONE(스모크) 2026-11-24 | 실색인(documents_v1·3문서) 대상 5질의 실행: mean NDCG@10=1.0·MRR=0.8·MAP=0.7·zero율=0.2·미판정=0. toy 규모라 품질 주장 아님. 수천 질의 인적 판정셋은 잔여 | 확장 판정셋 구축 (QA+Engineering) |
+| EVAL-02 | 부분 해소 2026-11-24 | 팀 드래프트 모듈 + 실험 영속화(019·Store·복원·API 연결, 실DB 테스트 PASS) 완료. 잔여: 실트래픽 온라인 운영 | 실트래픽 운영 (Engineering) |
+| U-01 | 미확인 | SE-02 fail-fast 매트릭스 실물 (M0 원문 확보 후 대조) | 원문 확보 (기획) |
+| U-02 | 미확인(증거 양립) | 공식 shopping.md 200 OK 확인(2026-11-24 직접 열람) vs 종료 복수 보도. 키 실호출로만 종결 가능 | 키 발급 후 live 호출 (기획+Engineering) |
+| U-03 | 축소 2026-11-24 | 공학 대응 완료(네이버 표기 배지·RRF 비혼입 가드·무캐시). 약관 원문·법무 서명은 잔여 | 법무 서명 (Legal) |
+| U-04 | 미확인 | OLMOA·getfortrip 상품 스펙 (코드 언급 0건) | 스펙 확보 (기획) |
+| U-05 | 미확인 | Common Crawl 한국어 선별 규모·기간 (별도 산정) | 산정 (Engineering) |
+| W-01 | 미확인 | report.md·Serper 착수안 원문 (전달 시 보완 대조) | 원문 확보 (기획) |
+| W-02 | 해소 2026-11-24 | Mojeek 공식 문서 대조(s/t·fmt·safe·응답 head.results·results[]). 어댑터 구현+전송 테스트. ToS 전문은 계정 개설 시 재대조 | 키 발급 후 live 확정 (Engineering) |
+| W-03 | 축소 2026-11-24 | 엔드포인트·X-API-KEY·organic 응답형은 6+ 독립 출처 교차 확인. 요청 파라미터·total은 키 플레이그라운드 필요 | 키 발급 후 확정 (Engineering) |
+| W-04 | 부분 2026-11-24 | offset 0–9·count 1–100은 you.com 공식 페이지로 확인. 인증 헤더·MSA는 외부 확인 잔여 | 원문·계약 확인 (기획+Legal) |
+| W-05 | 축소 2026-11-24 | transient 한정 복수 교차 확인(ToS 2026-09-01 계열). 텍스트 표기 구현, 로고·전문은 법무 잔여 | 계약 확인 (Legal) |
 
 ## 파트 F — STATUS: BLOCKED (Legal/Business Owner Action Required, 코드 해결 불가)
 

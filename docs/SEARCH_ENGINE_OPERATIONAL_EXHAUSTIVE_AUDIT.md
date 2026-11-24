@@ -3,6 +3,14 @@
 > **문서 버전:** 1.0 (PROD-AUDIT-2026-10-30)  
 > **운영 주체:** OpenPortal Operations & Engineering  
 > **검사 대상:** 전체 모노레포 (`backend/`, `apps/web/`, `database/`, `infra/`, `tests/`)
+>
+> 2026-11-24 정정: 본 문서는 2026-10-30 기준 스냅샷이며 원문을 보존한다. 이후 감사 시정으로
+> 아래가 변경됐다. (1) §3 "컨트롤 타워 구축 계획"의 운영자 콘솔 API·UI는 미구현이며,
+> `/api/v2/admin/*`은 403 기본 거부(D-4)다. "제어 가능" 서술은 계획·코드 연결점 수준으로만 해석한다.
+> (2) 비웹 버티컬은 501 미구현(C-8)이며 토글로 열 수 있는 상태가 아니다.
+> (3) 가짜 광고 주입·AI Overview 무조건 노출은 제거됐다 (A-1·A-2: `sponsored_ads: []` 명시, 기본 OFF).
+> (4) NDCG 1.0000은 7질의 골든 기준이며, 현 live 골든은 12질의 NDCG@10 0.9986·MAP 1.0 (C-7, toy 규모)이다.
+> 현재 기준은 [GAP_REGISTER.md](GAP_REGISTER.md), 목표는 [GOOGLE_CLASS_SEARCH_STANDARD.md](GOOGLE_CLASS_SEARCH_STANDARD.md)다.
 
 ---
 

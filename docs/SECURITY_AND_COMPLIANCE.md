@@ -9,4 +9,5 @@
 - Ads and commerce: disclosure, fraud/invalid-traffic controls, brand safety, signed idempotent billing webhooks, ledger reconciliation, refunds, timezone/currency/tax correctness. No real money in test/staging.
 - Media and news: explicit data licenses for thumbs and full text; only index/snippets where permitted. Maps/geocoding requires properly licensed provider or independent compliant datasets.
 - Supply chain: pin images/deps by digest/lockfile, SAST/DAST, SBOM, secret scanning, license scanning and provenance.
+- External search providers: connect only with a formal account, terms approval flag, display/storage limits and cost approval. Provider-specific caching/storage bans (e.g. display-only terms) apply per route; see `docs/SEARCH_PROVIDER_STRATEGY.md`. No provider result may be folded into the owned index without a rights review.
 - Every production release needs incident plan, backups and actual restore test, disaster recovery, full audit evidence, independent red-team on authentication and crawler network boundaries.

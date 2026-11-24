@@ -1,5 +1,9 @@
 # Phase 0 PRD — 001
 
+> 2026-11-24 주: 본 문서는 Phase 0 범위 PRD 원문을 보존한다. 제품 전체 목표는
+> [GOOGLE_CLASS_SEARCH_STANDARD.md](GOOGLE_CLASS_SEARCH_STANDARD.md), 현재 상태는
+> [GAP_REGISTER.md](GAP_REGISTER.md), 제공자 결정은 [SEARCH_PROVIDER_STRATEGY.md](SEARCH_PROVIDER_STRATEGY.md)를 따른다.
+
 한국어 우선·영어 보조 검색 포털을 구축한다. 사용자는 입력→자체 색인 검색→제목/URL/설명 확인→출처 방문을 수행한다.
 Phase 0 고객은 개발자와 검수자이며, 합성 fixture라는 안내를 항상 제공한다.
 

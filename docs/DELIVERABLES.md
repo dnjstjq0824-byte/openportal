@@ -1,5 +1,9 @@
 # 산출물 목록: 변경 파일 + 라우터 URL + UX 의도
 
+> 2026-11-24 주: B안 작업 시점 산출물 기록(원문 보존). 이 중 관리자 API·UI(`gateway/server.mjs` admin 2종,
+> `/api/v2/admin/*`)는 2026-11-10 감사 시정(D-4)으로 전 경로 403 `ADMIN_DISABLED` 기본 거부로 전환되고
+> 핸들러 본문이 삭제됐다. 현행 상태는 [GAP_REGISTER.md](GAP_REGISTER.md)를 따른다.
+
 ## 1. 수정 파일 (14)
 
 - apps/mobile/lib/main.dart — ProviderScope + MaterialApp.router 진입점 교체

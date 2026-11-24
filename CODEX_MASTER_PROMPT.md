@@ -1,5 +1,9 @@
 # CODEX MASTER DIRECTIVE — OPENPORTAL SEARCH
 
+> 2026-11-24 주: 본문은 마스터 지시 원문을 보존한다. 현재 상태 유일 기준은 `docs/GAP_REGISTER.md`,
+> 목표 표준은 `docs/GOOGLE_CLASS_SEARCH_STANDARD.md`, 제공자 결정은 `docs/SEARCH_PROVIDER_STRATEGY.md`,
+> 최신 아키텍처는 `docs/ARCHITECTURE.md`다. `docs/PHASES_0_TO_9.md` 번호·체크박스는 불변이다.
+
 > 아래 전체 내용을 Codex의 초기 작업 지시로 사용한다. `CODEX_MASTER_PROMPT.md`, `docs/PHASES_0_TO_9.md`, `database/migrations/001_initial.sql` 등 기존 파일을 **먼저 읽고** 실행하라. 이 프로젝트의 역할은 설계/코드/실행/검증/결함수정/증적에 대한 기술 총괄이다.
 
 ## 0. 권한과 최우선 규칙

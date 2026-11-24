@@ -20,8 +20,8 @@
 | `proto/` | Protobuf v1 도메인 서비스 계약 및 Buf 설정 (`buf.yaml`, `buf.gen.yaml`) | 하위 호환성(`buf breaking`), 필드 번호 불변성, 타입 안전성 | `@dnjstjqppk-dev` |
 | `database/migrations/` | PostgreSQL 정방향 마이그레이션(`001_initial.sql`, `002_...` 등) | FK 무결성, 트랜잭션 안전성, 최소 권한(GRANT/RLS), 무손실 진화 | `@dnjstjqppk-dev` |
 | `apps/web/` | 사용자 검색 웹 포털 (Vue 3 / Nuxt 3 / TypeScript) | SSR 안전성, XSS 방어, 키보드·스크린리더 접근성, 반응형 UI, 한국어/영어 i18n | `@dnjstjqppk-dev` |
-| `apps/admin/` | 관리자 콘솔 (Phase 8 전까지 기본 거부·비활성) | OIDC + 피싱 저항 MFA, 최소 권한 RBAC, 2인 승인, 전체 감사로그 | `@dnjstjqppk-dev` |
-| `apps/partner/` | 파트너·웹마스터·광고주 센터 (Phase 7 전까지 기본 거부·비활성) | 테넌트 격리(BOLA 방어), 사이트 소유권 인증, 광고 원장 정합성 | `@dnjstjqppk-dev` |
+| `apps/admin/` (미생성, 계획 경로) | 관리자 콘솔 (구축 전까지 `/api/v2/admin/*` 403 기본 거부) | OIDC + 피싱 저항 MFA, 최소 권한 RBAC, 2인 승인, 전체 감사로그 | `@dnjstjqppk-dev` |
+| `apps/partner/` (미생성, 계획 경로) | 파트너·웹마스터·광고주 센터 (구축 전까지 기본 거부·비활성) | 테넌트 격리(BOLA 방어), 사이트 소유권 인증, 광고 원장 정합성 | `@dnjstjqppk-dev` |
 | `apps/mobile/` | Flutter Android/iOS 클라이언트 (Dart) | 모바일 접근성, 뒤로가기/키보드/딥링크, 릴리스 평문 HTTP 차단 | `@dnjstjqppk-dev` |
 | `infra/`, `.github/` | 로컬 Compose, 컨테이너 정의, GitHub Actions CI/보안 파이프라인 | 루프백 바인딩, 최소 권한 컨테이너, 공급망/SBOM/시크릿 스캔 | `@dnjstjqppk-dev` |
 | `scripts/`, `tests/` | 마이그레이션 러너, 계약 검증, 시드, Playwright E2E 회귀 테스트 | 결정적 재현성, 격리된 임시 DB 사용, 실제 엔진 검증 | `@dnjstjqppk-dev` |
@@ -37,5 +37,8 @@
    - 이미 커밋된 마이그레이션 SQL 파일 변조 금지(신규 번호 파일로만 정방향 확장).
    - Protobuf 및 OpenAPI/이벤트 스키마의 하위 호환성 파괴 금지.
    - 시크릿(`.env`, 개인키, API 토큰), `node_modules/`, 로컬 임시 DB(`work/`) 커밋 금지.
-4. **원격 저장소 브랜치 보호(Remote Branch Protection — 현재 차단)**:
-   - `.github/CODEOWNERS` 및 `.github/workflows/phase0.yml`이 정의되어 있으나, 현재 로컬 Git 저장소에 연결된 원격(GitHub 등) 호스팅 서버가 없으므로 서버 측 Branch Protection Rule(필수 상태 체크, 1인 이상 독립 리뷰 승인 강제, 강제 푸시 차단) 적용은 **원격 저장소 프로비저닝 전까지 차단(G011)** 상태다.
+4. **원격 저장소 브랜치 보호(Remote Branch Protection — 미검증)**:
+   - `.github/CODEOWNERS` 및 워크플로가 정의되어 있고, `origin` 원격(`github.com/dnjstjq0824-byte/openportal.git`)이
+     설정되어 있다 (2026-11-24 확인). 서버 측 Branch Protection Rule(필수 상태 체크, 독립 리뷰 승인 강제,
+     강제 푸시 차단)의 실제 적용 여부는 미검증이므로, 원격 설정 화면에서 확인 전까지 적용된 것으로 간주하지 않는다.
+   - 원격 CI 실행·이미지 서명은 F-5 BLOCKED 유지를 따른다.

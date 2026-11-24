@@ -1,5 +1,9 @@
 # Phase 0 위협 모델·리스크 레지스터·독립 승인 패키지 — 010
 
+> 2026-11-24 주: 본 문서는 Phase 0 기준 원문을 보존한다. "Docker·CGO·원격 CI 차단" 등 실행 환경 문구는
+> 2026-11-10 실측(Docker 29.9.2·`go test -race` Docker 통과)으로 일부 해소됐으며 최신 상태는
+> [GAP_REGISTER.md](GAP_REGISTER.md)가 유일 기준이다. 위협 분류·통제 표 자체는 유효하다.
+
 ## 1. 시스템 신뢰 경계 (Trust Boundaries)
 
 1. **공개 클라이언트 ↔ API 게이트웨이 경계 (`Browser / Mobile App` → `Go Gateway / API`)**

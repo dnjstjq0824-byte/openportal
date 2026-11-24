@@ -1,5 +1,7 @@
 # API and event contract / 007 & 014
 
+최종 현행화: 2026-11-24 (C-8 수직 501, D-4 관리자 거부, C-9 신고 반영).
+
 ## 0. Two-layer model (canonical)
 
 - Clients (web SPA, mobile, partner integrations) call the gateway surface `/api/v2/*` only.
@@ -11,17 +13,23 @@
 
 ## 1. REST Gateway Endpoints
 
-- `GET /api/v2/search`, `GET /api/v2/suggest`, `GET /api/v2/session`, auth 9종(username/signup/resend/verify/forgot-password/reset-password/login/logout/refresh), `PATCH|DELETE /api/v2/account`, mail 7종(mailboxes×2/messages/drafts/send/upload/attachments), admin 2종(overview/accounts): `docs/openapi/gateway.v2.yaml`.
+- `GET /api/v2/search`, `GET /api/v2/suggest`, `GET /api/v2/session`, auth 9종(username/signup/resend/verify/forgot-password/reset-password/login/logout/refresh), `PATCH|DELETE /api/v2/account`, `POST|GET /api/v2/report`(C-9 신고), `POST /api/v2/events`(Phase 3 익명 클릭 수집, 해시만), mail 계열(mailboxes/messages/drafts/send/upload): `docs/openapi/gateway.v2.yaml`.
+- `/api/v2/admin/*` 전 경로는 403 `ADMIN_DISABLED`으로 기본 거부한다 (D-4). 관리자 콘솔 구현 전까지 어떤 admin 하위 경로도 개방하지 않는다.
+- `/api/v2/search` 제공자 동작: `opensearch`·`local`은 자체 백엔드 프록시(page 1~100),
+  `brave`·`hybrid`는 page ≤ 10 + 외부 예산 적용 + 예산 소진 시 degraded 폴백.
+  `naver`·`mojeek`는 단일 외부 호출(page 1~100) + 제공자별 예산 적용, `total`은 제공자
+  응답값 그대로 전달한다. 외부 합집합(hybrid)의 `total`은 `null`(크기 미상 설계),
+  `corpus_kind`·`degraded`·`safe_search`를 함께 반환한다.
 - `GET /api/v1/search`: `q`(1~200 Unicode 문자, NFC/공백 정규화 적용), `page`(1~100, 기본 1), `lang`(`ko`/`en`, 선택), `safe_search`(`strict`/`moderate`/`off`, 선택), `vertical`(`web`/`image`/`news`/`video`/`map`/`shopping`, 기본 `web`).
   - REST page size는 10이다. 결과 JSON은 `docs/openapi.yaml` 및 도메인별 명세 `docs/openapi/search.v1.yaml`을 따른다.
   - 모든 요청에 `X-Request-Id` 및 `X-Correlation-Id`를 부여/전파하며, 오탈자/한영타 변환 시 `corrected_query`를 함께 반환한다.
-  - 비활성 수직검색(`image`, `news`, `video`, `map`, `shopping`) 요청 시 `403 Forbidden`(`VERTICAL_DISABLED`)을 반환한다.
+  - 비웹 수직검색(`image`, `news`, `video`, `map`, `shopping`) 요청 시 `501 Not Implemented`(`VERTICAL_NOT_IMPLEMENTED`)을 반환한다. 수직 인덱스 백엔드가 미연결이므로 빈 결과가 아닌 501이 정직한 상태다 (C-8).
 - `GET /api/v1/suggest`: `q` 필수. 자동완성 목록(`suggestions`)과 교정 제안(`corrected_query`)을 반환한다.
 - `GET /api/v1/portal/config`: 기능 플래그 기반 수직검색 탭 목록(`tabs`)과 콘솔 격리 상태를 반환한다(`docs/openapi/portal.v1.yaml`).
 - `POST /api/v1/auth/challenge`, `POST /api/v1/auth/verify`, `GET /api/v1/auth/session`, `POST /api/v1/auth/revoke`, `POST /api/v1/auth/mfa/enroll`, `POST /api/v1/auth/mfa/verify`, `POST /api/v1/auth/recover`: OIDC/Passkey 우선 인증, TOTP MFA, 복구 코드 및 세션 즉시 폐기(`docs/openapi/identity.v1.yaml`).
 - `GET|PUT /api/v1/accounts/{accountId}/preferences`, `GET|DELETE /api/v1/accounts/{accountId}/recent-searches`, `DELETE /api/v1/accounts/{accountId}/sessions/{sessionId}`, `GET /api/v1/organizations/{orgId}/sites/{siteId}`: 계정·역할·테넌트·객체별 소유권 검증(BOLA 기본 거부 `403`).
 - `GET /healthz`는 프로세스 생존, `GET /readyz`는 색인 검색 가능 여부다.
-- 성공 `200`, 잘못된 입력 `400`, 미인증 `401`, 권한/기능플래그/콘솔경계 거부 `403`, 미존재/미구현 관리자 경로 `404`, 잘못된 메서드 `405`, 검색 장애/부분 샤드 실패 `503`.
+- 성공 `200`, 잘못된 입력 `400`, 미인증 `401`, 권한/콘솔경계 거부 `403`, 미존재 경로 `404`, 잘못된 메서드 `405`, 미구현 수직·스텁 `501`, 검색 장애/부분 샤드 실패 `503`.
 - 별도 호스트(`admin.*`, `partner.*`)로 인입되는 요청은 게이트웨이 미들웨어에서 즉시 `403 CONSOLE_BOUNDARY_DENIED`로 차단한다(`018`).
 
 ## 2. Protobuf ↔ REST 브리지 및 이벤트 계약

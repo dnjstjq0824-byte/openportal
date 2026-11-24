@@ -1,5 +1,11 @@
 # OpenPortal Search — External Integrations & Commercial Partnership Master Blueprint
 
+> 2026-11-24 정정: 본 문서는 설계 목표·계약 표준안이며 "준비 완료/초과 달성" 판정이 아니다.
+> §6의 실측치(RTO 3분·RPO 12초·P99 <1.0ms·10,000 QPS 무장애)와 §7의 체크 표시는 운영 실측·서명 증적이
+> 없으므로 **미검증 목표치**로만 해석하고 완료 근거로 인용하지 않는다 (아카이브 glossy 보고서와 동일 사유).
+> 외부 계약·감사는 전부 BLOCKED(F-3·F-4·F-5)이며, 현재 상태 기준은 [GAP_REGISTER.md](GAP_REGISTER.md)다.
+> 제공자별 최신 판정은 [SEARCH_PROVIDER_STRATEGY.md](SEARCH_PROVIDER_STRATEGY.md)를 따른다.
+
 > **문서 상태:** 상용 런칭 준비(Commercial Readiness) 기술 규격서  
 > **적용 단계:** Phase 5 (수직 검색 제휴), Phase 6 (AI 엔터프라이즈 SLA), Phase 7 (광고·정산·웹마스터), Phase 8 (보안·IdP), Phase 9 (인프라 확장)  
 > **법적/기술적 효력:** 본 문서는 클라이언트사(운영 주체)와 외부 파트너(언론사, 지도 데이터사, 커머스 가맹점, 결제 대행사, IdP 인증 기관) 간의 기술 계약 표준으로 사용됩니다.

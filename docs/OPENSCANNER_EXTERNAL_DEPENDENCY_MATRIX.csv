@@ -1,28 +1,43 @@
 Package_or_API,Tier,Version,License,Purpose,Commercial_Readiness_Status,Blocking_Reason
 vue,Frontend,3.5.44,MIT,Reactive UI Framework,READY,None (Open Source)
-vite,Frontend,6.4.4,MIT,Next-Gen Frontend Tooling & Bundler,READY,None (Open Source)
+vite,Frontend,6.4.5,MIT,Next-Gen Frontend Tooling & Bundler,READY,None (Open Source)
 @vitejs/plugin-vue,Frontend,5.2.4,MIT,Vite plugin for Vue 3 SFCs,READY,None (Open Source)
+vue-router,Frontend,4.6.4,MIT,Client Routing,READY,None (Open Source)
+pinia,Frontend,3.0.4,MIT,State Management,READY,None (Open Source)
+vue-i18n,Frontend,11.4.18,MIT,Internationalization (ko/th/en),READY,None (Open Source)
 typescript,Frontend,5.9.3,Apache-2.0,Static Type Checking,READY,None (Open Source)
 vue-tsc,Frontend,3.3.1,MIT,Vue Type Validator,READY,None (Open Source)
 @playwright/test,QA/Test,1.64.1,Apache-2.0,End-to-End Browser Testing,READY,None (Open Source)
-pg,Backend/Node,8.16.3,MIT,PostgreSQL Client for Node tooling,READY,None (Open Source)
+pg,Backend/Node,8.16.3,MIT,PostgreSQL Client for Gateway,READY,None (Open Source)
+nodemailer,Backend/Node,10.3.1,MIT-0,Transactional SMTP Sending,READY,None (Open Source; real SMTP F-2)
+sanitize-html,Backend/Node,2.18.1,MIT,HTML Sanitization,READY,None (Open Source)
 embedded-postgres,Backend/Node,17.10.0-beta.17,PostgreSQL,Disposable Database Testing,READY,None (Open Source)
 ajv,Backend/Node,8.20.0,MIT,JSON Schema Validator,READY,None (Open Source)
 yaml,Backend/Node,2.8.3,ISC,YAML Parser,READY,None (Open Source)
 golang.org/x/net,Backend/Go,v0.62.0,BSD-3-Clause,HTML Parsing & Networking,READY,None (Open Source)
-golang.org/x/text,Backend/Go,v0.43.0,BSD-3-Clause,Unicode Normalization & Stemming,READY,None (Open Source)
-golang.org/x/oauth2,Backend/Go,v0.28.0,BSD-3-Clause,OAuth2 Client Protocols,READY,None (Open Source)
+golang.org/x/text,Backend/Go,v0.43.0,BSD-3-Clause,Unicode Normalization (indirect),READY,None (Open Source)
+golang.org/x/crypto,Backend/Go,v0.58.0,BSD-3-Clause,Standard KDF (bcrypt),READY,None (Open Source)
+golang.org/x/oauth2,Backend/Go,v0.28.0,BSD-3-Clause,OAuth2 Client Protocols (indirect),READY,None (Open Source)
+github.com/lib/pq,Backend/Go,v1.12.3,MIT,PostgreSQL Driver,READY,None (Open Source)
 google.golang.org/protobuf,Backend/Go,v1.36.12,BSD-3-Clause,Protocol Buffers Serialization,READY,None (Open Source)
 github.com/coreos/go-oidc/v3,Backend/Go,v3.17.0,Apache-2.0,OpenID Connect Identity Verification,READY,None (Open Source)
-github.com/go-jose/go-jose/v4,Backend/Go,v4.1.4,Apache-2.0,JWT & Cryptographic Signature Signing,READY,None (Open Source)
-Cloudflare Pages,Infrastructure,v2 Edge,Cloudflare Terms,Edge Worker Hosting & CDN,READY,Production deployed
-OpenSearch,Search Core,2.19.0,Apache-2.0,Distributed Full-Text Search Engine,READY,Active on port 9200
-PostgreSQL,Database Core,15+,PostgreSQL License,ACID Relational Storage (86 Tables),READY,Active & Migrations Verified
-Redis,Cache Subsystem,7.x,BSD-3-Clause,Fast In-Memory Autocomplete Trie,READY,Fallback to Memory Map active
-YouTube Data API v3,External Service,v3,Google API Terms,Live Video Search Federation,BLOCKED_EXTERNAL,Requires YOUTUBE_API_KEY & Google Cloud project approval
-Unsplash API,External Service,v1,Unsplash API Terms,High-Res Image Search Federation,BLOCKED_EXTERNAL,Requires UNSPLASH_ACCESS_KEY & Developer Application
-Mapbox GL / Geocoding,External Service,v2,Mapbox Terms,Interactive Maps & POI Geocoding,BLOCKED_EXTERNAL,Requires MAPBOX_ACCESS_TOKEN & Commercial Subscription
-NewsAPI / GDELT,External Service,v2,Commercial Terms,Live News Syndication Wire,BLOCKED_EXTERNAL,Requires NEWS_API_KEY & Commercial Media Licensing
-Stripe / Toss Payments,Payment Gateway,v1,Merchant Terms,Ad Ledger B2B Billing & Checkout,BLOCKED_EXTERNAL,Requires Corporate Merchant Contract & Gateway Keys
-AWS SES / SendGrid,Email Service,v1,Provider Terms,Production Email PIN & Password Delivery,BLOCKED_EXTERNAL,Requires Verified Production Domain SPF/DKIM & SMTP Auth
-Google Custom Search API,External Service,v1,Google Terms,Fallback Web Search Ingestion,BLOCKED_LEGAL,Direct scraping strictly prohibited by project rules
+github.com/go-jose/go-jose/v4,Backend/Go,v4.1.4,Apache-2.0,JWT & Cryptographic Signatures (indirect),READY,None (Open Source)
+Cloudflare Pages,Infrastructure,Edge,Cloudflare Terms,Edge Worker Hosting & CDN,UNVERIFIED,Deployment claim unverified; WEB_GATEWAY_ORIGIN unconfigured in wrangler.toml
+OpenSearch + analysis-nori,Search Core,2.19.0,Apache-2.0,Distributed Full-Text Search + Korean Morphology,READY,Local + Docker verified with Nori plugin
+PostgreSQL,Database Core,17.10,PostgreSQL License,ACID Relational Storage (8 schemas + webapp),READY,Migrations 001-018 verified; prod drill pending
+Redis,Cache/Counters,7.x,BSD-3-Clause,Distributed Abuse Burst Counters (optional),OPTIONAL,Unset REDIS_URL falls back to process-local memory (C-6)
+Brave Search API,Search Provider,res/v1,Brave API Terms,External Web Search (Track A: brave/hybrid modes),BLOCKED_EXTERNAL,Requires BRAVE_SEARCH_API_KEY + BRAVE_API_TERMS_APPROVED=true; storage contract W-05
+Naver OpenAPI (search),Search Provider Candidate,webkr/news/blog/image?,Naver Developer Terms,Domestic Korean Coverage Candidate,CONDITIONAL,R-02: revised terms acceptance + shopping status + full text review (U-02/U-03)
+Mojeek Search API,Search Provider Candidate,web only,Mojeek Terms,Global Web Coverage Candidate,CONDITIONAL,V-01: s/t semantics + field mapping review (W-02)
+Serper.dev,Search Provider Candidate,JSON SERP,Serper Terms,Global/Vertical Coverage Candidate,CONDITIONAL,V-02: P-02 params live verification + terms review (W-03)
+You.com API,Search Provider Candidate,offset 0-9,You.com MSA,Global Coverage Candidate,CONDITIONAL,V-03: MSA review + 10-page cap acceptance (W-04)
+Tavily Search API,Search Provider,POST /search,Tavily Terms,RAG-oriented Search API,REJECTED_UI,R-03: no pagination/verticals/total; unsuitable as primary UI provider
+Google Custom Search JSON API,Search Provider,v1,Google Terms,NOT a fallback option,REJECTED,New sales ended; shutdown 2027-01-01; direct scraping prohibited
+Bing Search API (public),Search Provider,retired,Microsoft Terms,Retired 2025-08-11,REJECTED,SEARCH_PROVIDER=bing refused at boot; stub 503
+Common Crawl (CC),Seed Corpus,monthly,WET/WAT/WARC + Columnar Index,Initial Korean Index Candidate,CONDITIONAL,R-04: allowlist-first selection + scale estimate pending (U-05)
+YouTube Data API v3,External Service,v3,Google API Terms,Video Search Federation Candidate,BLOCKED_EXTERNAL,No integration code and no contract (planning entry only)
+Unsplash API,External Service,v1,Unsplash API Terms,Image Search Federation Candidate,BLOCKED_EXTERNAL,No integration code and no contract (planning entry only)
+Mapbox GL / Geocoding,External Service,v2,Mapbox Terms,Interactive Maps & POI Geocoding Candidate,BLOCKED_EXTERNAL,No integration code and no contract (planning entry only)
+NewsAPI / GDELT,External Service,v2,Commercial Terms,News Syndication Wire Candidate,BLOCKED_EXTERNAL,No integration code and no contract (planning entry only)
+Stripe / Toss Payments,Payment Gateway,v1,Merchant Terms,Ad Ledger B2B Billing & Checkout,BLOCKED_EXTERNAL,Corporate merchant contract and gateway keys required (F-4/F-5)
+AWS SES / SendGrid,Email Service,v1,Provider Terms,Production Email Delivery Candidate,BLOCKED_EXTERNAL,Verified production domain SPF/DKIM and SMTP auth required (F-2)

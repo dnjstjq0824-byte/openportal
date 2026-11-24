@@ -1,6 +1,9 @@
 # Codex repository instructions
 
 - Read `CODEX_MASTER_PROMPT.md` and `docs/PHASES_0_TO_9.md` first.
+- `docs/GAP_REGISTER.md` is the single source of truth for status; targets live in
+  `docs/GOOGLE_CLASS_SEARCH_STANDARD.md`, provider decisions in `docs/SEARCH_PROVIDER_STRATEGY.md`.
+  Never cite `docs/archive/` or superseded snapshots as completion evidence.
 - Report source implementation separately from the 86-table baseline SQL schema and 100-task plan.
 - Never invent tests, deploys, approvals or commit hashes. Mark blocked work as blocked.
 - Phase gate needs runtime evidence; no stubs, placeholder mock results or merely documented features count as done.
