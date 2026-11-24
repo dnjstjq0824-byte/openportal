@@ -24,6 +24,7 @@ const mainClass = computed(() => ({
   'mail-main': route.name === 'mail',
   'search-main': route.name === 'search',
   'auth-main': isAuthRoute.value,
+  'login-main': route.name === 'login',
 }));
 
 function changeLanguage(event: Event): void {

@@ -18,6 +18,7 @@ const en = {
   doneTitle: 'Your account is ready', doneIntro: 'Your mailbox was created and you are signed in.', doneRecoverySent: 'A confirmation link was sent to your recovery email.', doneRecoveryNotSent: 'The recovery email confirmation could not be sent yet. You can resend it from your account page.', openMail: 'Open mailbox', goHome: 'Go to home',
   unavailable: 'New mailbox accounts cannot be created right now. Please try again later.',
   loginId: 'Email or username', loginIntro: 'Sign in with your OpenScanner username or email address.', forgotIntro: 'If the account has a confirmed recovery email, we will send a reset link there.',
+  noAccount: 'No account yet?', haveAccount: 'Already have an account?',
   recoveryStatus: 'Recovery email', verified: 'Confirmed', unverified: 'Not confirmed', resendRecovery: 'Send confirmation again', mailAddress: 'Mail address',
 };
 type SignupCopy = { [K in keyof typeof en]: string };
@@ -39,6 +40,7 @@ const ko: SignupCopy = {
   doneTitle: '계정이 만들어졌습니다', doneIntro: '메일함이 생성되었고 로그인되었습니다.', doneRecoverySent: '복구 이메일로 확인 링크를 보냈습니다.', doneRecoveryNotSent: '복구 이메일 확인 메일을 아직 보내지 못했습니다. 계정 화면에서 다시 보낼 수 있습니다.', openMail: '메일함 열기', goHome: '홈으로',
   unavailable: '지금은 새 메일 계정을 만들 수 없습니다. 잠시 후 다시 시도하세요.',
   loginId: '이메일 또는 아이디', loginIntro: 'OpenScanner 아이디 또는 이메일 주소로 로그인하세요.', forgotIntro: '확인된 복구 이메일이 있는 계정이면 그 주소로 재설정 링크를 보냅니다.',
+  noAccount: '아이디가 없으세요?', haveAccount: '이미 계정이 있으세요?',
   recoveryStatus: '복구 이메일', verified: '확인됨', unverified: '확인 필요', resendRecovery: '확인 메일 다시 보내기', mailAddress: '메일 주소',
 };
 const th: SignupCopy = {
@@ -59,6 +61,7 @@ const th: SignupCopy = {
   doneTitle: 'บัญชีของคุณพร้อมแล้ว', doneIntro: 'สร้างกล่องจดหมายแล้วและคุณได้เข้าสู่ระบบแล้ว', doneRecoverySent: 'ส่งลิงก์ยืนยันไปยังอีเมลสำรองแล้ว', doneRecoveryNotSent: 'ยังส่งอีเมลยืนยันไปยังอีเมลสำรองไม่ได้ คุณส่งอีกครั้งได้จากหน้าบัญชี', openMail: 'เปิดกล่องจดหมาย', goHome: 'ไปหน้าหลัก',
   unavailable: 'ขณะนี้ยังสร้างบัญชีอีเมลใหม่ไม่ได้ โปรดลองอีกครั้งภายหลัง',
   loginId: 'อีเมลหรือชื่อผู้ใช้', loginIntro: 'เข้าสู่ระบบด้วยชื่อผู้ใช้หรือที่อยู่อีเมล OpenScanner', forgotIntro: 'หากบัญชีมีอีเมลสำรองที่ยืนยันแล้ว เราจะส่งลิงก์รีเซ็ตไปที่อีเมลนั้น',
+  noAccount: 'ยังไม่มีบัญชีใช่ไหม?', haveAccount: 'มีบัญชีอยู่แล้วใช่ไหม?',
   recoveryStatus: 'อีเมลสำรอง', verified: 'ยืนยันแล้ว', unverified: 'ยังไม่ยืนยัน', resendRecovery: 'ส่งอีเมลยืนยันอีกครั้ง', mailAddress: 'ที่อยู่อีเมล',
 };
 export const signupMessages: Record<Locale, SignupCopy> = { en, ko, th };
