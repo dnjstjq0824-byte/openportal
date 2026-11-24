@@ -7,7 +7,8 @@ import { randomToken, digest, equal, hashPassword, verifyPassword, seal } from '
 import { emailText } from './translations.mjs';
 import { buildTransactionalEmail, createDualModeMailer } from './mailer.mjs';
 import { fail } from './mail.mjs';
-import { braveSearch, hybridSearch, readSearchJSON } from './search.mjs';
+import { executeProvider, quotaKeys, quotaLimits } from './providers.mjs';
+import { createTelemetry, hashQuery, validateClickEvent } from './telemetry.mjs';
 import { normalizeUsername, usernameProblem, usernameCandidates, parseProfile, displayNameFor } from './signup.mjs';
 import { cookieMap, readBody, readJSON, normalizeEmail, selectLocale } from './http.mjs';
 import { handleMailRoutes } from './routes-mail.mjs';
@@ -34,6 +35,14 @@ export async function createGateway(config, dependencies = {}) {
   const sessionName = config.production ? '__Host-op_session' : 'op_session';
   const csrfName = config.production ? '__Host-op_csrf' : 'op_csrf';
   const metrics=new Map();
+  // Phase 3 telemetry sink: bounded ring of provider call outcomes
+  // {provider, attempts, retried, breakerOpened, failureClass, latencyMs}.
+  // Exposed via /metrics; never contains queries, keys, or result payloads.
+  const providerOutcomes=[];
+  const recordProviderOutcome=(outcome)=>{providerOutcomes.push({...outcome,at:Date.now()});if(providerOutcomes.length>1000)providerOutcomes.splice(0,providerOutcomes.length-1000);};
+  const searchDegraded=new Map();
+  const telemetry=dependencies.telemetry||createTelemetry();
+  const noteImpression=(fields)=>{try{telemetry.impression(fields);}catch(error){console.error(JSON.stringify({event:'telemetry_loss',code:'IMPRESSION_FAILED'}));}};
   const cookie = (name, value, age) => `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${secure}`;
   async function rate(req, action, limit, windowSeconds = 900, subject = '') {
     const key = digest(`${config.rateSecret}:${action}:${subject || req.clientIp || req.socket.remoteAddress}`);
@@ -188,7 +197,29 @@ export async function createGateway(config, dependencies = {}) {
         let output='# HELP openportal_requests_total Gateway requests served.\n# TYPE openportal_requests_total counter\n';
         let durations='# HELP openportal_request_duration_seconds Gateway request latency.\n# TYPE openportal_request_duration_seconds summary\n';
         for(const[key,value]of metrics){const[family,status]=key.split(':');output+=`openportal_requests_total{family="${family}",status="${status}"} ${value.count}\n`;durations+=`openportal_request_duration_seconds_sum{family="${family}",status="${status}"} ${value.milliseconds/1000}\nopenportal_request_duration_seconds_count{family="${family}",status="${status}"} ${value.count}\n`;}
-        res.writeHead(200,{'Content-Type':'text/plain; version=0.0.4'});return res.end(output+durations);
+        // Phase 3: provider outcomes over the last <=1000 calls (windowed).
+        const latByProvider=new Map();const callsByOutcome=new Map();let retries=0;let breakerOpens=0;
+        for(const o of providerOutcomes){
+          const outcome=o.failureClass||'ok';
+          callsByOutcome.set(`${o.provider}:${outcome}`,(callsByOutcome.get(`${o.provider}:${outcome}`)||0)+1);
+          if(!latByProvider.has(o.provider))latByProvider.set(o.provider,[]);
+          latByProvider.get(o.provider).push(o.latencyMs);
+          if(o.retried)retries++;
+          if(o.breakerOpened)breakerOpens++;
+        }
+        let providerExposition='# HELP openportal_provider_calls_total Provider calls by outcome (last 1000).\n# TYPE openportal_provider_calls_total counter\n';
+        for(const[key,count]of callsByOutcome){const[prov,outcome]=key.split(':');providerExposition+=`openportal_provider_calls_total{provider="${prov}",outcome="${outcome}"} ${count}\n`;}
+        providerExposition+='# HELP openportal_provider_latency_ms Provider latency quantiles over the last 1000 calls.\n# TYPE openportal_provider_latency_ms summary\n';
+        for(const[prov,latencies]of latByProvider){
+          const sorted=[...latencies].sort((a,b)=>a-b);
+          const quantile=p=>sorted[Math.min(sorted.length-1,Math.ceil(p*sorted.length)-1)];
+          providerExposition+=`openportal_provider_latency_ms{provider="${prov}",quantile="0.5"} ${quantile(0.5)}\nopenportal_provider_latency_ms{provider="${prov}",quantile="0.95"} ${quantile(0.95)}\nopenportal_provider_latency_ms{provider="${prov}",quantile="0.99"} ${quantile(0.99)}\nopenportal_provider_latency_ms_count{provider="${prov}"} ${sorted.length}\n`;
+        }
+        providerExposition+=`# HELP openportal_provider_retries_total Provider calls that needed a retry.\n# TYPE openportal_provider_retries_total counter\nopenportal_provider_retries_total ${retries}\n`;
+        providerExposition+=`# HELP openportal_provider_breaker_open_total Provider calls rejected by an open circuit.\n# TYPE openportal_provider_breaker_open_total counter\nopenportal_provider_breaker_open_total ${breakerOpens}\n`;
+        providerExposition+='# HELP openportal_search_degraded_total Search responses served degraded.\n# TYPE openportal_search_degraded_total counter\n';
+        for(const[prov,count]of searchDegraded)providerExposition+=`openportal_search_degraded_total{provider="${prov}"} ${count}\n`;
+        res.writeHead(200,{'Content-Type':'text/plain; version=0.0.4'});return res.end(output+durations+providerExposition);
       }
       if (!path.startsWith('/api/v2/')) return respond(404, { code: 'NOT_FOUND' });
       await rate(req, 'global', 300, 60);
@@ -343,41 +374,89 @@ export async function createGateway(config, dependencies = {}) {
         const safeSearch = url.searchParams.get('safe_search') || 'moderate';
         if (!q || [...q].length>512 || !Number.isInteger(page) || page<1 || page>100) throw fail('INVALID_QUERY');
         if (!['strict', 'moderate', 'off'].includes(safeSearch)) throw fail('INVALID_INPUT', 400);
+        const experimentId = randomToken().slice(0, 16);
 
+        // RV-01: all providers resolve through the registry. Quota guards use
+        // per-provider buckets ({provider}-daily / {provider}-per-second).
+        const runProvider = (name, providerConfig) => executeProvider(name, { config: providerConfig, q, page, safeSearch, fetcher: searchFetch }, { onOutcome: recordProviderOutcome });
+        const guardQuota = async (provider) => {
+          const keys = quotaKeys(provider);
+          const limits = quotaLimits(config, provider);
+          if (!limits) return;
+          await rate(req, keys.daily, limits.daily, 86400, 'global');
+          await rate(req, keys.perSecond, limits.perSecond, 1, 'global');
+        };
         if (config.searchProvider === 'brave') {
           if (!config.braveApproved || !config.braveKey) throw fail('SEARCH_NOT_CONFIGURED', 503);
-          await rate(req, 'brave-daily', config.braveDailyLimit, 86400, 'global');
-          await rate(req, 'brave-per-second', config.braveRps, 1, 'global');
-          const braveRes = await braveSearch(config, q, page, { safeSearch, fetcher: searchFetch });
-          return respond(200, { ...braveRes, elapsed_ms: Math.round(performance.now() - started), has_more: Boolean(braveRes.hasMore ?? braveRes.has_more), safe_search: safeSearch });
+          await guardQuota('brave');
+          const { result: braveRes } = await runProvider('brave', config);
+          const braveMs = Math.round(performance.now() - started);
+          noteImpression({ requestId, experimentId, provider: 'brave', queryHash: hashQuery(q), hits: braveRes.hits.length, degraded: false, latencyMs: braveMs });
+          return respond(200, { ...braveRes, elapsed_ms: braveMs, has_more: Boolean(braveRes.hasMore ?? braveRes.has_more), safe_search: safeSearch });
+        }
+        if (config.searchProvider === 'naver') {
+          if (!config.naverApproved || !config.naverClientId || !config.naverClientSecret) throw fail('SEARCH_NOT_CONFIGURED', 503);
+          await guardQuota('naver');
+          const { result: naverRes } = await runProvider('naver', config);
+          const naverMs = Math.round(performance.now() - started);
+          noteImpression({ requestId, experimentId, provider: 'naver', queryHash: hashQuery(q), hits: naverRes.hits.length, degraded: false, latencyMs: naverMs });
+          return respond(200, { ...naverRes, elapsed_ms: naverMs, has_more: Boolean(naverRes.hasMore ?? naverRes.has_more), safe_search: safeSearch });
+        }
+        if (config.searchProvider === 'mojeek') {
+          if (!config.mojekApproved || !config.mojekKey) throw fail('SEARCH_NOT_CONFIGURED', 503);
+          await guardQuota('mojeek');
+          const { result: mojeekRes } = await runProvider('mojeek', config);
+          const mojeekMs = Math.round(performance.now() - started);
+          noteImpression({ requestId, experimentId, provider: 'mojeek', queryHash: hashQuery(q), hits: mojeekRes.hits.length, degraded: false, latencyMs: mojeekMs });
+          return respond(200, { ...mojeekRes, elapsed_ms: mojeekMs, has_more: Boolean(mojeekRes.hasMore ?? mojeekRes.has_more), safe_search: safeSearch });
         }
         if (config.searchProvider === 'hybrid') {
           let searchConfig=config;let budgetLimited=false;
           if(config.braveApproved && config.braveKey){
             if(page>10)throw fail('INVALID_QUERY');
             try{
-              await rate(req,'brave-daily',config.braveDailyLimit,86400,'global');
-              await rate(req,'brave-per-second',config.braveRps,1,'global');
+              // Hybrid's external leg IS Brave: it consumes the Brave account
+              // budget so brave/hybrid modes share one global quota.
+              await guardQuota('brave');
             }catch(error){if(error.status!==429)throw error;searchConfig={...config,braveApproved:false};budgetLimited=true;}
           }
-          const hybridRes = await hybridSearch(searchConfig, q, page, { safeSearch, fetcher: searchFetch });
-          return respond(200, { ...hybridRes, corpus_kind:config.corpusKind||'development', degraded: hybridRes.degraded||budgetLimited, has_more: hybridRes.hasMore, elapsed_ms: Math.round(performance.now() - started), safe_search: safeSearch });
+          const { result: hybridRes } = await runProvider('hybrid', searchConfig);
+          const hybridDegraded = hybridRes.degraded||budgetLimited;
+          const hybridMs = Math.round(performance.now() - started);
+          if (hybridDegraded) searchDegraded.set('hybrid', (searchDegraded.get('hybrid')||0)+1);
+          noteImpression({ requestId, experimentId, provider: 'hybrid', queryHash: hashQuery(q), hits: hybridRes.hits.length, degraded: hybridDegraded, latencyMs: hybridMs });
+          return respond(200, { ...hybridRes, corpus_kind:config.corpusKind||'development', degraded: hybridDegraded, has_more: hybridRes.hasMore, elapsed_ms: hybridMs, safe_search: safeSearch });
         }
-        const target = new URL('/api/v1/search', config.searchURL);
-        target.search = new URLSearchParams({ q, page: String(page), safe_search: safeSearch }).toString();
-        let upstream;
-        try { upstream = await searchFetch(target,{redirect:'error',signal:AbortSignal.timeout(8000)}); } catch { throw fail('SEARCH_UNAVAILABLE',503); }
-        if (!upstream.ok) throw fail(upstream.status===429?'RATE_LIMITED':'SEARCH_UNAVAILABLE',upstream.status===429?429:503);
-        const data = await readSearchJSON(upstream);
-        if (!Array.isArray(data.hits) || (data.total !== null && !Number.isInteger(data.total))) throw fail('SEARCH_UNAVAILABLE',502);
+        const { result: localRes } = await runProvider(config.searchProvider, config);
+        const localMs = Math.round(performance.now() - started);
+        noteImpression({ requestId, experimentId, provider: config.searchProvider, queryHash: hashQuery(q), hits: localRes.hits.length, degraded: false, latencyMs: localMs });
         return respond(200, {
-          ...data,
-          elapsed_ms: Math.round(performance.now() - started),
-          has_more: Boolean(data.has_more ?? (data.total !== null && page * 10 < data.total)),
+          ...localRes.upstream,
+          query: localRes.query,
+          total: localRes.total,
+          hits: localRes.hits,
+          elapsed_ms: localMs,
+          has_more: Boolean(localRes.hasMore),
           source: 'opensearch-index',
           corpus_kind: config.corpusKind||'development',
           safe_search: safeSearch,
         });
+      }
+      // Phase 3: anonymous click ingestion for online experiments (§6.3).
+      // Guest-capable (searches are guest-capable); CSRF + rate limit apply.
+      // Accepts hashes only — raw queries and URLs are rejected, never stored.
+      if (path === '/api/v2/events' && req.method === 'POST') {
+        await rate(req, 'events', 60, 60);
+        const body = await readJSON(req);
+        if (!body || !Array.isArray(body.events) || body.events.length === 0 || body.events.length > 50) throw fail('INVALID_INPUT');
+        let accepted = 0;
+        for (const raw of body.events) {
+          if (!raw || raw.type !== 'click') throw fail('INVALID_INPUT');
+          const valid = validateClickEvent(raw);
+          telemetry.click(valid);
+          accepted++;
+        }
+        return respond(202, { accepted });
       }
       const account = await user(req); if (!account) throw fail('SESSION_REQUIRED',401);
       if (path.startsWith('/api/v2/admin/')) {

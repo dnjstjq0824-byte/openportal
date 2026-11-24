@@ -30,13 +30,23 @@ function closeReport(): void {
   reportTarget.value = null;
 }
 
-const developmentIndex = computed(() => search.result && !['brave-api', 'bing-api'].includes(search.result.source || '') && search.result.corpus_kind !== 'approved-web');
+// External single-provider sources share the generic "external API" badge.
+// (Phase 2: retired 'bing-api' removed; verified 'naver-api' + 'mojeek-api' added.)
+const externalSources = ['brave-api', 'naver-api', 'mojeek-api'];
+const developmentIndex = computed(() => search.result && !externalSources.includes(search.result.source || '') && search.result.corpus_kind !== 'approved-web');
 const sourceLabel = computed(() =>
-  search.result?.source === 'brave-api' || search.result?.source === 'bing-api'
-    ? copy.value.sourceExternal
-    : search.result?.source === 'hybrid-rrf'
-      ? copy.value.sourceHybrid
-      : copy.value.sourceIndex
+  // Provider attributions (terms readings, U-03/W-05): Naver requires an
+  // explicit marking; Brave readings conflict (mandatory vs credit-linked),
+  // so the strict reading wins. Text only; logo use needs legal review.
+  search.result?.source === 'naver-api'
+    ? copy.value.sourceNaver
+    : search.result?.source === 'brave-api'
+      ? copy.value.sourceBrave
+      : search.result?.source && externalSources.includes(search.result.source)
+      ? copy.value.sourceExternal
+      : search.result?.source === 'hybrid-rrf'
+        ? copy.value.sourceHybrid
+        : copy.value.sourceIndex
 );
 type SearchErrorKind = 'offline' | 'rate' | 'timeout' | 'invalid' | 'unavailable';
 const errorKind = computed<SearchErrorKind>(

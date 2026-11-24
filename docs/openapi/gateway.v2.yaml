@@ -13,7 +13,7 @@ paths:
         '200': { description: '{user, csrf}' }
   /api/v2/search:
     get:
-      summary: Hybrid search (local index, optional approved external)
+      summary: Provider search (owned index; brave/naver/mojeek/hybrid when configured)
       parameters:
         - { name: q, in: query, required: true, schema: { type: string, maxLength: 512 } }
         - { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 1 } }
@@ -21,7 +21,8 @@ paths:
       responses:
         '200': { description: '{query, total, hits, has_more, degraded, source, did_you_mean?}' }
         '400': { description: INVALID_QUERY }
-        '503': { description: SEARCH_UNAVAILABLE }
+        '429': { description: RATE_LIMITED }
+        '503': { description: SEARCH_UNAVAILABLE | SEARCH_NOT_CONFIGURED | SPEC_UNVERIFIED }
   /api/v2/suggest:
     get:
       summary: Autocomplete backed by the engine, empty on outage
@@ -125,21 +126,39 @@ paths:
         - { name: attachmentId, in: path, required: true, schema: { type: string } }
       responses:
         '200': { description: application/octet-stream }
+  /api/v2/report:
+    post:
+      summary: File a search-result report (authenticated, 10/hour, C-9)
+      responses:
+        '201': { description: '{id, status, created_at}' }
+        '400': { description: INVALID_INPUT }
+        '401': { description: SESSION_REQUIRED }
+    get:
+      summary: List my reports (authenticated, latest 50)
+      responses:
+        '200': { description: '{reports[]}' }
+        '401': { description: SESSION_REQUIRED }
+  /api/v2/events:
+    post:
+      summary: Ingest anonymous click events for experiments (hashes only, C-9 style)
+      responses:
+        '202': { description: '{accepted}' }
+        '400': { description: INVALID_INPUT }
+        '403': { description: CSRF_REJECTED }
+        '429': { description: RATE_LIMITED }
   /api/v2/admin/overview:
     get:
-      summary: Operator counts and recent signups (admin only)
+      summary: DISABLED (D-4 deny-by-default) — reserved for a future operator console
       responses:
-        '200': { description: '{accounts, sessions, mailboxes, signups_24h, recent}' }
-        '403': { description: FORBIDDEN }
+        '403': { description: ADMIN_DISABLED }
   /api/v2/admin/accounts:
     get:
-      summary: Search accounts without credentials (admin only)
+      summary: DISABLED (D-4 deny-by-default) — reserved for a future operator console
       parameters:
         - { name: q, in: query, schema: { type: string, maxLength: 80 } }
         - { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 1 } }
       responses:
-        '200': { description: '{total, page, has_more, accounts}' }
-        '403': { description: FORBIDDEN }
+        '403': { description: ADMIN_DISABLED }
 components:
   schemas:
     Error:

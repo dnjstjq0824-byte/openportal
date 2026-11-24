@@ -2,7 +2,7 @@ import type { Locale } from './i18n';
 const en = {
   eyebrow: 'A clearer way to discover', homeTitle: 'Follow your curiosity.', homeIntro: 'Search the web, keep your place, and move on to what matters.',
   homeAside: 'Your next step, in one place.', mailDescription: 'Open your connected mailbox with your OpenScanner account.', settingsDescription: 'Choose your language, appearance and search preferences.', privacyDescription: 'Understand what is stored and stay in control.',
-  web: 'Web search', sourceIndex: 'Connected search index', sourceExternal: 'External search API', sourceHybrid: 'Combined search sources', sourceNote: 'Coverage depends on the connected source. External results are shown in their original language.', partial: 'Some search sources are unavailable. Results may be incomplete.',
+  web: 'Web search', sourceIndex: 'Connected search index', sourceExternal: 'External search API', sourceNaver: 'Naver search results', sourceBrave: 'Powered by Brave', sourceHybrid: 'Combined search sources', sourceNote: 'Coverage depends on the connected source. External results are shown in their original language.', partial: 'Some search sources are unavailable. Results may be incomplete.',
   authIntro: 'One account for your connected services.', signupIntro: 'Start with an email address you control.', forgotIntro: 'We will send a reset link if the account exists.', verifyIntro: 'Confirm the email address for your account.', resetIntro: 'Choose a new password for your account.',
   settingsIntro: 'Make this space work for you.', rememberSearches: 'Save recent searches on this device', historyHint: 'Off by default. Turning this off removes searches saved on this device.', clearHistory: 'Clear saved searches', preferencesSaved: 'Your preferences are saved on this device.',
   authUnavailable: 'The account service is temporarily unavailable. Please try again shortly.', showPassword: 'Show password', hidePassword: 'Hide password', help: 'Search tips', resultsTitle: 'Explore the results.',
@@ -19,7 +19,7 @@ type Copy = { [K in keyof typeof en]: string };
 const ko: Copy = {
   eyebrow: '더 명확하게 발견하는 방법', homeTitle: '궁금함을 따라, 더 넓게.', homeIntro: '웹에서 정보를 찾고, 하던 흐름을 이어가며, 중요한 일에 집중하세요.',
   homeAside: '다음 할 일까지, 한곳에서.', mailDescription: 'OpenScanner 계정으로 연결된 메일함을 여세요.', settingsDescription: '언어, 화면 테마와 검색 환경을 선택하세요.', privacyDescription: '어떤 정보가 저장되는지 확인하고 직접 관리하세요.',
-  web: '웹 검색', sourceIndex: '연결된 검색 색인', sourceExternal: '외부 검색 API', sourceHybrid: '통합 검색 공급원', sourceNote: '검색 범위는 연결된 공급원에 따라 다릅니다. 외부 검색 결과는 원문 언어로 표시합니다.', partial: '일부 검색 공급원에 연결하지 못했습니다. 결과가 제한될 수 있습니다.',
+  web: '웹 검색', sourceIndex: '연결된 검색 색인', sourceExternal: '외부 검색 API', sourceNaver: '네이버 검색결과', sourceBrave: 'Powered by Brave', sourceHybrid: '통합 검색 공급원', sourceNote: '검색 범위는 연결된 공급원에 따라 다릅니다. 외부 검색 결과는 원문 언어로 표시합니다.', partial: '일부 검색 공급원에 연결하지 못했습니다. 결과가 제한될 수 있습니다.',
   authIntro: '연결된 서비스를 하나의 계정으로.', signupIntro: '직접 확인할 수 있는 이메일 주소로 시작하세요.', forgotIntro: '계정이 존재하면 재설정 링크를 보내드립니다.', verifyIntro: '계정에 사용할 이메일 주소를 확인하세요.', resetIntro: '계정에 사용할 새 비밀번호를 입력하세요.',
   settingsIntro: '나에게 맞는 검색 공간을 만드세요.', rememberSearches: '이 기기에 최근 검색어 저장', historyHint: '기본값은 꺼짐입니다. 끄면 이 기기에 저장된 검색어를 삭제합니다.', clearHistory: '저장된 검색어 삭제', preferencesSaved: '설정은 이 기기에 저장됩니다.',
   authUnavailable: '계정 서비스에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도하세요.', showPassword: '비밀번호 표시', hidePassword: '비밀번호 숨기기', help: '검색 도움말', resultsTitle: '필요한 정보를 찾아보세요.',
@@ -35,7 +35,7 @@ const ko: Copy = {
 const th: Copy = {
   eyebrow: 'ค้นพบอย่างชัดเจนยิ่งขึ้น', homeTitle: 'ค้นพบไปกับความอยากรู้', homeIntro: 'ค้นหาข้อมูลบนเว็บ ทำสิ่งที่ค้างไว้ต่อ และมุ่งไปที่สิ่งสำคัญ',
   homeAside: 'ก้าวต่อไปของคุณ รวมไว้ในที่เดียว', mailDescription: 'เปิดกล่องจดหมายที่เชื่อมต่อด้วยบัญชี OpenScanner', settingsDescription: 'เลือกภาษา ธีม และการตั้งค่าการค้นหา', privacyDescription: 'ตรวจสอบข้อมูลที่จัดเก็บและจัดการได้ด้วยตัวคุณเอง',
-  web: 'ค้นหาเว็บ', sourceIndex: 'ดัชนีค้นหาที่เชื่อมต่อ', sourceExternal: 'API ค้นหาภายนอก', sourceHybrid: 'แหล่งค้นหาแบบผสม', sourceNote: 'ขอบเขตขึ้นอยู่กับแหล่งข้อมูลที่เชื่อมต่อ ผลลัพธ์ภายนอกแสดงในภาษาต้นฉบับ', partial: 'แหล่งค้นหาบางส่วนไม่พร้อมใช้งาน ผลลัพธ์อาจไม่ครบถ้วน',
+  web: 'ค้นหาเว็บ', sourceIndex: 'ดัชนีค้นหาที่เชื่อมต่อ', sourceExternal: 'API ค้นหาภายนอก', sourceNaver: 'ผลการค้นหา Naver', sourceBrave: 'Powered by Brave', sourceHybrid: 'แหล่งค้นหาแบบผสม', sourceNote: 'ขอบเขตขึ้นอยู่กับแหล่งข้อมูลที่เชื่อมต่อ ผลลัพธ์ภายนอกแสดงในภาษาต้นฉบับ', partial: 'แหล่งค้นหาบางส่วนไม่พร้อมใช้งาน ผลลัพธ์อาจไม่ครบถ้วน',
   authIntro: 'บัญชีเดียวสำหรับบริการที่เชื่อมต่อ', signupIntro: 'เริ่มด้วยอีเมลที่คุณเป็นเจ้าของ', forgotIntro: 'เราจะส่งลิงก์ตั้งรหัสผ่านใหม่หากมีบัญชีนี้อยู่', verifyIntro: 'ยืนยันที่อยู่อีเมลสำหรับบัญชีของคุณ', resetIntro: 'เลือกรหัสผ่านใหม่สำหรับบัญชีของคุณ',
   settingsIntro: 'ปรับพื้นที่นี้ให้เหมาะกับคุณ', rememberSearches: 'บันทึกการค้นหาล่าสุดบนอุปกรณ์นี้', historyHint: 'ปิดไว้เป็นค่าเริ่มต้น การปิดจะลบการค้นหาที่บันทึกบนอุปกรณ์นี้', clearHistory: 'ลบการค้นหาที่บันทึก', preferencesSaved: 'บันทึกการตั้งค่าไว้บนอุปกรณ์นี้',
   authUnavailable: 'บริการบัญชีไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งภายหลัง', showPassword: 'แสดงรหัสผ่าน', hidePassword: 'ซ่อนรหัสผ่าน', help: 'เคล็ดลับการค้นหา', resultsTitle: 'สำรวจผลการค้นหา',

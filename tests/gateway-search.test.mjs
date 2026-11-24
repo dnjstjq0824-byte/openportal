@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeURL, rrfMerge, braveSearch, bingSearch, hybridSearch } from '../gateway/search.mjs';
+import { normalizeURL, rrfMerge, braveSearch, hybridSearch } from '../gateway/search.mjs';
+import { configuration } from '../gateway/config.mjs';
 
 test('normalizeURL strips trailing slashes, downcases hostname, and handles ports', () => {
   assert.equal(normalizeURL('https://EXAMPLE.ORG/path/'), 'https://example.org/path');
@@ -59,10 +60,22 @@ test('braveSearch correctly handles API response and query parameter limits', as
   assert.equal(res.source, 'brave-api');
 });
 
-test('retired Bing adapter never makes a network request', async () => {
-  let called = false;
-  await assert.rejects(bingSearch({bingApproved:true,bingKey:'test-key'},'query',1,{fetcher:()=>{called=true;}}), error=>error.code === 'SEARCH_PROVIDER_RETIRED' || error.message === 'SEARCH_PROVIDER_RETIRED');
-  assert.equal(called,false);
+test('retired Bing provider is refused at boot and has no adapter', async () => {
+  const searchModule = await import('../gateway/search.mjs');
+  assert.equal(typeof searchModule.bingSearch, 'undefined');
+  assert.throws(() => configuration({ SEARCH_PROVIDER: 'bing' }), /retired/);
+});
+test('spec-unverified providers are refused at boot with the missing confirmation', () => {
+  assert.throws(() => configuration({ SEARCH_PROVIDER: 'serper' }), /SPEC_UNVERIFIED.*W-03/);
+  assert.throws(() => configuration({ SEARCH_PROVIDER: 'youcom' }), /SPEC_UNVERIFIED.*W-04/);
+  assert.equal(configuration({ SEARCH_PROVIDER: 'mojeek' }).searchProvider, 'mojeek');
+});
+test('production boot requires credentials x approval for the selected external provider', () => {
+  assert.throws(() => configuration({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://test.example', DATABASE_URL: 'postgres://u@/d', RATE_LIMIT_SECRET: 's', GATEWAY_SHARED_SECRET: 'g', SEARCH_PROVIDER: 'brave' }), /BRAVE_SEARCH_API_KEY/);
+  assert.throws(() => configuration({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://test.example', DATABASE_URL: 'postgres://u@/d', RATE_LIMIT_SECRET: 's', GATEWAY_SHARED_SECRET: 'g', SEARCH_PROVIDER: 'naver' }), /NAVER_CLIENT_ID/);
+  assert.throws(() => configuration({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://test.example', DATABASE_URL: 'postgres://u@/d', RATE_LIMIT_SECRET: 's', GATEWAY_SHARED_SECRET: 'g', SEARCH_PROVIDER: 'mojeek' }), /MOJEK_API_KEY/);
+  const ok = configuration({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://test.example', DATABASE_URL: 'postgres://u@/d', RATE_LIMIT_SECRET: 's', GATEWAY_SHARED_SECRET: 'g', SEARCH_PROVIDER: 'naver', NAVER_CLIENT_ID: 'id', NAVER_CLIENT_SECRET: 'secret', NAVER_API_TERMS_APPROVED: 'true' });
+  assert.equal(ok.searchProvider, 'naver');
 });
 test('hybridSearch merges local backend and external API using RRF', async () => {
   const mockConfig = {
